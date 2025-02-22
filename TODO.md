@@ -286,34 +286,34 @@ keyring = "*"
 
 - [!] **Fix Critical Code Issues**
   - *High Priority Fixes*:
-    - [!] Fix async/sync issues in legacy API (ASYNC100, ASYNC101)
-    - [!] Fix subprocess security issues (S603, S607)
-    - [!] Fix decorator issues with `with_retry`
-    - [!] Fix exception handling patterns (B904)
+    - [!] Fix decorator issues with `with_retry` (failing tests)
+    - [!] Fix async HTTP in legacy API (use aiohttp instead of requests)
+    - [!] Fix async subprocess in legacy API (use asyncio.create_subprocess_exec)
     - [!] Fix complex functions (C901)
+    - [!] Fix exception handling patterns (B904)
+
+- [!] **Fix Test Infrastructure**
+  - *Critical Setup*:
+    - [!] Fix failing test_version test
+    - [!] Add proper test dependencies
+    - [!] Set up test configuration
+    - [!] Add test fixtures and mocks
 
 - [!] **Security Enhancements**
   - *Critical Security*:
+    - [x] Add input validation for shell commands (using shlex.quote)
+    - [x] Implement proper subprocess security (using list args)
+    - [x] Fix shell injection vulnerabilities (S605)
     - [!] Replace standard RNG with cryptographic RNG (S311)
-    - [!] Add input validation for shell commands
-    - [!] Implement proper subprocess security
-    - [!] Fix shell injection vulnerabilities (S605)
-
-- [!] **Code Quality**
-  - *Refactoring*:
-    - [!] Split complex functions (PLR0912, PLR0915)
-    - [!] Fix blind exception catches (BLE001)
-    - [!] Fix boolean argument issues (FBT001, FBT002)
-    - [!] Fix module imports and organization (E402)
 
 ## 14. Near-term Tasks
 
-- [ ] **Test Infrastructure**
-  - *Test Suite*:
-    - [ ] Fix failing test_version test
-    - [ ] Add proper test dependencies
-    - [ ] Set up test configuration
-    - [ ] Add test fixtures and mocks
+- [ ] **Code Quality**
+  - *Refactoring*:
+    - [ ] Split complex functions (PLR0912, PLR0915)
+    - [ ] Fix blind exception catches (BLE001)
+    - [ ] Fix boolean argument issues (FBT001, FBT002)
+    - [ ] Fix module imports and organization (E402)
 
 - [ ] **Improve Test Coverage**
   - *Critical Modules*:

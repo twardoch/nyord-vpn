@@ -11,4 +11,4 @@ Periodically do:
 uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; hatch test; 
 ```
 
-and react to the results.
+and react to the results. Use `uv pip...` instead of `pip...` if needed. 

@@ -3,6 +3,8 @@
 import logging
 import sys
 from pathlib import Path
+from dataclasses import dataclass
+from typing import Optional
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -11,29 +13,35 @@ from rich.logging import RichHandler
 console = Console()
 
 
-def setup_logging(
-    level: str | int = logging.INFO,
-    log_file: Path | None = None,
-    rich_output: bool = True,
-) -> logging.Logger:
+@dataclass
+class LogConfig:
+    """Logging configuration."""
+
+    level: str | int = logging.INFO
+    log_file: Optional[Path] = None
+    use_rich_output: bool = True
+
+
+def setup_logging(config: LogConfig | None = None) -> logging.Logger:
     """Setup logging configuration.
 
     Args:
-        level: Logging level
-        log_file: Optional file to log to
-        rich_output: Whether to use rich output
+        config: Optional logging configuration
 
     Returns:
         Logger instance
     """
+    if config is None:
+        config = LogConfig()
+
     # Create logger
     logger = logging.getLogger("nyord_vpn")
-    logger.setLevel(level)
+    logger.setLevel(config.level)
 
     # Remove existing handlers
     logger.handlers.clear()
 
-    if rich_output:
+    if config.use_rich_output:
         # Rich console handler
         console_handler = RichHandler(console=console, show_time=True, show_path=False)
     else:
@@ -46,9 +54,9 @@ def setup_logging(
 
     logger.addHandler(console_handler)
 
-    if log_file:
+    if config.log_file:
         # File handler
-        file_handler = logging.FileHandler(log_file)
+        file_handler = logging.FileHandler(config.log_file)
         formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )

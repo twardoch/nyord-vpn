@@ -2,6 +2,8 @@
 
 import asyncio
 from pathlib import Path
+import sys
+from typing import NoReturn
 
 import fire
 from rich.console import Console
@@ -13,6 +15,14 @@ from nyord_vpn.core.exceptions import VPNError
 from nyord_vpn.utils.logging import log_error, log_success, setup_logging
 
 console = Console()
+
+
+def exit_with_error(message: str, error: Exception | None = None) -> NoReturn:
+    """Exit with error message and optional exception."""
+    log_error(message)
+    if error:
+        console.print(f"[red]Details: {error}[/red]")
+    sys.exit(1)
 
 
 class CLI:
@@ -82,8 +92,11 @@ class CLI:
         try:
             asyncio.run(_connect())
         except VPNError as e:
-            log_error(f"Failed to connect: {e}")
-            raise SystemExit(1)
+            exit_with_error("Failed to connect", e)
+        except asyncio.CancelledError as e:
+            exit_with_error("Connection cancelled", e)
+        except Exception as e:
+            exit_with_error("Unexpected error during connection", e)
 
     def disconnect(self) -> None:
         """Disconnect from VPN."""
@@ -103,8 +116,11 @@ class CLI:
             asyncio.run(_disconnect())
             log_success("Disconnected from VPN")
         except VPNError as e:
-            log_error(f"Failed to disconnect: {e}")
-            raise SystemExit(1)
+            exit_with_error("Failed to disconnect", e)
+        except asyncio.CancelledError as e:
+            exit_with_error("Disconnection cancelled", e)
+        except Exception as e:
+            exit_with_error("Unexpected error during disconnection", e)
 
     def status(self) -> None:
         """Show VPN connection status."""
@@ -125,8 +141,11 @@ class CLI:
         try:
             asyncio.run(_status())
         except VPNError as e:
-            log_error(f"Failed to get status: {e}")
-            raise SystemExit(1)
+            exit_with_error("Failed to get status", e)
+        except asyncio.CancelledError as e:
+            exit_with_error("Status check cancelled", e)
+        except Exception as e:
+            exit_with_error("Unexpected error while checking status", e)
 
     def list_countries(self) -> None:
         """List available countries."""
@@ -141,17 +160,22 @@ class CLI:
         try:
             asyncio.run(_list())
         except VPNError as e:
-            log_error(f"Failed to list countries: {e}")
-            raise SystemExit(1)
+            exit_with_error("Failed to list countries", e)
+        except asyncio.CancelledError as e:
+            exit_with_error("Country listing cancelled", e)
+        except Exception as e:
+            exit_with_error("Unexpected error while listing countries", e)
 
 
-def main():
+def main() -> None:
     """CLI entry point."""
     try:
         fire.Fire(CLI)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled by user[/yellow]")
+        sys.exit(1)
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise SystemExit(1)
+        exit_with_error("Unexpected error", e)
 
 
 if __name__ == "__main__":

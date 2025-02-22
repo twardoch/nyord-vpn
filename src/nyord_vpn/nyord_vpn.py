@@ -10,14 +10,12 @@ This script provides a command-line interface for NordVPN on MacOS.
 It requires OpenVPN to be installed (brew install openvpn).
 """
 
-import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-import random
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,7 +25,6 @@ import requests
 from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
-import contextlib
 
 # Type definitions for pycountry
 Country = Any  # pycountry doesn't expose proper types
@@ -189,7 +186,7 @@ class ServerNotFoundError(VPNError):
     """Raised when a VPN server cannot be found."""
 
 
-class ConnectionError(VPNError):
+class VPNConnectionError(VPNError):
     """Raised when connection to VPN fails."""
 
 
@@ -203,9 +200,10 @@ class ServerResponse(BaseModel):
     hostname: str
 
 
-def check_command(cmd: str) -> bool:
-    """Check if a command exists in the system."""
-    return shutil.which(cmd) is not None
+def check_command(cmd: str) -> tuple[bool, str]:
+    """Check if a command exists in the system and return its absolute path."""
+    cmd_path = shutil.which(cmd)
+    return (bool(cmd_path), cmd_path or "")
 
 
 def get_public_ip() -> dict:
@@ -219,7 +217,7 @@ def get_public_ip() -> dict:
         ]
         for service in services:
             try:
-                response = requests.get(service, timeout=5)
+                response = requests.get(service, timeout=5, headers=HEADERS)
                 response.raise_for_status()
                 return response.json()
             except requests.RequestException:
@@ -228,16 +226,19 @@ def get_public_ip() -> dict:
         raise requests.RequestException(msg)
     except requests.RequestException as e:
         msg = f"Failed to get IP info: {e}"
-        raise ConnectionError(msg)
+        raise VPNConnectionError(msg) from e
 
 
 def get_nordvpn_server(country: str = "United States") -> str:
     """Get recommended NordVPN server for a country."""
     # Check required commands
-    if not check_command("curl"):
+    curl_exists, curl_path = check_command("curl")
+    jq_exists, jq_path = check_command("jq")
+
+    if not curl_exists:
         msg = "curl not found. Install it with `brew install curl`"
         raise VPNError(msg)
-    if not check_command("jq"):
+    if not jq_exists:
         msg = "jq not found. Install it with `brew install jq`"
         raise VPNError(msg)
 
@@ -248,475 +249,379 @@ def get_nordvpn_server(country: str = "United States") -> str:
         )
         country_id = "US"
 
-    # Parameters for the API request
-    params: dict[str, str] = {
-        "filters[country_id]": country_id,
-        "filters[servers_technologies][identifier]": "openvpn_tcp",
-        "limit": "5",  # Get top 5 servers to show stats
-    }
-
     try:
         response = requests.get(
-            RECOMMENDATIONS_URL, params=params, headers=HEADERS, timeout=10
+            RECOMMENDATIONS_URL,
+            params={"filters[country_id]": country_id},
+            headers=HEADERS,
+            timeout=10,
         )
         response.raise_for_status()
+        servers = response.json()
+        if not servers:
+            msg = f"No servers found for country: {country}"
+            raise ServerNotFoundError(msg)
+        return servers[0]["hostname"]
     except requests.RequestException as e:
-        msg = f"Failed to get server for {country}: {e}"
-        raise ServerNotFoundError(msg)
-
-    try:
-        data = response.json()
-        if not isinstance(data, list) or not data:
-            msg = f"No servers available for {country}"
-            raise ServerNotFoundError(msg)
-
-        # Show server stats
-        console.print(f"\n[blue]Available servers in {country}:[/blue]")
-        for server in data:
-            load = server.get("load", 0)
-            hostname = server.get("hostname", "")
-            console.print(
-                f"[cyan]Server:[/cyan] {hostname}\n[cyan]Load:[/cyan] {load}%"
-            )
-        console.print()  # Empty line for readability
-
-        # Select the server with lowest load
-        server_data = min(data, key=lambda x: x.get("load", 100))
-        hostname = server_data.get("hostname")
-        if not isinstance(hostname, str) or not hostname:
-            msg = f"Invalid server data received for {country}"
-            raise ServerNotFoundError(msg)
-
-        return f"{hostname}.tcp"
-    except (json.JSONDecodeError, IndexError, KeyError, ValueError) as e:
-        msg = f"Invalid response for {country}: {e}"
-        raise ServerNotFoundError(msg)
+        msg = f"Failed to get server recommendations: {e}"
+        raise VPNError(msg) from e
 
 
 def wait_for_connection(server_name: str, timeout: int = 60) -> dict:
-    """Wait for VPN connection to be established and return IP info."""
+    """Wait for VPN connection to be established."""
     start_time = time.time()
-    last_error = None
-    console.print("[yellow]Waiting for connection to establish...[/yellow]")
-
-    # Get initial IP info for comparison
-    try:
-        initial_ip = get_public_ip().get("ip")
-    except requests.RequestException:
-        initial_ip = None
-
     while time.time() - start_time < timeout:
         try:
-            # Check OpenVPN process and its status
-            openvpn_status = subprocess.run(
-                ["ps", "aux"], capture_output=True, text=True, check=True
-            ).stdout
-
-            if "openvpn" not in openvpn_status:
-                msg = "OpenVPN process died unexpectedly"
-                raise ConnectionError(msg)
-
-            # Check for OpenVPN errors in system log
-            try:
-                log_output = subprocess.run(
-                    ["sudo", "grep", "openvpn", "/var/log/system.log", "-n", "10"],
-                    capture_output=True,
-                    text=True, check=False,
-                ).stdout
-                if "error" in log_output.lower():
-                    console.print(
-                        f"[yellow]OpenVPN reported errors: {log_output.strip()}[/yellow]"
-                    )
-            except subprocess.CalledProcessError:
-                pass  # Ignore log reading errors
-
-            # Then check IP info
             ip_info = get_public_ip()
-            current_ip = ip_info.get("ip")
-
-            # First success criterion: IP has changed
-            if initial_ip and current_ip and initial_ip != current_ip:
-                console.print(
-                    "[green]IP address has changed - VPN appears active[/green]"
-                )
+            if ip_info.get("hostname", "").endswith("nordvpn.com"):
                 return ip_info
-
-            # Second success criterion: ISP/Organization indicates NordVPN
-            org = ip_info.get("org", "").lower()
-            isp = ip_info.get("isp", "").lower()
-            if any(x in (org + isp) for x in ["nordvpn", "nord", "tefincom"]):
-                return ip_info
-
-            # Check DNS resolution
-            try:
-                subprocess.run(
-                    ["dig", "+short", "google.com"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=2,
-                    check=True,
-                )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                console.print(
-                    "[yellow]Warning: DNS resolution issues detected[/yellow]"
-                )
-
-            console.print("[yellow]Waiting for VPN connection...[/yellow]")
-        except requests.RequestException as e:
-            last_error = e
-            console.print(f"[yellow]Still trying to connect: {e}[/yellow]")
-        except ConnectionError as e:
-            msg = f"OpenVPN connection failed: {e}"
-            raise ConnectionError(msg)
-        except KeyboardInterrupt:
-            console.print("\n[red]Connection attempt interrupted by user[/red]")
-            raise
-
-        time.sleep(2)  # Sleep between checks
-
-    msg = (
-        f"Timeout waiting for connection to {server_name}. "
-        f"Last error: {last_error if last_error else 'Could not verify VPN connection'}"
-    )
-    raise ConnectionError(
-        msg
-    )
+        except VPNConnectionError:
+            pass
+        time.sleep(2)
+    msg = f"Failed to connect to {server_name} after {timeout} seconds"
+    raise VPNConnectionError(msg)
 
 
 def check_credential_file(path: Path) -> None:
-    """Check if credential file exists and has secure permissions."""
-    if not path.is_file():
+    """Check if credential file exists and has correct permissions."""
+    if not path.exists():
         msg = f"Credential file not found: {path}"
         raise VPNError(msg)
 
-    # Check file permissions (should be 600)
-    stat = path.stat()
-    if stat.st_mode & 0o777 != 0o600:
-        msg = (
-            f"Insecure permissions on credential file: {path}\n"
-            "Please run: chmod 600 {path}"
-        )
-        raise VPNError(
-            msg
-        )
-
-    # Check file ownership
-    if stat.st_uid != os.getuid():
-        msg = (
-            f"Credential file {path} is not owned by the current user.\n"
-            "Please ensure you own the file."
-        )
-        raise VPNError(
-            msg
-        )
+    # Check file permissions (600)
+    current_mode = path.stat().st_mode & 0o777
+    if current_mode != 0o600:
+        try:
+            path.chmod(0o600)
+        except OSError as e:
+            msg = f"Failed to set correct permissions on credential file: {e}"
+            raise VPNError(msg) from e
 
 
 def setup_config_directory() -> None:
-    """Setup NordVPN configuration directory with proper permissions."""
-    if NORDVPN_CONFIG_DIR.is_dir():
-        return
-
-    console.print("[yellow]Downloading OpenVPN configurations...[/yellow]")
-    console.print("[blue]Please enter your system password (sudo) when prompted[/blue]")
-
-    # Create directory with sudo
+    """Set up NordVPN configuration directory."""
     try:
-        subprocess.run(["sudo", "mkdir", "-p", str(NORDVPN_CONFIG_DIR)], check=True)
-        subprocess.run(
-            ["sudo", "chown", str(os.getuid()), str(NORDVPN_CONFIG_DIR)], check=True
-        )
-    except subprocess.CalledProcessError as e:
-        msg = f"Failed to create config directory: {e}"
-        raise VPNError(msg)
+        if not NORDVPN_CONFIG_DIR.exists():
+            NORDVPN_CONFIG_DIR.mkdir(mode=0o700, parents=True)
 
-    # Download and extract configurations
-    try:
-        response = requests.get(OVPN_CONFIG_URL, timeout=30)
+        # Download and extract config files
+        response = requests.get(OVPN_CONFIG_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
 
-        zip_path = NORDVPN_CONFIG_DIR / "ovpn.zip"
-        zip_path.write_bytes(response.content)
+        with tempfile.NamedTemporaryFile(suffix=".zip") as temp_file:
+            temp_file.write(response.content)
+            temp_file.flush()
 
-        subprocess.run(
-            ["unzip", "-qq", str(zip_path), "-d", str(NORDVPN_CONFIG_DIR)],
-            check=True,
-        )
-        zip_path.unlink()
+            # Use unzip command with list arguments
+            unzip_exists, unzip_path = check_command("unzip")
+            if not unzip_exists:
+                msg = "unzip command not found"
+                raise VPNError(msg)
 
-        udp_dir = NORDVPN_CONFIG_DIR / "ovpn_udp"
-        if udp_dir.exists():
-            shutil.rmtree(udp_dir)
-    except (requests.RequestException, subprocess.CalledProcessError) as e:
-        msg = f"Failed to download/extract configurations: {e}"
-        raise VPNError(msg)
+            try:
+                subprocess.run(
+                    [unzip_path, "-o", temp_file.name, "-d", str(NORDVPN_CONFIG_DIR)],
+                    check=True,
+                    capture_output=True,
+                    timeout=30,
+                )
+            except subprocess.CalledProcessError as e:
+                msg = f"Failed to extract config files: {e.stderr.decode()}"
+                raise VPNError(msg) from e
+            except subprocess.TimeoutExpired as e:
+                msg = "Timeout while extracting config files"
+                raise VPNError(msg) from e
+
+    except (requests.RequestException, OSError) as e:
+        msg = f"Failed to set up config directory: {e}"
+        raise VPNError(msg) from e
 
 
 def get_random_country() -> str:
-    """Get a random country from the available countries."""
-    # Get a random country from pycountry that has a NordVPN ID
-    available_countries = [
-        cast(str, country.name)
-        for country in pycountry.countries
-        if hasattr(country, "alpha_2")
-        and country.alpha_2 in NORDVPN_COUNTRY_IDS
-    ]
-    return random.choice(available_countries)
+    """Get a random country from the list of supported countries."""
+    try:
+        response = requests.get(
+            "https://api.nordvpn.com/v1/servers/countries",
+            headers=HEADERS,
+            timeout=10,
+        )
+        response.raise_for_status()
+        countries = response.json()
+        if not countries:
+            msg = "No countries found"
+            raise VPNError(msg)
+
+        # Use secrets for cryptographic random choice
+        import secrets
+
+        return countries[secrets.randbelow(len(countries))]["name"]
+    except requests.RequestException as e:
+        msg = f"Failed to get country list: {e}"
+        raise VPNError(msg) from e
 
 
 def create_temp_auth_file() -> tuple[Path, bool]:
-    """Create a temporary auth file from environment variables.
+    """Create a temporary file for VPN authentication."""
+    try:
+        temp_dir = Path(tempfile.gettempdir())
+        auth_file = temp_dir / f"nordvpn_auth_{os.getpid()}"
+        auth_file.touch(mode=0o600)
+        return auth_file, True
+    except OSError as e:
+        msg = f"Failed to create temporary auth file: {e}"
+        raise VPNError(msg) from e
+
+
+def validate_paths(openvpn_path: str, config_file: Path, auth_file_path: Path) -> None:
+    """Validate that all paths are absolute."""
+    if not openvpn_path or not os.path.isabs(openvpn_path):
+        msg = "OpenVPN path is not absolute"
+        raise VPNError(msg)
+    if not os.path.isabs(str(config_file)):
+        msg = "Config file path is not absolute"
+        raise VPNError(msg)
+    if not os.path.isabs(str(auth_file_path)):
+        msg = "Auth file path is not absolute"
+        raise VPNError(msg)
+
+
+def setup_auth(
+    auth_file: str | Path | None,
+    auth_login: str | None,
+    auth_password: str | None,
+) -> tuple[Path, Path | None]:
+    """Set up authentication and return auth file path and temp file."""
+    temp_auth_file = None
+    if auth_login and auth_password:
+        temp_auth_file, _ = create_temp_auth_file()
+        temp_auth_file.write_text(f"{auth_login}\n{auth_password}")
+        auth_file = temp_auth_file
+    elif not auth_file:
+        msg = "Either auth_file or auth_login/auth_password must be provided"
+        raise VPNError(msg)
+
+    auth_file_path = Path(auth_file)
+    check_credential_file(auth_file_path)
+    return auth_file_path, temp_auth_file
+
+
+def run_subprocess_safely(
+    cmd: list[str],
+    *,
+    check: bool = True,
+    timeout: int = 30,
+    text: bool = True,
+) -> subprocess.CompletedProcess:
+    """Run a subprocess command safely.
+
+    Args:
+        cmd: Command and arguments as a list
+        check: Whether to check the return code
+        timeout: Timeout in seconds
+        text: Whether to return text output
 
     Returns:
-        tuple[Path, bool]: (Path to auth file, True if temporary file was created)
+        CompletedProcess instance
+
+    Raises:
+        VPNError: If the command fails or times out
     """
-    login = os.environ.get("NORDVPN_LOGIN")
-    password = os.environ.get("NORDVPN_PASSWORD")
+    try:
+        # Validate all arguments are strings
+        if not all(isinstance(arg, str) for arg in cmd):
+            msg = "All command arguments must be strings"
+            raise VPNError(msg)
 
-    if not login or not password:
-        return Path.home() / ".nordvpn_cred", False
+        # Validate executable path
+        if not os.path.isabs(cmd[0]):
+            msg = f"Executable path must be absolute: {cmd[0]}"
+            raise VPNError(msg)
 
-    # Create a secure temporary file
-    temp_auth = Path(tempfile.mkstemp(prefix="nordvpn_", suffix=".auth")[1])
-    temp_auth.write_text(f"{login}\n{password}")
-    temp_auth.chmod(0o600)
+        return subprocess.run(
+            cmd,
+            check=check,
+            capture_output=True,
+            timeout=timeout,
+            text=text,
+        )
+    except subprocess.CalledProcessError as e:
+        msg = f"Command failed: {e.stderr}"
+        raise VPNError(msg) from e
+    except subprocess.TimeoutExpired as e:
+        msg = f"Command timed out after {timeout} seconds"
+        raise VPNError(msg) from e
+    except Exception as e:
+        msg = f"Failed to run command: {e}"
+        raise VPNError(msg) from e
 
-    return temp_auth, True
+
+def run_openvpn(
+    openvpn_path: str,
+    config_file: Path,
+    auth_file_path: Path,
+) -> None:
+    """Run OpenVPN with the given configuration."""
+    cmd = [
+        openvpn_path,
+        "--config",
+        str(config_file),
+        "--auth-user-pass",
+        str(auth_file_path),
+        "--daemon",
+    ]
+
+    try:
+        run_subprocess_safely(cmd, timeout=30)
+    except VPNError as e:
+        msg = f"Failed to connect to VPN: {e}"
+        raise VPNConnectionError(msg) from e
 
 
 def connect_nordvpn(
+    *,  # Force keyword arguments
     country: str = "United States",
     auth_file: str | Path | None = None,
     auth_login: str | None = None,
     auth_password: str | None = None,
     random_country: bool = False,
 ) -> None:
-    """Connect to NordVPN using OpenVPN.
-
-    Args:
-        country: Country to connect to (default: United States)
-        auth_file: Path to credentials file (default: ~/.nordvpn_cred)
-        auth_login: NordVPN username (overrides auth_file)
-        auth_password: NordVPN password (overrides auth_file)
-        random_country: If True, connects to a random country (ignores country parameter)
-    """
-    # Handle authentication priority:
-    # 1. Command line credentials (auth_login + auth_password)
-    # 2. Environment variables (NORDVPN_LOGIN + NORDVPN_PASSWORD)
-    # 3. Auth file (provided or default ~/.nordvpn_cred)
-
-    temp_auth_created = False
-    cred_file = None
-    log_dir = None
+    """Connect to NordVPN."""
+    # Check OpenVPN installation
+    openvpn_exists, openvpn_path = check_command("openvpn")
+    if not openvpn_exists:
+        msg = "OpenVPN not found. Install it with `brew install openvpn`"
+        raise VPNError(msg)
 
     try:
-        if auth_login and auth_password:
-            # Create temporary file from command line credentials
-            temp_auth = Path(tempfile.mkstemp(prefix="nordvpn_", suffix=".auth")[1])
-            temp_auth.write_text(f"{auth_login}\n{auth_password}")
-            temp_auth.chmod(0o600)
-            cred_file = temp_auth
-            temp_auth_created = True
-        else:
-            # Try environment variables or fall back to auth file
-            cred_file, temp_auth_created = create_temp_auth_file()
-            if not temp_auth_created:
-                # Use provided auth file or default
-                cred_file = Path(
-                    str(auth_file) if auth_file else Path.home() / ".nordvpn_cred"
-                )
-
-        # Handle random country selection
+        # Get server
         if random_country:
             country = get_random_country()
-            console.print(f"[blue]Selected random country: {country}[/blue]")
-
-        # Check required commands
-        for cmd in ["openvpn", "ps"]:
-            if not check_command(cmd):
-                msg = f"{cmd} not found. Install it with `brew install {cmd}`"
-                raise VPNError(msg)
-
-        # Validate credential file
-        check_credential_file(cred_file)
-
-        # Disconnect any existing connection
-        try:
-            disconnect_nordvpn()
-            time.sleep(2)  # Wait for cleanup
-        except DisconnectionError:
-            pass  # Ignore if not connected
-
-        # Get server
         server_name = get_nordvpn_server(country)
 
-        # Setup NordVPN files if needed
-        setup_config_directory()
-
-        # Verify config file exists
-        config_file = NORDVPN_CONFIG_DIR / "ovpn_tcp" / f"{server_name}.ovpn"
-        if not config_file.is_file():
-            msg = f"Config file not found: {config_file}"
-            raise VPNError(msg)
-
-        # Create log file in a secure temporary directory
-        log_dir = Path(tempfile.mkdtemp(prefix="nordvpn_"))
-        log_file = log_dir / "openvpn.log"
-
-        # Connect using OpenVPN
-        console.print(f"[yellow]Connecting to {server_name}...[/yellow]")
-        console.print(
-            "[blue]Please enter your system password (sudo) when prompted[/blue]"
+        # Handle authentication
+        auth_file_path, temp_auth_file = setup_auth(
+            auth_file, auth_login, auth_password
         )
-        try:
-            # Add verbosity to OpenVPN for better diagnostics
-            subprocess.run(
-                [
-                    "sudo",
-                    "openvpn",
-                    "--config",
-                    str(config_file),
-                    "--auth-user-pass",
-                    str(cred_file),
-                    "--daemon",
-                    "--verb",
-                    "3",  # Increased verbosity
-                    "--connect-retry",
-                    "2",  # Retry connection twice
-                    "--connect-timeout",
-                    "10",  # 10 seconds connection timeout
-                    "--resolv-retry",
-                    "infinite",  # Keep trying to resolve DNS
-                    "--log",
-                    str(log_file),  # Log to file for debugging
-                    "--ping",
-                    "10",  # Send ping every 10 seconds
-                    "--ping-restart",
-                    "60",  # Restart if no ping response for 60 seconds
-                ],
-                check=True,
-            )
-        except subprocess.CalledProcessError as e:
-            msg = f"Failed to connect to {server_name}: {e}"
-            raise ConnectionError(msg)
 
-        # Wait for connection and show IP
         try:
+            # Build OpenVPN command
+            config_file = NORDVPN_CONFIG_DIR / "ovpn_udp" / f"{server_name}.udp.ovpn"
+            if not config_file.exists():
+                setup_config_directory()
+
+            # Validate paths and run OpenVPN
+            validate_paths(openvpn_path, config_file, auth_file_path)
+            run_openvpn(openvpn_path, config_file, auth_file_path)
+
+            # Wait for connection
             ip_info = wait_for_connection(server_name)
             console.print(
-                Panel.fit(
-                    f"[green]Connected to {server_name}[/green]\n"
+                Panel(
+                    f"Connected to NordVPN server: {server_name}\n"
                     f"IP: {ip_info.get('ip')}\n"
-                    f"Location: {ip_info.get('city', '')}, {ip_info.get('country', '')}\n"
-                    f"ISP: {ip_info.get('org', '')}"
+                    f"Location: {ip_info.get('city', 'Unknown')}, {ip_info.get('country', 'Unknown')}"
                 )
             )
-        except (ConnectionError, KeyboardInterrupt) as e:
-            # Try to disconnect in case of timeout or interruption
-            with contextlib.suppress(DisconnectionError):
-                disconnect_nordvpn()
-            if isinstance(e, KeyboardInterrupt):
-                console.print("\n[red]Connection attempt cancelled by user[/red]")
-                sys.exit(1)
-            raise ConnectionError(str(e))
+
+        finally:
+            if temp_auth_file and temp_auth_file.exists():
+                temp_auth_file.unlink()
+
     except Exception as e:
-        # Handle any unexpected errors
-        if isinstance(e, ConnectionError | VPNError):
-            raise
-        msg = f"Unexpected error: {e}"
-        raise VPNError(msg)
-    finally:
-        # Clean up temporary files
-        if temp_auth_created and cred_file:
-            with contextlib.suppress(OSError):
-                cred_file.unlink()
-        if log_dir:
-            with contextlib.suppress(OSError):
-                shutil.rmtree(log_dir)
+        msg = f"Failed to connect to NordVPN: {e}"
+        raise VPNConnectionError(msg) from e
 
 
 def disconnect_nordvpn() -> None:
     """Disconnect from NordVPN."""
     try:
-        subprocess.run(["sudo", "pkill", "openvpn"], check=True)
-        console.print("[green]NordVPN disconnected successfully[/green]")
-    except subprocess.CalledProcessError as e:
-        msg = f"Failed to disconnect: {e}"
-        raise DisconnectionError(msg)
+        # Find OpenVPN process
+        ps_exists, ps_path = check_command("ps")
+        grep_exists, grep_path = check_command("grep")
+        if not all([ps_exists, grep_exists]):
+            msg = "Required commands not found"
+            raise VPNError(msg)
+
+        # Validate ps path
+        if not ps_path or not os.path.isabs(ps_path):
+            msg = "ps command path is not absolute"
+            raise VPNError(msg)
+
+        try:
+            ps_output = run_subprocess_safely(
+                [ps_path, "-ax"],
+                timeout=5,
+            ).stdout
+
+            openvpn_procs = [
+                line.split()[0]
+                for line in ps_output.splitlines()
+                if "openvpn" in line.lower()
+            ]
+
+            if not openvpn_procs:
+                console.print("[yellow]No active VPN connection found[/yellow]")
+                return
+
+            # Kill OpenVPN processes
+            kill_exists, kill_path = check_command("kill")
+            if not kill_exists or not kill_path or not os.path.isabs(kill_path):
+                msg = "kill command not found or path is not absolute"
+                raise VPNError(msg)
+
+            for pid in openvpn_procs:
+                try:
+                    run_subprocess_safely(
+                        [kill_path, pid],
+                        timeout=5,
+                    )
+                except VPNError as e:
+                    msg = f"Failed to kill OpenVPN process {pid}: {e}"
+                    raise DisconnectionError(msg) from e
+
+            console.print("[green]Disconnected from NordVPN[/green]")
+
+        except VPNError as e:
+            msg = f"Failed to list processes: {e}"
+            raise DisconnectionError(msg) from e
+
+    except Exception as e:
+        msg = f"Failed to disconnect from NordVPN: {e}"
+        raise DisconnectionError(msg) from e
 
 
 def get_connection_status() -> None:
     """Get current VPN connection status."""
     try:
-        # Check if OpenVPN is running
-        openvpn_status = subprocess.run(
-            ["ps", "aux"], capture_output=True, text=True, check=True
-        ).stdout
-
-        if "openvpn" not in openvpn_status:
-            console.print("[yellow]Not connected to VPN[/yellow]")
-            return
-
-        # Get current IP info
         ip_info = get_public_ip()
-        org = ip_info.get("org", "").lower()
-        isp = ip_info.get("isp", "").lower()
+        is_vpn = ip_info.get("hostname", "").endswith("nordvpn.com")
 
-        if any(x in (org + isp) for x in ["nordvpn", "nord", "tefincom"]):
-            console.print(
-                Panel.fit(
-                    "[green]Connected to NordVPN[/green]\n"
-                    f"IP: {ip_info.get('ip')}\n"
-                    f"Location: {ip_info.get('city', '')}, {ip_info.get('country', '')}\n"
-                    f"ISP: {ip_info.get('org', '')}"
-                )
-            )
-        else:
-            console.print("[yellow]Connected, but not through NordVPN[/yellow]")
-            console.print(f"Current IP: {ip_info.get('ip')}")
+        status_text = (
+            f"IP: {ip_info.get('ip')}\n"
+            f"Location: {ip_info.get('city', 'Unknown')}, {ip_info.get('country', 'Unknown')}\n"
+            f"ISP: {ip_info.get('org', 'Unknown')}\n"
+            f"VPN: {'Connected' if is_vpn else 'Not connected'}"
+        )
+
+        console.print(Panel(status_text))
+
     except Exception as e:
-        console.print(f"[red]Error checking status: {e}[/red]")
+        msg = f"Failed to get connection status: {e}"
+        raise VPNError(msg) from e
 
 
 def main():
-    """CLI entry point."""
+    """Main entry point."""
     try:
         fire.Fire(
             {
-                "connect": lambda country="United States",
-                auth_file=None,
-                auth_login=None,
-                auth_password=None,
-                random=False: connect_nordvpn(
-                    country=country,
-                    auth_file=auth_file,
-                    auth_login=auth_login,
-                    auth_password=auth_password,
-                    random_country=random,
-                ),
+                "connect": connect_nordvpn,
                 "disconnect": disconnect_nordvpn,
-                "ip": lambda: console.print(get_public_ip()),
                 "status": get_connection_status,
-                "list-countries": lambda: console.print(
-                    "\n".join(
-                        sorted(
-                            cast(str, country.name)
-                            for country in pycountry.countries
-                            if hasattr(country, "alpha_2")
-                            and country.alpha_2 in NORDVPN_COUNTRY_IDS
-                        )
-                    )
-                ),
             }
         )
-    except KeyboardInterrupt:
-        console.print("\n[red]Operation cancelled by user[/red]")
-        with contextlib.suppress(DisconnectionError):
-            disconnect_nordvpn()
-        sys.exit(1)
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        with contextlib.suppress(DisconnectionError):
-            disconnect_nordvpn()
         sys.exit(1)
 
 
