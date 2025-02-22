@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+---
+
+After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+
+Periodically do:
+
+```
+uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; hatch test; 
+```
+
+and react to the results.

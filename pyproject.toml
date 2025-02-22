@@ -1,12 +1,16 @@
 # this_file: pyproject.toml
+[build-system]
+requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "nyord-vpn"
-dynamic = ["version"]
-description = ""
+version = "0.1.0"
+description = "NordVPN client with API fallback support"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
-keywords = []
+license = {text = "MIT"}
+keywords = ["vpn", "nordvpn", "security"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
@@ -18,11 +22,21 @@ classifiers = [
 ]
 
 dependencies = [
+    "njord>=0.0.2",
+    "tenacity>=8.0.0",
+    "backoff>=2.0.0",
+    "rich>=13.9.4",
+    "fire>=0.7.0",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.8.0",
+    "requests>=2.32.3",
+    "keyring>=24.0.0",
+    "pycountry>=24.6.1",
+    "psutil>=6.1.1",
+    "python-dotenv>=1.0.1",
 ]
 
-
 [project.optional-dependencies]
-
 dev = [
     "pre-commit>=3.6.0",
     "ruff>=0.1.0",
@@ -35,14 +49,12 @@ test = [
     "pytest-cov>=4.0.0",
 ]
 
-
-all = [
-]
-
 [project.scripts]
-# CLINAME = "nyord_vpn.__main__:main"
+nyord-vpn = "nyord_vpn.cli.commands:main"
 
-
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["nyord_vpn"]
 
 [[project.authors]]
 name = "Adam Twardoch"
@@ -53,20 +65,9 @@ Documentation = "https://github.com/twardoch/nyord-vpn#readme"
 Issues = "https://github.com/twardoch/nyord-vpn/issues"
 Source = "https://github.com/twardoch/nyord-vpn"
 
-
-[build-system]
-build-backend = "hatchling.build"
-requires = [
-    "hatchling>=1.21.0", 
-    "hatch-vcs>=0.3.0"
-]
-
-
 [tool.coverage.paths]
 nyord_vpn = ["src/nyord_vpn", "*/nyord-vpn/src/nyord_vpn"]
 tests = ["tests", "*/nyord-vpn/tests"]
-
-
 
 [tool.coverage.report]
 exclude_lines = [
@@ -83,16 +84,11 @@ omit = [
     "src/nyord_vpn/__about__.py",
 ]
 
-
-
 [tool.hatch.build.hooks.vcs]
 version-file = "src/nyord_vpn/__version__.py"
 
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/nyord_vpn"]
-
-
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -101,7 +97,6 @@ dependencies = [
 [[tool.hatch.envs.all.matrix]]
 python = ["3.10", "3.11", "3.12"]
 
-
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
@@ -109,20 +104,16 @@ type-check = "mypy src/nyord_vpn tests"
 lint = ["ruff check src/nyord_vpn tests", "ruff format --respect-gitignore src/nyord_vpn tests"]
 fix = ["ruff check  --fix --unsafe-fixes src/nyord_vpn tests", "ruff format --respect-gitignore src/nyord_vpn tests"]
 
-
-
 [tool.hatch.envs.lint]
 detached = true
 dependencies = [
 ]
-
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/nyord_vpn tests}"
 style = ["ruff check {args:.}", "ruff format --respect-gitignore {args:.}"]
 fmt = ["ruff format --respect-gitignore {args:.}", "ruff check --fix {args:.}"]
 all = ["style", "typing"]
-
 
 [tool.hatch.envs.test]
 dependencies = [
@@ -137,10 +128,8 @@ bench-save = "python -m pytest -v -p no:briefcase tests/test_benchmark.py --benc
 [tool.hatch.version]
 source = "vcs"
 
-
 [tool.hatch.version.raw-options]
 version_scheme = "post-release"
-
 
 [tool.mypy]
 python_version = "3.10"
@@ -155,7 +144,6 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
-
 
 [tool.ruff]
 target-version = "py310"
@@ -191,14 +179,8 @@ extend-select = [
 ]
 ignore = ["ARG001", "E501", "I001", "RUF001", "PLR2004", "EXE003", "ISC001"]
 
-
-
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
-
-
-
-
 
 [tool.pytest.ini_options]
 addopts = "-v --durations=10 -p no:briefcase"
@@ -211,25 +193,8 @@ markers = [
   "benchmark: marks tests as benchmarks (select with '-m benchmark')",
   "unit: mark a test as a unit test",
   "integration: mark a test as an integration test",
-  "permutation: tests for permutation functionality",
-  "parameter: tests for parameter parsing",
-  "prompt: tests for prompt parsing",
 ]
-norecursedirs = [
-  ".*",
-  "build",
-  "dist",
-  "venv",
-  "__pycache__",
-  "*.egg-info",
-  "_private",
-]
-
-python_classes = ["Test*"]
-python_files = ["test_*.py"]
-python_functions = ["test_*"]
 testpaths = ["tests"]
-
 
 [tool.pytest-benchmark]
 min_rounds = 100
