@@ -10,8 +10,20 @@
   + [x] Update config loading tests to use secure credentials
   + [x] Update connection tests to use secure credentials
   + [x] Update error handling tests to use secure credentials
-  + [!] Secure subprocess calls in system utilities
-  + [!] Add input validation for command execution
+  + [x] Secure subprocess calls in system utilities:
+    - [x] Add command validation
+    - [x] Add permission checks
+    - [x] Implement process isolation
+    - [x] Add output safety measures
+  + [x] Add input validation:
+    - [x] Create validation module
+    - [x] Add country name/code validation
+    - [x] Add credentials validation
+    - [x] Add hostname validation
+    - [x] Add command path validation
+    - [x] Add environment variable validation
+    - [x] Update LegacyAPI to use validation
+    - [x] Update NjordAPI to use validation
 * [!] Fix Package Structure:
   + [x] Add missing __init__.py files to fix namespace package issues
   + [!] Clean up package imports

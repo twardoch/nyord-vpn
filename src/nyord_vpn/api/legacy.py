@@ -9,6 +9,12 @@ from pathlib import Path
 
 from nyord_vpn.api.base import BaseAPI
 from nyord_vpn.core.exceptions import VPNError
+from nyord_vpn.utils.validation import (
+    validate_country,
+    validate_credentials,
+    validate_command,
+    validate_hostname,
+)
 
 
 class ServerInfo(TypedDict):
@@ -32,17 +38,17 @@ class LegacyAPI(BaseAPI):
             password: NordVPN password
 
         Raises:
-            VPNError: If nordvpn command is not found
+            VPNError: If nordvpn command is not found or credentials are invalid
         """
-        self.username = username
-        self.password = password
+        # Validate credentials
+        self.username, self.password = validate_credentials(username, password)
 
-        # Check if nordvpn command exists
+        # Check if nordvpn command exists and validate it
         nordvpn_path = shutil.which("nordvpn")
         if not nordvpn_path:
             msg = "nordvpn command not found in PATH"
             raise VPNError(msg)
-        self.nordvpn_path = Path(nordvpn_path).resolve()
+        self.nordvpn_path = validate_command(nordvpn_path)
 
     async def _get_servers(self, country: str) -> list[ServerInfo]:
         """Get list of servers for a country.
@@ -56,6 +62,9 @@ class LegacyAPI(BaseAPI):
         Raises:
             VPNError: If server list cannot be retrieved
         """
+        # Validate country
+        country = validate_country(country)
+
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(
@@ -65,7 +74,13 @@ class LegacyAPI(BaseAPI):
                 ) as response:
                     response.raise_for_status()
                     servers = await response.json()
-                    return [{"name": s["name"], "id": s["id"]} for s in servers]
+                    return [
+                        {
+                            "name": validate_hostname(s["name"]),
+                            "id": str(s["id"]),
+                        }
+                        for s in servers
+                    ]
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 msg = f"Failed to get server list: {e}"
                 raise VPNError(msg) from e
@@ -84,12 +99,9 @@ class LegacyAPI(BaseAPI):
         """
         cmd = [str(self.nordvpn_path), "connect"]
         if country:
-            # Sanitize country input
-            safe_country = shlex.quote(country)
-            if not safe_country.strip("'\""):
-                msg = "Invalid country name"
-                raise VPNError(msg)
-            cmd.append(safe_country)
+            # Validate country
+            country = validate_country(country)
+            cmd.append(country)
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -150,11 +162,14 @@ class LegacyAPI(BaseAPI):
         """
         try:
             # Get current IP
-            async with aiohttp.ClientSession() as session, session.get(
-                "https://api.nordvpn.com/v1/helpers/ip",
-                timeout=aiohttp.ClientTimeout(total=10),
-                ssl=True,
-            ) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    "https://api.nordvpn.com/v1/helpers/ip",
+                    timeout=aiohttp.ClientTimeout(total=10),
+                    ssl=True,
+                ) as response,
+            ):
                 response.raise_for_status()
                 ip_info = await response.json()
 

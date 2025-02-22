@@ -11,6 +11,11 @@ from njord import Client
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNStatusError
 from nyord_vpn.data.countries import get_country_id
 from nyord_vpn.api.base import BaseAPI
+from nyord_vpn.utils.validation import (
+    validate_country,
+    validate_credentials,
+    validate_hostname,
+)
 
 
 class NjordAPI(BaseAPI):
@@ -24,8 +29,13 @@ class NjordAPI(BaseAPI):
         Args:
             username: Optional username (can be set via env)
             password: Optional password (can be set via env)
+
+        Raises:
+            VPNError: If credentials are invalid
         """
-        self._client = Client(user=username, password=password)
+        # Validate credentials
+        self._auth_user, self._auth_pass = validate_credentials(username, password)
+        self._client = Client(user=self._auth_user, password=self._auth_pass)
         self._connected = False
         self._current_server = None
         self._loop = asyncio.get_event_loop()
@@ -42,6 +52,9 @@ class NjordAPI(BaseAPI):
         Raises:
             VPNError: If no server is found
         """
+        # Validate country
+        country = validate_country(country)
+
         # Try exact match first
         country_obj = pycountry.countries.get(name=country)
         if not country_obj:
@@ -65,12 +78,15 @@ class NjordAPI(BaseAPI):
             raise VPNError(msg)
 
         try:
-            async with aiohttp.ClientSession() as session, session.get(
-                self.RECOMMENDATIONS_URL,
-                params={"filters[country_id]": country_id},
-                timeout=aiohttp.ClientTimeout(total=10),
-                ssl=True,
-            ) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    self.RECOMMENDATIONS_URL,
+                    params={"filters[country_id]": country_id},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                    ssl=True,
+                ) as response,
+            ):
                 response.raise_for_status()
                 servers = await response.json()
 
@@ -80,7 +96,10 @@ class NjordAPI(BaseAPI):
 
             # Use cryptographically secure random choice
             server_index = secrets.randbelow(len(servers))
-            return servers[server_index]["hostname"]
+            hostname = servers[server_index]["hostname"]
+
+            # Validate hostname
+            return validate_hostname(hostname)
 
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             msg = f"Failed to get server recommendations: {e}"
@@ -99,6 +118,9 @@ class NjordAPI(BaseAPI):
             VPNConnectionError: If connection fails
         """
         try:
+            # Validate country
+            country = validate_country(country)
+
             # Get recommended server (we don't use this directly since njord
             # has its own server selection logic)
             await self.get_recommended_server(country)
@@ -112,7 +134,9 @@ class NjordAPI(BaseAPI):
                 # Get status (run in thread pool)
                 status_fn = self._client.status
                 status = await self._loop.run_in_executor(None, status_fn)
-                self._current_server = status.get("server")
+                server = status.get("server")
+                if server:
+                    self._current_server = validate_hostname(server)
 
             return self._connected
 
@@ -168,4 +192,4 @@ class NjordAPI(BaseAPI):
 
     async def get_credentials(self) -> tuple[str, str]:
         """Get stored credentials."""
-        return self._client.auth_user, self._client.auth_password
+        return self._auth_user, self._auth_pass
