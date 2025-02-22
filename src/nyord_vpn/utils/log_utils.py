@@ -4,7 +4,6 @@ import logging
 import sys
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -18,7 +17,7 @@ class LogConfig:
     """Logging configuration."""
 
     level: str | int = logging.INFO
-    log_file: Optional[Path] = None
+    log_file: Path | None = None
     use_rich_output: bool = True
 
 

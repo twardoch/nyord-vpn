@@ -5,7 +5,12 @@ from pathlib import Path
 from nyord_vpn.api.njord import NjordAPI
 from nyord_vpn.api.legacy import LegacyAPI
 from nyord_vpn.utils.retry import with_fallback, with_retry
-from nyord_vpn.utils.logging import log_operation, log_success, log_error, setup_logging
+from nyord_vpn.utils.log_utils import (
+    log_operation,
+    log_success,
+    log_error,
+    setup_logging,
+)
 from nyord_vpn.core.config import load_config
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 
