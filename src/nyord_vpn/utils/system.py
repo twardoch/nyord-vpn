@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 from nyord_vpn.core.exceptions import VPNError
 
@@ -45,7 +45,7 @@ def run_subprocess_safely(
     """
     try:
         # Validate all arguments are strings or Path objects
-        if not all(isinstance(arg, (str, Path)) for arg in cmd):
+        if not all(isinstance(arg, str | Path) for arg in cmd):
             msg = "All command arguments must be strings or Path objects"
             raise VPNError(msg)
 

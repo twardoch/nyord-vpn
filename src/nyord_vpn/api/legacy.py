@@ -9,7 +9,6 @@ from pathlib import Path
 
 from nyord_vpn.api.base import BaseAPI
 from nyord_vpn.core.exceptions import VPNError
-from nyord_vpn.utils.system import run_subprocess_safely
 
 
 class ServerInfo(TypedDict):
@@ -151,14 +150,13 @@ class LegacyAPI(BaseAPI):
         """
         try:
             # Get current IP
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://api.nordvpn.com/v1/helpers/ip",
-                    timeout=aiohttp.ClientTimeout(total=10),
-                    ssl=True,
-                ) as response:
-                    response.raise_for_status()
-                    ip_info = await response.json()
+            async with aiohttp.ClientSession() as session, session.get(
+                "https://api.nordvpn.com/v1/helpers/ip",
+                timeout=aiohttp.ClientTimeout(total=10),
+                ssl=True,
+            ) as response:
+                response.raise_for_status()
+                ip_info = await response.json()
 
             # Get connection status
             process = await asyncio.create_subprocess_exec(

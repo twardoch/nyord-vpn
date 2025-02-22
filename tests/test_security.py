@@ -1,6 +1,5 @@
 """Tests for security utilities."""
 
-import os
 import pytest
 from pathlib import Path
 

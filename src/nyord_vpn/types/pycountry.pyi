@@ -1,6 +1,6 @@
 """Type stubs for pycountry module."""
 
-from typing import Any, Protocol, TypeVar, overload
+from typing import Protocol, TypeVar, overload
 
 class Country(Protocol):
     """Protocol for country objects."""

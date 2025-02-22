@@ -2,9 +2,12 @@
 
 import pytest
 from unittest.mock import MagicMock
+from aiohttp import ClientError
+from njord import Client
 
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNStatusError
 from nyord_vpn.api.njord import NjordAPI
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 
 @pytest.mark.asyncio
@@ -147,9 +150,62 @@ async def test_list_countries(mocker):
 
 
 @pytest.mark.asyncio
+async def test_init():
+    """Test NjordAPI initialization."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    assert (
+        api._client.auth_user == TEST_USERNAME
+    )  # Private member access is ok in tests
+    assert isinstance(api._client, Client)  # Private member access is ok in tests
+
+
+@pytest.mark.asyncio
+async def test_connect_success(mock_session):
+    """Test successful connection."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    assert await api.connect(country="Test Country") is True
+
+
+@pytest.mark.asyncio
+async def test_connect_failure(mock_session_error):
+    """Test connection failure."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    with pytest.raises(ClientError):
+        await api.connect(country="Test Country")
+
+
+@pytest.mark.asyncio
+async def test_disconnect_success(mock_session):
+    """Test successful disconnection."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    assert await api.disconnect() is True
+
+
+@pytest.mark.asyncio
+async def test_status_connected(mock_session):
+    """Test status when connected."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    status = await api.status()
+    assert status["connected"] is True
+    assert status["country"] == "Test Country"
+    assert status["ip"] == "1.2.3.4"
+    assert status["server"] == "test.server.com"
+
+
+@pytest.mark.asyncio
+async def test_list_available_countries(mock_session):
+    """Test listing available countries."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    countries = await api.list_countries()
+    assert isinstance(countries, list)
+    assert len(countries) > 0
+    assert all(isinstance(c, str) for c in countries)
+
+
+@pytest.mark.asyncio
 async def test_get_credentials():
-    """Test credential retrieval."""
-    api = NjordAPI(username="test_user", password="test_pass")
+    """Test retrieving credentials."""
+    api = NjordAPI(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
     username, password = await api.get_credentials()
-    assert username == "test_user"
-    assert password == "test_pass"
+    assert username == TEST_USERNAME
+    assert password == TEST_PASSWORD.get_secret_value()

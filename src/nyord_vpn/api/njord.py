@@ -2,7 +2,6 @@
 
 import asyncio
 import secrets
-from functools import partial
 from typing import Any
 
 import aiohttp
@@ -10,7 +9,7 @@ import pycountry
 from njord import Client
 
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNStatusError
-from nyord_vpn.data.countries import get_country_id, CountryInfo
+from nyord_vpn.data.countries import get_country_id
 from nyord_vpn.api.base import BaseAPI
 
 
@@ -66,15 +65,14 @@ class NjordAPI(BaseAPI):
             raise VPNError(msg)
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    self.RECOMMENDATIONS_URL,
-                    params={"filters[country_id]": country_id},
-                    timeout=aiohttp.ClientTimeout(total=10),
-                    ssl=True,
-                ) as response:
-                    response.raise_for_status()
-                    servers = await response.json()
+            async with aiohttp.ClientSession() as session, session.get(
+                self.RECOMMENDATIONS_URL,
+                params={"filters[country_id]": country_id},
+                timeout=aiohttp.ClientTimeout(total=10),
+                ssl=True,
+            ) as response:
+                response.raise_for_status()
+                servers = await response.json()
 
             if not servers:
                 msg = f"No servers found for country: {country}"
@@ -118,7 +116,7 @@ class NjordAPI(BaseAPI):
 
             return self._connected
 
-        except VPNError as e:
+        except VPNError:
             # Re-raise VPN errors as-is
             raise
         except Exception as e:

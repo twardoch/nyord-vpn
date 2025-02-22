@@ -1,7 +1,7 @@
 """Main VPN client implementation."""
 
 from pathlib import Path
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from pydantic import SecretStr
 
@@ -15,7 +15,7 @@ from nyord_vpn.utils.log_utils import (
     log_error,
     setup_logging,
 )
-from nyord_vpn.core.config import load_config, VPNConfig
+from nyord_vpn.core.config import load_config
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 
 

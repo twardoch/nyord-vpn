@@ -1,17 +1,21 @@
 """Test fixtures for nyord-vpn."""
 
-import asyncio
 from pathlib import Path
-from typing import Any, AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
+import os
 
 import aiohttp
 import pytest
 import pytest_asyncio
+from pydantic import SecretStr
 
 from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.config import VPNConfig
-from nyord_vpn.core.exceptions import VPNError
+
+# Test credentials - in real tests these should come from environment variables
+TEST_USERNAME = "test_user"
+TEST_PASSWORD = SecretStr("test_password")  # Only used in tests
 
 
 @pytest.fixture
@@ -36,56 +40,24 @@ def config_file(temp_dir: Path) -> Path:
 
 @pytest.fixture
 def mock_config() -> VPNConfig:
-    """Create a mock VPN configuration."""
+    """Create a mock VPN configuration for testing."""
     return VPNConfig(
-        username="test_user",
-        password="test_pass",
-        default_country="Test Country",
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
+        api_timeout=5,
+        retry_attempts=3,
     )
 
 
 @pytest_asyncio.fixture
 async def mock_client(mock_config: VPNConfig) -> AsyncGenerator[VPNClient, None]:
-    """Create a mock VPN client."""
-    with (
-        patch("nyord_vpn.api.njord.NjordAPI") as mock_njord,
-        patch("nyord_vpn.api.legacy.LegacyAPI") as mock_legacy,
-    ):
-        # Setup mock APIs
-        mock_njord.return_value.connect = AsyncMock(return_value=True)
-        mock_njord.return_value.disconnect = AsyncMock(return_value=True)
-        mock_njord.return_value.status = AsyncMock(
-            return_value={
-                "connected": True,
-                "country": "Test Country",
-                "ip": "1.2.3.4",
-                "server": "test.server.com",
-            }
-        )
-        mock_njord.return_value.list_countries = AsyncMock(
-            return_value=["Country 1", "Country 2"]
-        )
-
-        # Setup legacy API similarly
-        mock_legacy.return_value.connect = AsyncMock(return_value=True)
-        mock_legacy.return_value.disconnect = AsyncMock(return_value=True)
-        mock_legacy.return_value.status = AsyncMock(
-            return_value={
-                "connected": True,
-                "country": "Test Country",
-                "ip": "1.2.3.4",
-                "server": "test.server.com",
-            }
-        )
-        mock_legacy.return_value.list_countries = AsyncMock(
-            return_value=["Country 1", "Country 2"]
-        )
-
-        client = VPNClient(
-            username=mock_config.username,
-            password=mock_config.password.get_secret_value(),
-        )
-        yield client
+    """Create a mock async VPN client for testing."""
+    client = VPNClient(
+        username=mock_config.username,
+        password=mock_config.password.get_secret_value(),
+    )
+    yield client
+    await client.disconnect()
 
 
 @pytest_asyncio.fixture
@@ -145,3 +117,14 @@ def mock_pycountry() -> Generator[MagicMock, None, None]:
         mock_countries.get.return_value = mock_country
         mock_countries.search_fuzzy.return_value = [mock_country]
         yield mock_countries
+
+
+@pytest.fixture
+def temp_config_file(tmp_path: Path) -> Generator[Path, None, None]:
+    """Create a temporary config file for testing."""
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        f'{{"username": "{TEST_USERNAME}", "password": "{TEST_PASSWORD.get_secret_value()}"}}'
+    )
+    yield config_path
+    config_path.unlink()

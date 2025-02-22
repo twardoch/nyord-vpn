@@ -2,11 +2,13 @@
 
 import asyncio
 import pytest
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+import json
+from pathlib import Path
 
 from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNConfigError
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 
 @pytest.mark.integration
@@ -201,3 +203,109 @@ async def test_error_recovery(
         # Verify status
         status = await client.status()
         assert status["connected"] is True
+
+
+@pytest.mark.asyncio
+async def test_invalid_credentials():
+    """Test handling of invalid credentials."""
+    client = VPNClient(username="invalid", password=TEST_PASSWORD.get_secret_value())
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+
+@pytest.mark.asyncio
+async def test_network_errors():
+    """Test handling of network errors."""
+    client = VPNClient(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+
+    # Test connection with network error
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+    # Test status check with network error
+    with pytest.raises(VPNError):
+        await client.status()
+
+    # Test country listing with network error
+    with pytest.raises(VPNError):
+        await client.list_countries()
+
+
+@pytest.mark.asyncio
+async def test_timeout_handling(tmp_path: Path):
+    """Test handling of timeouts."""
+    # Create config with short timeout
+    config_path = tmp_path / "timeout_config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "api_timeout": 1,
+    }
+    config_path.write_text(json.dumps(config_data))
+
+    client = VPNClient(config_file=config_path)
+
+    # Test connection timeout
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+    # Test status check timeout
+    with pytest.raises(VPNError):
+        await client.status()
+
+
+@pytest.mark.asyncio
+async def test_retry_behavior(tmp_path: Path):
+    """Test retry behavior on failures."""
+    # Create config with retry settings
+    config_path = tmp_path / "retry_config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "retry_attempts": 2,
+    }
+    config_path.write_text(json.dumps(config_data))
+
+    client = VPNClient(config_file=config_path)
+
+    # Test connection retries
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+    # Test status check retries
+    with pytest.raises(VPNError):
+        await client.status()
+
+
+@pytest.mark.asyncio
+async def test_fallback_behavior():
+    """Test fallback to legacy API."""
+    client = VPNClient(
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
+        use_legacy_fallback=True,
+    )
+
+    # Test connection with fallback
+    assert await client.connect() is True
+    status = await client.status()
+    assert status["connected"] is True
+
+    # Cleanup
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_invalid_country():
+    """Test handling of invalid country names."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test connection with invalid country
+    with pytest.raises(VPNConnectionError):
+        await client.connect("Invalid Country")
+
+    # Test connection with empty country
+    with pytest.raises(VPNConnectionError):
+        await client.connect("")

@@ -1,12 +1,134 @@
-"""Integration tests for VPN connection flow."""
+"""Integration tests for VPN connection handling."""
 
 import asyncio
 import pytest
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
+
+
+@pytest.mark.asyncio
+async def test_connect_disconnect():
+    """Test basic connection and disconnection."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test connection
+    assert await client.connect() is True
+    status = await client.status()
+    assert status["connected"] is True
+    assert status["country"] == "Test Country"
+    assert status["ip"] == "1.2.3.4"
+    assert status["server"] == "test.server.com"
+
+    # Test disconnection
+    assert await client.disconnect() is True
+    status = await client.status()
+    assert status["connected"] is False
+
+
+@pytest.mark.asyncio
+async def test_connect_with_country():
+    """Test connection to specific country."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test connection to specific country
+    assert await client.connect("Norway") is True
+    status = await client.status()
+    assert status["connected"] is True
+    assert status["country"] == "Norway"
+
+    # Cleanup
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_connection_failure():
+    """Test handling of connection failures."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test invalid country
+    with pytest.raises(VPNConnectionError):
+        await client.connect("Invalid Country")
+
+    # Test connection timeout
+    with pytest.raises(VPNConnectionError):
+        await client.connect("Timeout Country")
+
+
+@pytest.mark.asyncio
+async def test_disconnect_failure():
+    """Test handling of disconnection failures."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Connect first
+    await client.connect()
+
+    # Test disconnection failure
+    with pytest.raises(VPNConnectionError):
+        await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_status_check():
+    """Test VPN status checking."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test initial status
+    status = await client.status()
+    assert status["connected"] is False
+
+    # Test status after connection
+    await client.connect()
+    status = await client.status()
+    assert status["connected"] is True
+    assert "country" in status
+    assert "ip" in status
+    assert "server" in status
+
+    # Cleanup
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_country_listing():
+    """Test listing available countries."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test country listing
+    countries = await client.list_countries()
+    assert isinstance(countries, list)
+    assert len(countries) > 0
+    assert all(isinstance(c, str) for c in countries)
+
+
+@pytest.mark.asyncio
+async def test_context_manager():
+    """Test VPN client as context manager."""
+    async with VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    ) as client:
+        # Test connection inside context
+        assert await client.connect() is True
+        status = await client.status()
+        assert status["connected"] is True
+
+    # Test automatic disconnection after context
+    status = await client.status()
+    assert status["connected"] is False
 
 
 @pytest.mark.integration
@@ -135,7 +257,8 @@ async def test_connection_retry(
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            raise VPNError("First attempt failed")
+            msg = "First attempt failed"
+            raise VPNError(msg)
         return True
 
     mock_client.primary_api.connect = AsyncMock(side_effect=mock_connect)

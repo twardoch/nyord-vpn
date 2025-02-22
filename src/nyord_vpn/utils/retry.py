@@ -1,8 +1,8 @@
 """Retry utilities for VPN operations."""
 
-import asyncio
 from functools import wraps
-from typing import Any, Callable, TypeVar, ParamSpec, Awaitable
+from typing import TypeVar, ParamSpec
+from collections.abc import Callable, Awaitable
 
 from tenacity import (
     retry,

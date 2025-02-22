@@ -101,7 +101,7 @@ class CLI:
             exit_with_error("Failed to connect", e)
         except asyncio.CancelledError:
             exit_with_error("Connection cancelled by user")
-        except (OSError, IOError) as e:
+        except OSError as e:
             exit_with_error("Network or system error during connection", e)
         except KeyboardInterrupt:
             exit_with_error("Connection cancelled by user")
@@ -127,7 +127,7 @@ class CLI:
             exit_with_error("Failed to disconnect", e)
         except asyncio.CancelledError:
             exit_with_error("Disconnection cancelled by user")
-        except (OSError, IOError) as e:
+        except OSError as e:
             exit_with_error("Network or system error during disconnection", e)
         except KeyboardInterrupt:
             exit_with_error("Disconnection cancelled by user")
@@ -154,7 +154,7 @@ class CLI:
             exit_with_error("Failed to get status", e)
         except asyncio.CancelledError:
             exit_with_error("Status check cancelled by user")
-        except (OSError, IOError) as e:
+        except OSError as e:
             exit_with_error("Network or system error while checking status", e)
         except KeyboardInterrupt:
             exit_with_error("Status check cancelled by user")
@@ -175,7 +175,7 @@ class CLI:
             exit_with_error("Failed to list countries", e)
         except asyncio.CancelledError:
             exit_with_error("Country listing cancelled by user")
-        except (OSError, IOError) as e:
+        except OSError as e:
             exit_with_error("Network or system error while listing countries", e)
         except KeyboardInterrupt:
             exit_with_error("Country listing cancelled by user")
@@ -190,7 +190,7 @@ def main() -> None:
         sys.exit(1)
     except (VPNError, VPNConfigError) as e:
         exit_with_error("VPN operation failed", e)
-    except (OSError, IOError) as e:
+    except OSError as e:
         exit_with_error("System or network error", e)
     except Exception as e:
         # Only catch truly unexpected errors here

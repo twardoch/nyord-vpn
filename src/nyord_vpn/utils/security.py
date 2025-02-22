@@ -1,6 +1,5 @@
 """Security utilities for VPN operations."""
 
-import os
 import secrets
 import tempfile
 from pathlib import Path
