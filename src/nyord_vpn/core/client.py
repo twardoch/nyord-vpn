@@ -1,17 +1,21 @@
 """Main VPN client implementation."""
 
 from pathlib import Path
+from typing import Any, Callable, Awaitable
+
+from pydantic import SecretStr
 
 from nyord_vpn.api.njord import NjordAPI
 from nyord_vpn.api.legacy import LegacyAPI
 from nyord_vpn.utils.retry import with_fallback, with_retry
 from nyord_vpn.utils.log_utils import (
+    LogConfig,
     log_operation,
     log_success,
     log_error,
     setup_logging,
 )
-from nyord_vpn.core.config import load_config
+from nyord_vpn.core.config import load_config, VPNConfig
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 
 
@@ -34,14 +38,15 @@ class VPNClient:
             log_file: Optional path to log file
         """
         # Setup logging
-        self.logger = setup_logging(log_file=log_file)
+        log_config = LogConfig(log_file=log_file) if log_file else None
+        self.logger = setup_logging(log_config)
 
         # Load config
         self.config = load_config(config_file)
         if username:
             self.config.username = username
         if password:
-            self.config.password = password
+            self.config.password = SecretStr(password)
 
         # Initialize APIs
         self.primary_api = NjordAPI(
@@ -55,21 +60,27 @@ class VPNClient:
 
         # Setup API methods with fallback
         self._connect = with_fallback(
-            self.primary_api.connect, self.fallback_api.connect
+            self.primary_api.connect,
+            self.fallback_api.connect,
         )
         self._disconnect = with_fallback(
-            self.primary_api.disconnect, self.fallback_api.disconnect
+            self.primary_api.disconnect,
+            self.fallback_api.disconnect,
         )
-        self._status = with_fallback(self.primary_api.status, self.fallback_api.status)
+        self._status = with_fallback(
+            self.primary_api.status,
+            self.fallback_api.status,
+        )
         self._list_countries = with_fallback(
-            self.primary_api.list_countries, self.fallback_api.list_countries
+            self.primary_api.list_countries,
+            self.fallback_api.list_countries,
         )
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "VPNClient":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.disconnect()
 
@@ -126,7 +137,7 @@ class VPNClient:
             raise VPNConnectionError(msg) from e
 
     @with_retry()
-    async def status(self) -> dict:
+    async def status(self) -> dict[str, Any]:
         """Get VPN status.
 
         Returns:

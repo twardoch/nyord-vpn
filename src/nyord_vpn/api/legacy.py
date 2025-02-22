@@ -9,6 +9,7 @@ from pathlib import Path
 
 from nyord_vpn.api.base import BaseAPI
 from nyord_vpn.core.exceptions import VPNError
+from nyord_vpn.utils.system import run_subprocess_safely
 
 
 class ServerInfo(TypedDict):
@@ -42,7 +43,7 @@ class LegacyAPI(BaseAPI):
         if not nordvpn_path:
             msg = "nordvpn command not found in PATH"
             raise VPNError(msg)
-        self.nordvpn_path = Path(nordvpn_path)
+        self.nordvpn_path = Path(nordvpn_path).resolve()
 
     async def _get_servers(self, country: str) -> list[ServerInfo]:
         """Get list of servers for a country.
@@ -84,7 +85,12 @@ class LegacyAPI(BaseAPI):
         """
         cmd = [str(self.nordvpn_path), "connect"]
         if country:
-            cmd.append(shlex.quote(country))
+            # Sanitize country input
+            safe_country = shlex.quote(country)
+            if not safe_country.strip("'\""):
+                msg = "Invalid country name"
+                raise VPNError(msg)
+            cmd.append(safe_country)
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -145,13 +151,14 @@ class LegacyAPI(BaseAPI):
         """
         try:
             # Get current IP
-            async with aiohttp.ClientSession() as session, session.get(
-                "https://api.nordvpn.com/v1/helpers/ip",
-                timeout=aiohttp.ClientTimeout(total=10),
-                ssl=True,
-            ) as response:
-                response.raise_for_status()
-                ip_info = await response.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://api.nordvpn.com/v1/helpers/ip",
+                    timeout=aiohttp.ClientTimeout(total=10),
+                    ssl=True,
+                ) as response:
+                    response.raise_for_status()
+                    ip_info = await response.json()
 
             # Get connection status
             process = await asyncio.create_subprocess_exec(
@@ -172,6 +179,9 @@ class LegacyAPI(BaseAPI):
                 "status": stdout.decode(),
             }
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            msg = f"Failed to get status: {e}"
+            raise VPNError(msg) from e
+        except Exception as e:
             msg = f"Failed to get status: {e}"
             raise VPNError(msg) from e
 
