@@ -12,7 +12,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.exceptions import VPNError, VPNConfigError
-from nyord_vpn.utils.logging import log_error, log_success, setup_logging
+from nyord_vpn.utils.log_utils import (
+    LogConfig,
+    log_error,
+    log_success,
+    setup_logging,
+)
 
 console = Console()
 
@@ -48,7 +53,8 @@ class CLI:
             self.username = username
             self.password = password
             self.log_file = Path(log_file) if log_file else None
-            self.logger = setup_logging(log_file=self.log_file)
+            log_config = LogConfig(log_file=self.log_file)
+            self.logger = setup_logging(log_config)
         except (OSError, VPNConfigError) as e:
             exit_with_error("Failed to initialize CLI", e)
 
@@ -192,9 +198,16 @@ def main() -> None:
         exit_with_error("VPN operation failed", e)
     except OSError as e:
         exit_with_error("System or network error", e)
+    except (TypeError, ValueError) as e:
+        exit_with_error("Invalid argument or configuration", e)
+    except asyncio.CancelledError:
+        exit_with_error("Operation cancelled")
     except Exception as e:
-        # Only catch truly unexpected errors here
-        exit_with_error("Unexpected internal error", e)
+        # Only catch truly unexpected errors here after all known errors are handled
+        log_error("Unexpected internal error - please report this as a bug")
+        log_error(f"Error type: {type(e).__name__}")
+        log_error(f"Error details: {e}")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

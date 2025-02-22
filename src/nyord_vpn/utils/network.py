@@ -44,18 +44,19 @@ async def get_public_ip() -> dict[str, Any]:
     async with aiohttp.ClientSession() as session:
         for service in services:
             try:
-                async with session.get(
+                response = await session.get(
                     service,
                     timeout=aiohttp.ClientTimeout(total=5),
                     ssl=True,
-                ) as response:
-                    response.raise_for_status()
-                    return await response.json()
-            except (aiohttp.ClientError, asyncio.TimeoutError):
+                )
+                async with response:
+                    if response.status == 200:
+                        return await response.json()
+            except aiohttp.ClientError:
                 continue
 
-        msg = "All IP info services failed"
-        raise VPNError(msg)
+    msg = "Failed to get IP information from any service"
+    raise VPNError(msg)
 
 
 async def wait_for_connection(

@@ -1,6 +1,7 @@
 """Configuration management for VPN client."""
 
 from pathlib import Path
+import json
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -43,6 +44,49 @@ class VPNConfig(BaseSettings):
             msg = f"Failed to setup config directory: {e}"
             raise VPNConfigError(msg) from e
 
+    @classmethod
+    def from_file(cls, config_file: Path) -> "VPNConfig":
+        """Load configuration from a JSON file.
+
+        Args:
+            config_file: Path to the configuration file
+
+        Returns:
+            VPNConfig: Configuration object
+
+        Raises:
+            FileNotFoundError: If the config file doesn't exist
+            json.JSONDecodeError: If the config file is invalid JSON
+            ValueError: If the configuration is invalid
+        """
+        if not config_file.exists():
+            raise FileNotFoundError(f"Config file not found: {config_file}")
+
+        try:
+            config_data = json.loads(config_file.read_text())
+            return cls(**config_data)
+        except json.JSONDecodeError as e:
+            raise json.JSONDecodeError(
+                f"Invalid JSON in config file: {e}", e.doc, e.pos
+            ) from e
+        except Exception as e:
+            raise ValueError(f"Failed to load config from file: {e}") from e
+
+    @classmethod
+    def from_env(cls) -> "VPNConfig":
+        """Load configuration from environment variables.
+
+        Returns:
+            VPNConfig: Configuration object
+
+        Raises:
+            ValueError: If required environment variables are missing or invalid
+        """
+        try:
+            return cls()
+        except Exception as e:
+            raise ValueError(f"Failed to load config from environment: {e}") from e
+
 
 def load_config(config_file: Path | None = None) -> VPNConfig:
     """Load configuration from file and/or environment.
@@ -58,8 +102,8 @@ def load_config(config_file: Path | None = None) -> VPNConfig:
     """
     try:
         if config_file:
-            return VPNConfig(_env_file=config_file)
-        return VPNConfig()
+            return VPNConfig.from_file(config_file)
+        return VPNConfig.from_env()
     except Exception as e:
         msg = f"Failed to load configuration: {e}"
         raise VPNConfigError(msg) from e

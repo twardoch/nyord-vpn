@@ -30,9 +30,10 @@ def create_secure_tempfile(prefix: str = "nyord_vpn_", suffix: str = "") -> Path
         if not temp_file.exists():
             msg = "Failed to create temporary file"
             raise VPNError(msg)
-        # Set secure permissions (600)
-        temp_file.chmod(0o600)
-        return temp_file
+        else:
+            # Set secure permissions (600)
+            temp_file.chmod(0o600)
+            return temp_file
     except OSError as e:
         msg = f"Failed to create secure temporary file: {e}"
         raise VPNError(msg) from e
@@ -51,6 +52,7 @@ def validate_file_permissions(path: Path, mode: int = 0o600) -> None:
     if not path.exists():
         msg = f"File not found: {path}"
         raise VPNError(msg)
+
     try:
         current_mode = path.stat().st_mode & 0o777
         if current_mode != mode:
@@ -102,23 +104,40 @@ def generate_secure_token(length: int = 32) -> str:
 
 
 def validate_password(password: str) -> bool:
-    """Validate password meets security requirements."""
-    try:
-        if not password or len(password) < MIN_PASSWORD_LENGTH:
-            msg = f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
-            raise VPNError(msg)
-        return True
-    except Exception as e:
-        msg = f"Password validation failed: {e}"
-        raise VPNError(msg) from e
+    """Validate password meets security requirements.
+
+    Args:
+        password: Password to validate
+
+    Returns:
+        bool: True if password is valid
+
+    Raises:
+        VPNError: If password validation fails
+    """
+    if not password or len(password) < MIN_PASSWORD_LENGTH:
+        msg = f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
+        raise VPNError(msg)
+    return True
 
 
 def encrypt_password(password: str) -> str:
-    """Encrypt password using Fernet encryption."""
+    """Encrypt password using Fernet encryption.
+
+    Args:
+        password: Password to encrypt
+
+    Returns:
+        str: Encrypted password
+
+    Raises:
+        VPNError: If encryption fails
+    """
+    if not password:
+        msg = "Password cannot be empty"
+        raise VPNError(msg)
+
     try:
-        if not password:
-            msg = "Password cannot be empty"
-            raise VPNError(msg)
         key = Fernet.generate_key()
         f = Fernet(key)
         return f.encrypt(password.encode()).decode()

@@ -8,7 +8,7 @@ After each set of changes, update @TODO.md with what you've done (`- [x] `). Upg
 Periodically do:
 
 ```
-uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; hatch test; 
+uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; hatch -e test run test; 
 ```
 
 and react to the results. Use `uv pip...` instead of `pip...` if needed. 

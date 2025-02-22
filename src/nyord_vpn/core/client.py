@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from types import TracebackType
-from typing import Any, NoReturn
+from typing import Any, NoReturn, Optional
 
 from pydantic import SecretStr
 
@@ -13,7 +13,7 @@ from nyord_vpn.utils.log_utils import (
     LogConfig,
     setup_logging,
 )
-from nyord_vpn.core.config import load_config
+from nyord_vpn.core.config import VPNConfig
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 
 
@@ -42,10 +42,10 @@ class VPNClient:
 
     def __init__(
         self,
-        config_file: Path | None = None,
-        username: str | None = None,
-        password: str | None = None,
-        log_file: Path | None = None,
+        config_file: Optional[Path] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        log_file: Optional[Path] = None,
     ):
         """Initialize VPN client.
 
@@ -60,7 +60,12 @@ class VPNClient:
         self.logger = setup_logging(log_config)
 
         # Load config
-        self.config = load_config(config_file)
+        if config_file:
+            self.config = VPNConfig.from_file(config_file)
+        else:
+            self.config = VPNConfig.from_env()
+
+        # Override with explicit credentials if provided
         if username:
             self.config.username = username
         if password:
@@ -94,6 +99,55 @@ class VPNClient:
             self.fallback_api.list_countries,
         )
 
+    @classmethod
+    def from_file(
+        cls,
+        config_file: Path,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        log_file: Optional[Path] = None,
+    ) -> "VPNClient":
+        """Create a VPNClient instance from a configuration file.
+
+        Args:
+            config_file: Path to the configuration file
+            username: Optional username (overrides config)
+            password: Optional password (overrides config)
+            log_file: Optional path to log file
+
+        Returns:
+            VPNClient: A new VPNClient instance
+        """
+        return cls(
+            config_file=config_file,
+            username=username,
+            password=password,
+            log_file=log_file,
+        )
+
+    @classmethod
+    def from_env(
+        cls,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        log_file: Optional[Path] = None,
+    ) -> "VPNClient":
+        """Create a VPNClient instance from environment variables.
+
+        Args:
+            username: Optional username (overrides env)
+            password: Optional password (overrides env)
+            log_file: Optional path to log file
+
+        Returns:
+            VPNClient: A new VPNClient instance
+        """
+        return cls(
+            username=username,
+            password=password,
+            log_file=log_file,
+        )
+
     async def __aenter__(self) -> "VPNClient":
         """Async context manager entry."""
         return self
@@ -105,79 +159,66 @@ class VPNClient:
         exc_tb: TracebackType | None,
     ) -> None:
         """Async context manager exit."""
-        await self.disconnect()
+        if exc_type is None:
+            await self.disconnect()
 
-    def _raise_connection_error(
-        self, error: Exception, server: str | None = None
-    ) -> None:
-        """Raise a VPNConnectionError with a descriptive message."""
-        msg = "Error connecting to VPN"
-        if server:
-            msg = f"{msg} server {server}"
-        msg = f"{msg}: {error}"
-        raise VPNConnectionError(msg) from error
-
-    def _raise_disconnect_error(self, error: Exception) -> None:
-        """Raise a VPNConnectionError with a descriptive message."""
-        msg = f"Error disconnecting from VPN: {error}"
-        raise VPNConnectionError(msg) from error
-
-    def _raise_status_error(self, error: Exception) -> None:
-        """Raise a VPNError with a descriptive message."""
-        msg = f"Error getting VPN status: {error}"
-        raise VPNError(msg) from error
-
-    def _raise_countries_error(self, error: Exception) -> None:
-        """Raise a VPNError with a descriptive message."""
-        msg = f"Error getting list of countries: {error}"
-        raise VPNError(msg) from error
-
-    @with_retry()
-    async def connect(self) -> bool:
-        """Connect to the VPN."""
+    def is_connected(self) -> bool:
+        """Check if VPN is connected."""
         try:
-            if not await self._connect():
-                msg = "Failed to connect to VPN"
-                raise VPNConnectionError(msg)
-            return True
-        except Exception as e:
-            msg = f"Failed to connect to VPN: {e}"
-            raise VPNConnectionError(msg) from e
+            status = self._status()
+            if isinstance(status, dict):
+                return bool(status.get("connected", False))
+            return False
+        except VPNError:
+            return False
 
-    @with_retry()
+    async def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN.
+
+        Args:
+            country: Optional country to connect to (defaults to config)
+
+        Returns:
+            bool: True if connection successful
+
+        Raises:
+            VPNConnectionError: If connection fails
+        """
+        target_country = country or self.config.default_country
+        try:
+            return await self._connect(target_country)
+        except Exception as e:
+            _raise_connection_error(e, target_country)
+
     async def disconnect(self) -> bool:
-        """Disconnect from the VPN."""
-        try:
-            if not await self._disconnect():
-                msg = "Failed to disconnect from VPN"
-                raise VPNError(msg)
-            return True
-        except Exception as e:
-            msg = f"Failed to disconnect from VPN: {e}"
-            raise VPNError(msg) from e
+        """Disconnect from VPN.
+
+        Returns:
+            bool: True if disconnection successful
+
+        Raises:
+            VPNConnectionError: If disconnection fails
+        """
+        return await self._disconnect()
 
     @with_retry()
     async def status(self) -> dict[str, Any]:
-        """Get the current VPN status."""
-        try:
-            status = await self._status()
-            if not status:
-                msg = "Failed to get VPN status"
-                raise VPNError(msg)
-            return status
-        except Exception as e:
-            msg = f"Failed to get VPN status: {e}"
-            raise VPNError(msg) from e
+        """Get current VPN connection status.
+
+        Returns:
+            dict: Status information including:
+                - connected (bool): Whether connected
+                - country (str): Connected country if any
+                - ip (str): Current IP address
+                - server (str): Connected server if any
+        """
+        return await self._status()
 
     @with_retry()
     async def list_countries(self) -> list[str]:
-        """List available countries."""
-        try:
-            countries = await self._list_countries()
-            if not countries:
-                msg = "Failed to get country list"
-                raise VPNError(msg)
-            return countries
-        except Exception as e:
-            msg = f"Failed to get country list: {e}"
-            raise VPNError(msg) from e
+        """Get list of available countries.
+
+        Returns:
+            list[str]: List of country names
+        """
+        return await self._list_countries()

@@ -2,6 +2,7 @@
 
 import pytest
 from pathlib import Path
+import os
 
 from nyord_vpn.core.exceptions import VPNError
 from nyord_vpn.utils.security import (
@@ -49,6 +50,7 @@ def test_validate_file_permissions(temp_dir):
 
     # Test permission change failure
     test_file.chmod(0o444)  # Make read-only
+    os.chown(test_file, os.getuid(), os.getgid())  # Ensure we own the file
     with pytest.raises(VPNError, match="Failed to set file permissions"):
         validate_file_permissions(test_file)
 

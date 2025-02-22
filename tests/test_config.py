@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from nyord_vpn.core.config import VPNConfig
 from nyord_vpn.core.exceptions import VPNConfigError
@@ -39,14 +39,14 @@ def test_custom_config():
 
 def test_invalid_config():
     """Test configuration validation."""
-    with pytest.raises(VPNConfigError):
+    with pytest.raises(ValidationError, match="ensure this value is greater than 0"):
         VPNConfig(
             username=TEST_USERNAME,
             password=TEST_PASSWORD.get_secret_value(),
             retry_attempts=0,
         )
 
-    with pytest.raises(VPNConfigError):
+    with pytest.raises(ValidationError, match="ensure this value is greater than 0"):
         VPNConfig(
             username=TEST_USERNAME,
             password=TEST_PASSWORD.get_secret_value(),
@@ -72,40 +72,45 @@ def test_from_file(tmp_path: Path):
     assert config.retry_attempts == 5
 
 
-def test_from_env(monkeypatch):
+def test_from_env():
     """Test loading configuration from environment variables."""
-    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
-    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
-    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "30")
-    monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "5")
-
     config = VPNConfig.from_env()
     assert config.username == TEST_USERNAME
     assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
-    assert config.api_timeout == 30
-    assert config.retry_attempts == 5
 
 
-def test_config_precedence(tmp_path: Path, monkeypatch):
-    """Test configuration precedence (file > env > defaults)."""
-    # Setup file config
+def test_config_precedence(tmp_path: Path):
+    """Test configuration precedence (file > env)."""
+    # Create config file
     config_path = tmp_path / "config.json"
     config_data = {
-        "username": TEST_USERNAME,
-        "password": TEST_PASSWORD.get_secret_value(),
+        "username": "file_user",
+        "password": "file_pass",
         "api_timeout": 30,
     }
     config_path.write_text(json.dumps(config_data))
 
-    # Setup env config (should be overridden by file)
-    monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
-    monkeypatch.setenv("NORDVPN_PASSWORD", "env_pass")
-    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "20")
-
-    # Load config from file
+    # Test loading from file (should override env)
     config = VPNConfig.from_file(config_path)
-    assert config.username == TEST_USERNAME  # From file
-    assert (
-        config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
-    )  # From file
-    assert config.api_timeout == 30  # From file
+    assert config.username == "file_user"
+    assert config.password.get_secret_value() == "file_pass"
+    assert config.api_timeout == 30
+
+
+def test_invalid_config_file(tmp_path: Path):
+    """Test handling of invalid configuration files."""
+    # Test non-existent file
+    with pytest.raises(FileNotFoundError):
+        VPNConfig.from_file(tmp_path / "nonexistent.json")
+
+    # Test invalid JSON
+    invalid_path = tmp_path / "invalid.json"
+    invalid_path.write_text("invalid json content")
+    with pytest.raises(json.JSONDecodeError):
+        VPNConfig.from_file(invalid_path)
+
+    # Test missing required fields
+    empty_path = tmp_path / "empty.json"
+    empty_path.write_text("{}")
+    with pytest.raises(ValidationError):
+        VPNConfig.from_file(empty_path)

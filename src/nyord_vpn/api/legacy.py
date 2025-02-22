@@ -1,5 +1,6 @@
 """Legacy VPN API implementation."""
 
+from pathlib import Path
 from typing import TypedDict, Any
 import shutil
 import asyncio
@@ -11,10 +12,10 @@ from nyord_vpn.core.exceptions import VPNError
 from nyord_vpn.utils.validation import (
     validate_country,
     validate_credentials,
-    validate_command,
     validate_hostname,
 )
 from nyord_vpn.utils.log_utils import log_error
+from nyord_vpn.utils.system import run_subprocess_safely
 
 
 class ServerInfo(TypedDict):
@@ -48,7 +49,7 @@ class LegacyAPI(BaseAPI):
         if not nordvpn_path:
             msg = "nordvpn command not found in PATH"
             raise VPNError(msg)
-        self.nordvpn_path = validate_command(nordvpn_path)
+        self.nordvpn_path = Path(nordvpn_path).resolve()
 
     async def _get_servers(self, country: str) -> list[ServerInfo]:
         """Get list of servers for a country.
@@ -62,11 +63,6 @@ class LegacyAPI(BaseAPI):
         Raises:
             VPNError: If server list cannot be retrieved
         """
-
-        def handle_error(e: Exception) -> list[ServerInfo]:
-            msg = f"Failed to get server list: {e}"
-            raise VPNError(msg) from e
-
         # Validate country
         country = validate_country(country)
 
@@ -87,7 +83,8 @@ class LegacyAPI(BaseAPI):
                         for s in servers
                     ]
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                return handle_error(e)
+                msg = f"Failed to get server list: {e}"
+                raise VPNError(msg) from e
 
     async def connect(self, country: str | None = None) -> bool:
         """Connect to VPN using legacy API.
@@ -97,45 +94,40 @@ class LegacyAPI(BaseAPI):
 
         Returns:
             bool: True if connection successful
+
+        Raises:
+            VPNError: If connection fails
         """
-
-        def handle_error(e: Exception, message: str | None = None) -> bool:
-            error_msg = message or str(e)
-            log_error(f"Legacy API connection failed: {error_msg}")
-            return False
-
         try:
             # Get server
             servers = await self._get_servers(country or "United States")
             if not servers:
-                return handle_error(Exception("No servers found"))
-            # Build command
+                msg = "No servers found"
+                raise VPNError(msg)
+
+            # Build command with validated server
             server = servers[0]["name"]
             cmd = [
-                "openvpn",
-                "--config",
-                f"{server}.ovpn",
-                "--auth-user-pass",
-                "auth.txt",
-                "--daemon",
+                self.nordvpn_path,
+                "connect",
+                server,
             ]
 
-            # Start OpenVPN process
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            # Run command safely
+            run_subprocess_safely(
+                cmd,
+                check=True,
+                timeout=30,
+                text=True,
             )
-
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-
-            if process.returncode != 0:
-                return handle_error(Exception(stderr.decode()))
             return True
-        except asyncio.TimeoutError as e:
-            return handle_error(e, "Connection timed out after 30 seconds")
+
+        except VPNError as e:
+            log_error(f"Legacy API connection failed: {e}")
+            return False
         except Exception as e:
-            return handle_error(e)
+            log_error(f"Unexpected error in legacy API connection: {e}")
+            return False
 
     async def disconnect(self) -> bool:
         """Disconnect from VPN using legacy API.
