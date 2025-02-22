@@ -5,7 +5,6 @@ import shutil
 import asyncio
 import aiohttp
 import shlex
-from pathlib import Path
 
 from nyord_vpn.api.base import BaseAPI
 from nyord_vpn.core.exceptions import VPNError
@@ -15,6 +14,7 @@ from nyord_vpn.utils.validation import (
     validate_command,
     validate_hostname,
 )
+from nyord_vpn.utils.log_utils import log_error
 
 
 class ServerInfo(TypedDict):
@@ -62,6 +62,11 @@ class LegacyAPI(BaseAPI):
         Raises:
             VPNError: If server list cannot be retrieved
         """
+
+        def handle_error(e: Exception) -> list[ServerInfo]:
+            msg = f"Failed to get server list: {e}"
+            raise VPNError(msg) from e
+
         # Validate country
         country = validate_country(country)
 
@@ -82,74 +87,86 @@ class LegacyAPI(BaseAPI):
                         for s in servers
                     ]
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                msg = f"Failed to get server list: {e}"
-                raise VPNError(msg) from e
+                return handle_error(e)
 
     async def connect(self, country: str | None = None) -> bool:
-        """Connect to NordVPN.
+        """Connect to VPN using legacy API.
 
         Args:
             country: Optional country to connect to
 
         Returns:
-            True if connection successful
-
-        Raises:
-            VPNError: If connection fails
+            bool: True if connection successful
         """
-        cmd = [str(self.nordvpn_path), "connect"]
-        if country:
-            # Validate country
-            country = validate_country(country)
-            cmd.append(country)
+
+        def handle_error(e: Exception, message: str | None = None) -> bool:
+            error_msg = message or str(e)
+            log_error(f"Legacy API connection failed: {error_msg}")
+            return False
 
         try:
+            # Get server
+            servers = await self._get_servers(country or "United States")
+            if not servers:
+                return handle_error(Exception("No servers found"))
+            # Build command
+            server = servers[0]["name"]
+            cmd = [
+                "openvpn",
+                "--config",
+                f"{server}.ovpn",
+                "--auth-user-pass",
+                "auth.txt",
+                "--daemon",
+            ]
+
+            # Start OpenVPN process
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
 
             if process.returncode != 0:
-                msg = f"Failed to connect: {stderr.decode()}"
-                raise VPNError(msg)
+                return handle_error(Exception(stderr.decode()))
             return True
         except asyncio.TimeoutError as e:
-            msg = "Connection timed out after 30 seconds"
-            raise VPNError(msg) from e
+            return handle_error(e, "Connection timed out after 30 seconds")
         except Exception as e:
-            msg = f"Failed to connect: {e}"
-            raise VPNError(msg) from e
+            return handle_error(e)
 
     async def disconnect(self) -> bool:
-        """Disconnect from NordVPN.
+        """Disconnect from VPN using legacy API.
 
         Returns:
-            True if disconnection successful
-
-        Raises:
-            VPNError: If disconnection fails
+            bool: True if disconnection successful
         """
+
+        def handle_error(e: Exception, message: str | None = None) -> bool:
+            error_msg = message or str(e)
+            log_error(f"Legacy API disconnection failed: {error_msg}")
+            return False
+
         try:
+            # Kill OpenVPN process
+            cmd = ["pkill", "openvpn"]
             process = await asyncio.create_subprocess_exec(
-                str(self.nordvpn_path),
-                "disconnect",
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5)
 
             if process.returncode != 0:
-                msg = f"Failed to disconnect: {stderr.decode()}"
-                raise VPNError(msg)
+                return handle_error(Exception(stderr.decode()))
             return True
         except asyncio.TimeoutError as e:
-            msg = "Disconnect timed out after 10 seconds"
-            raise VPNError(msg) from e
+            return handle_error(e, "Disconnection timed out after 5 seconds")
         except Exception as e:
-            msg = f"Failed to disconnect: {e}"
-            raise VPNError(msg) from e
+            return handle_error(e)
 
     async def status(self) -> dict[str, Any]:
         """Get current connection status.
@@ -160,6 +177,11 @@ class LegacyAPI(BaseAPI):
         Raises:
             VPNError: If status cannot be retrieved
         """
+
+        def handle_error(e: Exception, operation: str) -> dict[str, Any]:
+            msg = f"Failed to {operation}: {e}"
+            raise VPNError(msg) from e
+
         try:
             # Get current IP
             async with (
@@ -183,8 +205,7 @@ class LegacyAPI(BaseAPI):
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
 
             if process.returncode != 0:
-                msg = f"Failed to get status: {stderr.decode()}"
-                raise VPNError(msg)
+                return handle_error(Exception(stderr.decode()), "get status")
 
             return {
                 "ip": ip_info.get("ip"),
@@ -192,11 +213,9 @@ class LegacyAPI(BaseAPI):
                 "status": stdout.decode(),
             }
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            msg = f"Failed to get status: {e}"
-            raise VPNError(msg) from e
+            return handle_error(e, "get IP info")
         except Exception as e:
-            msg = f"Failed to get status: {e}"
-            raise VPNError(msg) from e
+            return handle_error(e, "get status")
 
     async def list_countries(self) -> list[str]:
         """Get list of available countries.
@@ -207,6 +226,11 @@ class LegacyAPI(BaseAPI):
         Raises:
             VPNError: If country list cannot be retrieved
         """
+
+        def handle_error(e: Exception) -> list[str]:
+            msg = f"Failed to get country list: {e}"
+            raise VPNError(msg) from e
+
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(
@@ -218,8 +242,7 @@ class LegacyAPI(BaseAPI):
                     countries: list[CountryInfo] = await response.json()
                     return [c["name"] for c in countries]
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                msg = f"Failed to get country list: {e}"
-                raise VPNError(msg) from e
+                return handle_error(e)
 
     async def get_credentials(self) -> tuple[str, str]:
         """Get stored credentials.

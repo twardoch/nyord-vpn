@@ -1,7 +1,6 @@
 """Tests for LegacyAPI implementation."""
 
 import pytest
-from pathlib import Path
 from aiohttp import ClientError
 
 from nyord_vpn.core.exceptions import VPNError

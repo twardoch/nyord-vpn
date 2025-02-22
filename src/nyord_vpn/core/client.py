@@ -1,7 +1,8 @@
 """Main VPN client implementation."""
 
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import Any, NoReturn
 
 from pydantic import SecretStr
 
@@ -10,13 +11,30 @@ from nyord_vpn.api.legacy import LegacyAPI
 from nyord_vpn.utils.retry import with_fallback, with_retry
 from nyord_vpn.utils.log_utils import (
     LogConfig,
-    log_operation,
-    log_success,
-    log_error,
     setup_logging,
 )
 from nyord_vpn.core.config import load_config
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
+
+
+def _raise_connection_error(error: Exception, country: str) -> NoReturn:
+    msg = f"Failed to connect to {country}: {error}"
+    raise VPNConnectionError(msg) from error
+
+
+def _raise_disconnect_error(error: Exception) -> NoReturn:
+    msg = f"Failed to disconnect: {error}"
+    raise VPNConnectionError(msg) from error
+
+
+def _raise_status_error(error: Exception) -> NoReturn:
+    msg = f"Failed to get status: {error}"
+    raise VPNConnectionError(msg) from error
+
+
+def _raise_countries_error(error: Exception) -> NoReturn:
+    msg = f"Failed to list countries: {error}"
+    raise VPNConnectionError(msg) from error
 
 
 class VPNClient:
@@ -80,92 +98,86 @@ class VPNClient:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit."""
         await self.disconnect()
 
+    def _raise_connection_error(
+        self, error: Exception, server: str | None = None
+    ) -> None:
+        """Raise a VPNConnectionError with a descriptive message."""
+        msg = "Error connecting to VPN"
+        if server:
+            msg = f"{msg} server {server}"
+        msg = f"{msg}: {error}"
+        raise VPNConnectionError(msg) from error
+
+    def _raise_disconnect_error(self, error: Exception) -> None:
+        """Raise a VPNConnectionError with a descriptive message."""
+        msg = f"Error disconnecting from VPN: {error}"
+        raise VPNConnectionError(msg) from error
+
+    def _raise_status_error(self, error: Exception) -> None:
+        """Raise a VPNError with a descriptive message."""
+        msg = f"Error getting VPN status: {error}"
+        raise VPNError(msg) from error
+
+    def _raise_countries_error(self, error: Exception) -> None:
+        """Raise a VPNError with a descriptive message."""
+        msg = f"Error getting list of countries: {error}"
+        raise VPNError(msg) from error
+
     @with_retry()
-    async def connect(self, country: str | None = None) -> bool:
-        """Connect to VPN.
-
-        Args:
-            country: Optional country to connect to
-
-        Returns:
-            bool: True if connection successful
-
-        Raises:
-            VPNConnectionError: If connection fails
-        """
-        country = country or self.config.default_country
-        log_operation(f"Connecting to VPN in {country}")
-
+    async def connect(self) -> bool:
+        """Connect to the VPN."""
         try:
-            result = await self._connect(country)
-            if result:
-                log_success("Connected successfully")
-            else:
-                log_error("Connection failed")
-            return result
+            if not await self._connect():
+                msg = "Failed to connect to VPN"
+                raise VPNConnectionError(msg)
+            return True
         except Exception as e:
-            log_error(f"Connection failed: {e}")
-            msg = f"Failed to connect: {e}"
+            msg = f"Failed to connect to VPN: {e}"
             raise VPNConnectionError(msg) from e
 
     @with_retry()
     async def disconnect(self) -> bool:
-        """Disconnect from VPN.
-
-        Returns:
-            bool: True if disconnection successful
-
-        Raises:
-            VPNConnectionError: If disconnection fails
-        """
-        log_operation("Disconnecting from VPN")
-
+        """Disconnect from the VPN."""
         try:
-            result = await self._disconnect()
-            if result:
-                log_success("Disconnected successfully")
-            else:
-                log_error("Disconnection failed")
-            return result
+            if not await self._disconnect():
+                msg = "Failed to disconnect from VPN"
+                raise VPNError(msg)
+            return True
         except Exception as e:
-            log_error(f"Disconnection failed: {e}")
-            msg = f"Failed to disconnect: {e}"
-            raise VPNConnectionError(msg) from e
+            msg = f"Failed to disconnect from VPN: {e}"
+            raise VPNError(msg) from e
 
     @with_retry()
     async def status(self) -> dict[str, Any]:
-        """Get VPN status.
-
-        Returns:
-            dict: Status information
-
-        Raises:
-            VPNError: If status check fails
-        """
+        """Get the current VPN status."""
         try:
-            return await self._status()
+            status = await self._status()
+            if not status:
+                msg = "Failed to get VPN status"
+                raise VPNError(msg)
+            return status
         except Exception as e:
-            log_error(f"Failed to get status: {e}")
-            msg = f"Failed to get status: {e}"
+            msg = f"Failed to get VPN status: {e}"
             raise VPNError(msg) from e
 
     @with_retry()
     async def list_countries(self) -> list[str]:
-        """Get available countries.
-
-        Returns:
-            list[str]: List of country names
-
-        Raises:
-            VPNError: If country list fetch fails
-        """
+        """List available countries."""
         try:
-            return await self._list_countries()
+            countries = await self._list_countries()
+            if not countries:
+                msg = "Failed to get country list"
+                raise VPNError(msg)
+            return countries
         except Exception as e:
-            log_error(f"Failed to get countries: {e}")
-            msg = f"Failed to get countries: {e}"
+            msg = f"Failed to get country list: {e}"
             raise VPNError(msg) from e

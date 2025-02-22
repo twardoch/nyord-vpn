@@ -8,7 +8,7 @@ import aiohttp
 import pycountry
 from njord import Client
 
-from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNStatusError
+from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 from nyord_vpn.data.countries import get_country_id
 from nyord_vpn.api.base import BaseAPI
 from nyord_vpn.utils.validation import (
@@ -52,6 +52,27 @@ class NjordAPI(BaseAPI):
         Raises:
             VPNError: If no server is found
         """
+
+        def handle_country_not_found(country: str) -> str:
+            msg = f"Country not found: {country}"
+            raise VPNError(msg)
+
+        def handle_invalid_country(country_obj: Any) -> str:
+            msg = f"Invalid country object: {country_obj}"
+            raise VPNError(msg)
+
+        def handle_unsupported_country(country: str) -> str:
+            msg = f"Country not supported: {country}"
+            raise VPNError(msg)
+
+        def handle_no_servers(country: str) -> str:
+            msg = f"No servers found for country: {country}"
+            raise VPNError(msg)
+
+        def handle_request_error(e: Exception) -> str:
+            msg = f"Failed to get server recommendations: {e}"
+            raise VPNError(msg) from e
+
         # Validate country
         country = validate_country(country)
 
@@ -63,19 +84,16 @@ class NjordAPI(BaseAPI):
             if matches:
                 country_obj = matches[0]
             else:
-                msg = f"Country not found: {country}"
-                raise VPNError(msg)
+                return handle_country_not_found(country)
 
         # Get alpha_2 code safely
         alpha_2 = getattr(country_obj, "alpha_2", None)
         if not alpha_2:
-            msg = f"Invalid country object: {country_obj}"
-            raise VPNError(msg)
+            return handle_invalid_country(country_obj)
 
         country_id = get_country_id(alpha_2)
         if not country_id:
-            msg = f"Country not supported: {country}"
-            raise VPNError(msg)
+            return handle_unsupported_country(country)
 
         try:
             async with (
@@ -91,8 +109,7 @@ class NjordAPI(BaseAPI):
                 servers = await response.json()
 
             if not servers:
-                msg = f"No servers found for country: {country}"
-                raise VPNError(msg)
+                return handle_no_servers(country)
 
             # Use cryptographically secure random choice
             server_index = secrets.randbelow(len(servers))
@@ -102,93 +119,112 @@ class NjordAPI(BaseAPI):
             return validate_hostname(hostname)
 
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            msg = f"Failed to get server recommendations: {e}"
-            raise VPNError(msg) from e
+            return handle_request_error(e)
 
     async def connect(self, country: str) -> bool:
-        """Connect to VPN in specified country.
+        """Connect to VPN using njord.
 
         Args:
-            country: Country name or code
+            country: Country to connect to
 
         Returns:
             bool: True if connection successful
-
-        Raises:
-            VPNConnectionError: If connection fails
         """
+
+        def handle_vpn_error(e: VPNError) -> bool:
+            # Re-raise VPN errors as-is
+            raise e
+
+        def handle_connection_error(e: Exception, context: str | None = None) -> bool:
+            msg = f"Failed to connect: {context or str(e)}"
+            raise VPNConnectionError(msg) from e
+
         try:
-            # Validate country
-            country = validate_country(country)
+            # Get recommended server
+            server = await self.get_recommended_server(country)
 
-            # Get recommended server (we don't use this directly since njord
-            # has its own server selection logic)
-            await self.get_recommended_server(country)
-
-            # Connect using njord (run in thread pool)
+            # Run connect in thread pool
             connect_fn = self._client.connect
-            result = await self._loop.run_in_executor(None, connect_fn)
-            self._connected = bool(result)
+            await self._loop.run_in_executor(None, connect_fn)
 
-            if self._connected:
-                # Get status (run in thread pool)
+            # Update state
+            self._connected = True
+            self._current_server = server
+
+            # Get status to verify connection
+            try:
                 status_fn = self._client.status
                 status = await self._loop.run_in_executor(None, status_fn)
-                server = status.get("server")
-                if server:
-                    self._current_server = validate_hostname(server)
+                if not status or not status.get("server"):
+                    return handle_connection_error(VPNError("No server in status"))
+                self._current_server = validate_hostname(status["server"])
+                return True
+            except VPNError as e:
+                return handle_vpn_error(e)
+            except Exception as e:
+                return handle_connection_error(e)
 
-            return self._connected
-
-        except VPNError:
-            # Re-raise VPN errors as-is
-            raise
+        except VPNError as e:
+            return handle_vpn_error(e)
         except Exception as e:
-            msg = f"Failed to connect: {e}"
-            raise VPNConnectionError(msg) from e
+            return handle_connection_error(e)
 
     async def disconnect(self) -> bool:
         """Disconnect from VPN using njord."""
-        try:
-            # Run disconnect in thread pool
-            disconnect_fn = self._client.disconnect
-            await self._loop.run_in_executor(None, disconnect_fn)
-            self._connected = False
-            self._current_server = None
-            return True
 
-        except Exception as e:
+        def handle_error(e: Exception) -> bool:
             msg = f"Failed to disconnect: {e}"
             raise VPNConnectionError(msg) from e
 
-    async def status(self) -> dict[str, Any]:
-        """Get VPN connection status."""
         try:
-            # Run status check in thread pool
+            # Run disconnect in thread pool
+            disconnect_fn = self._client.disconnect
+            result = await self._loop.run_in_executor(None, disconnect_fn)
+            if not result:
+                return handle_error(VPNError("Failed to disconnect"))
+            self._connected = False
+            self._current_server = None
+            return True
+        except Exception as e:
+            return handle_error(e)
+
+    async def status(self) -> dict[str, Any]:
+        """Get VPN status using njord.
+
+        Returns:
+            dict: Status information
+        """
+
+        def handle_error(e: Exception) -> dict[str, Any]:
+            msg = f"Failed to get status: {e}"
+            raise VPNConnectionError(msg) from e
+
+        try:
+            # Run status in thread pool
             status_fn = self._client.status
             status = await self._loop.run_in_executor(None, status_fn)
-            return {
-                "connected": self._connected,
-                "country": str(status.get("country", "")),
-                "ip": str(status.get("ip", "")),
-                "server": str(self._current_server) if self._current_server else "",
-            }
-
+            if not status:
+                return handle_error(VPNError("No status returned"))
+            return status
         except Exception as e:
-            msg = f"Failed to get status: {e}"
-            raise VPNStatusError(msg) from e
+            return handle_error(e)
 
     async def list_countries(self) -> list[str]:
         """Get available countries from njord."""
+
+        def handle_error(e: Exception) -> list[str]:
+            msg = f"Failed to get countries: {e}"
+            raise VPNError(msg) from e
+
         try:
             # Run list_countries in thread pool
             list_fn = self._client.list_countries
             countries = await self._loop.run_in_executor(None, list_fn)
+            if not countries:
+                return handle_error(VPNError("No countries found"))
             return [str(country["name"]) for country in countries]
-
         except Exception as e:
-            msg = f"Failed to get countries: {e}"
-            raise VPNError(msg) from e
+            return handle_error(e)
 
     async def get_credentials(self) -> tuple[str, str]:
         """Get stored credentials."""

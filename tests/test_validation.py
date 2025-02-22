@@ -1,9 +1,6 @@
 """Tests for validation utilities."""
 
-import os
-import stat
 import pytest
-from pathlib import Path
 
 from nyord_vpn.core.exceptions import VPNError
 from nyord_vpn.utils.validation import (

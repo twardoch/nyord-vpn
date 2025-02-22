@@ -1,7 +1,6 @@
 """Input validation utilities."""
 
 import re
-import os
 import stat
 from pathlib import Path
 from typing import Any
@@ -154,7 +153,7 @@ def validate_env_var(name: str, value: Any) -> str:
         msg = "Environment variable name must be a non-empty string"
         raise VPNError(msg)
 
-    if not value or not isinstance(value, (str, int, float, bool)):
+    if not value or not isinstance(value, str | int | float | bool):
         msg = f"Invalid environment variable value for {name}"
         raise VPNError(msg)
 

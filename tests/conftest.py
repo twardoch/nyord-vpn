@@ -3,7 +3,6 @@
 from pathlib import Path
 from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
-import os
 
 import aiohttp
 import pytest
