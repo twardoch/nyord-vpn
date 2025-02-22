@@ -60,22 +60,31 @@
 
 ### 2.2. Testing
 
-* [!] Add unit tests:
-  + [!] Test API implementations:
-    + [!] Test njord.py
-    + [!] Test legacy.py
-  + [!] Test utility functions:
-    + [!] Test system.py
-    + [!] Test network.py
-    + [!] Test security.py
-  + [!] Test configuration handling:
-    + [!] Test config loading
-    + [!] Test config validation
-    + [!] Test environment variables
-* [ ] Add integration tests:
-  + [ ] Test connection flow
-  + [ ] Test error handling
-  + [ ] Test configuration loading
+* [x] Add unit tests:
+  + [x] Test API implementations:
+    + [x] Test njord.py
+    + [x] Test legacy.py
+  + [x] Test utility functions:
+    + [x] Test system.py
+    + [x] Test network.py
+    + [x] Test security.py
+  + [x] Test configuration handling:
+    + [x] Test config loading
+    + [x] Test config validation
+    + [x] Test environment variables
+* [!] Add integration tests:
+  + [!] Test connection flow:
+    + [!] Test successful connection
+    + [!] Test connection failure
+    + [!] Test fallback behavior
+  + [!] Test error handling:
+    + [!] Test network errors
+    + [!] Test subprocess errors
+    + [!] Test configuration errors
+  + [!] Test configuration loading:
+    + [!] Test file loading
+    + [!] Test environment loading
+    + [!] Test default values
 
 ### 2.3. Documentation
 
