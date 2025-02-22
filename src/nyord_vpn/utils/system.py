@@ -12,43 +12,92 @@ from nyord_vpn.core.exceptions import VPNError
 SHELL_METACHARACTERS = ";|&`$(){}[]<>\\'"
 
 
-def check_command(command: str) -> tuple[bool, str]:
-    """Check if a command exists in the system and validate its permissions."""
+def check_command(cmd: str | Path) -> tuple[bool, str]:
+    """Check if a command exists and is executable.
+
+    Args:
+        cmd: Command to check
+
+    Returns:
+        Tuple of (exists, path)
+    """
     try:
-        command_path = shutil.which(command)
-        if not command_path:
+        cmd_str = str(cmd)
+        if os.path.isabs(cmd_str):
+            # If absolute path, check directly
+            if os.access(cmd_str, os.X_OK):
+                return True, cmd_str
             return False, ""
-        if not os.access(command_path, os.X_OK):
-            msg = f"Command {command} exists but is not executable"
-            raise VPNError(msg)
-        return True, command_path
-    except OSError as e:
-        msg = f"Error checking command {command}: {e}"
+
+        # Otherwise search in PATH
+        cmd_path = shutil.which(cmd_str)
+        if cmd_path:
+            return True, cmd_path
+        return False, ""
+    except Exception as e:
+        msg = f"Failed to check command: {e}"
         raise VPNError(msg) from e
 
 
 def validate_command(cmd: Sequence[str | Path]) -> list[str]:
-    """Validate a command and its arguments for safe execution."""
+    """Validate a command and its arguments for safe execution.
+
+    Args:
+        cmd: Command and arguments as a sequence
+
+    Returns:
+        list[str]: Validated command list
+
+    Raises:
+        VPNError: If command is invalid or unsafe
+    """
     if not cmd:
         msg = "Empty command"
         raise VPNError(msg)
 
-    cmd_list = [str(arg) for arg in cmd]
     try:
+        # Convert all arguments to strings
+        cmd_list = [str(arg) for arg in cmd]
+
+        # Validate executable
         exists, command_path = check_command(cmd_list[0])
         if not exists:
             msg = f"Command {cmd_list[0]} not found"
             raise VPNError(msg)
-        cmd_list[0] = command_path
-        for arg in cmd_list[1:]:
-            if any(char in arg for char in SHELL_METACHARACTERS):
-                msg = f"Invalid character in argument: {arg}"
+
+        # Check for shell metacharacters
+        unsafe_chars = {
+            ";",
+            "&",
+            "|",
+            ">",
+            "<",
+            "`",
+            "$",
+            "(",
+            ")",
+            "{",
+            "}",
+            "[",
+            "]",
+            "\\",
+            "'",
+            '"',
+            "\n",
+        }
+        for arg in cmd_list:
+            if any(char in arg for char in unsafe_chars):
+                msg = f"Command argument contains unsafe characters: {arg}"
                 raise VPNError(msg)
+
+        # Use absolute path for executable
+        cmd_list[0] = command_path
         return cmd_list
+
     except VPNError:
         raise
     except Exception as e:
-        msg = f"Error validating command {cmd_list[0]}: {e}"
+        msg = f"Failed to validate command: {e}"
         raise VPNError(msg) from e
 
 
@@ -87,6 +136,7 @@ def run_subprocess_safely(
             text=text,
             capture_output=True,
             env={"PATH": os.environ.get("PATH", "")},
+            shell=False,  # Never use shell
         )
 
         # Check output size

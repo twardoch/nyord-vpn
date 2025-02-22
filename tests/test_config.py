@@ -7,7 +7,6 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from nyord_vpn.core.config import VPNConfig
-from nyord_vpn.core.exceptions import VPNConfigError
 from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 

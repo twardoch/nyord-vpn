@@ -60,17 +60,20 @@ class VPNConfig(BaseSettings):
             ValueError: If the configuration is invalid
         """
         if not config_file.exists():
-            raise FileNotFoundError(f"Config file not found: {config_file}")
+            msg = f"Config file not found: {config_file}"
+            raise FileNotFoundError(msg)
 
         try:
             config_data = json.loads(config_file.read_text())
             return cls(**config_data)
         except json.JSONDecodeError as e:
+            msg = f"Invalid JSON in config file: {e}"
             raise json.JSONDecodeError(
-                f"Invalid JSON in config file: {e}", e.doc, e.pos
+                msg, e.doc, e.pos
             ) from e
         except Exception as e:
-            raise ValueError(f"Failed to load config from file: {e}") from e
+            msg = f"Failed to load config from file: {e}"
+            raise ValueError(msg) from e
 
     @classmethod
     def from_env(cls) -> "VPNConfig":
@@ -85,7 +88,8 @@ class VPNConfig(BaseSettings):
         try:
             return cls()
         except Exception as e:
-            raise ValueError(f"Failed to load config from environment: {e}") from e
+            msg = f"Failed to load config from environment: {e}"
+            raise ValueError(msg) from e
 
 
 def load_config(config_file: Path | None = None) -> VPNConfig:

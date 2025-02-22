@@ -141,7 +141,7 @@ def mock_nordvpn_command(monkeypatch, tmp_path: Path) -> Generator[Path, None, N
     new_path = f"{tmp_path}:{os.environ.get('PATH', '')}"
     monkeypatch.setenv("PATH", new_path)
 
-    yield mock_cmd
+    return mock_cmd
 
 
 @pytest.fixture(autouse=True)

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from types import TracebackType
-from typing import Any, NoReturn, Optional
+from typing import Any, NoReturn
 
 from pydantic import SecretStr
 
@@ -42,10 +42,10 @@ class VPNClient:
 
     def __init__(
         self,
-        config_file: Optional[Path] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        log_file: Optional[Path] = None,
+        config_file: Path | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        log_file: Path | None = None,
     ):
         """Initialize VPN client.
 
@@ -103,9 +103,9 @@ class VPNClient:
     def from_file(
         cls,
         config_file: Path,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        log_file: Optional[Path] = None,
+        username: str | None = None,
+        password: str | None = None,
+        log_file: Path | None = None,
     ) -> "VPNClient":
         """Create a VPNClient instance from a configuration file.
 
@@ -128,9 +128,9 @@ class VPNClient:
     @classmethod
     def from_env(
         cls,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        log_file: Optional[Path] = None,
+        username: str | None = None,
+        password: str | None = None,
+        log_file: Path | None = None,
     ) -> "VPNClient":
         """Create a VPNClient instance from environment variables.
 
