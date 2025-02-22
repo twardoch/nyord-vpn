@@ -2,6 +2,25 @@
 description: nyord-vpn
 globs: 
 ---
+# nyord-vpn
+
+A modern Python client for NordVPN with automatic API fallback support, providing both a CLI interface and a Python library.
+
+```bash
+# Install system requirements first
+brew install openvpn  # macOS
+sudo apt install openvpn  # Ubuntu/Debian
+sudo dnf install openvpn  # Fedora/RHEL
+
+# Then install and use the package
+pip install nyord-vpn
+export NORD_USER="username" NORD_PASSWORD="password"
+nyord-vpn connect de  # Connect to a German VPN
+nyord-vpn status  # Check status
+nyord-vpn disconnect  # Disconnect
+```
+
+## DEVELOPMENT
 
 After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
 

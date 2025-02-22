@@ -3,7 +3,7 @@
 import asyncio
 from pathlib import Path
 import sys
-from typing import NoReturn
+from typing import NoReturn, Literal
 
 import fire
 from rich.console import Console
@@ -39,6 +39,7 @@ class CLI:
         username: str | None = None,
         password: str | None = None,
         log_file: str | None = None,
+        api: Literal["njord", "legacy"] | None = None,
     ):
         """Initialize CLI.
 
@@ -47,12 +48,14 @@ class CLI:
             username: Optional username
             password: Optional password
             log_file: Optional path to log file
+            api: API to use ('njord' or 'legacy')
         """
         try:
             self.config = Path(config) if config else None
             self.username = username
             self.password = password
             self.log_file = Path(log_file) if log_file else None
+            self.api = api
             log_config = LogConfig(log_file=self.log_file)
             self.logger = setup_logging(log_config)
         except (OSError, VPNConfigError) as e:
@@ -66,6 +69,7 @@ class CLI:
                 username=self.username,
                 password=self.password,
                 log_file=self.log_file,
+                use_legacy_api=self.api == "legacy",
             )
         except VPNConfigError as e:
             exit_with_error("Failed to initialize VPN client", e)
@@ -74,7 +78,7 @@ class CLI:
         """Connect to VPN.
 
         Args:
-            country: Optional country to connect to
+            country: Optional country to connect to (name or code)
         """
 
         async def _connect():
@@ -190,7 +194,16 @@ class CLI:
 def main() -> None:
     """CLI entry point."""
     try:
-        fire.Fire(CLI)
+        # Create CLI instance with command group
+        cli = CLI()
+        fire.Fire(
+            {
+                "connect": cli.connect,
+                "disconnect": cli.disconnect,
+                "status": cli.status,
+                "list-countries": cli.list_countries,
+            }
+        )
     except KeyboardInterrupt:
         console.print("\n[yellow]Operation cancelled by user[/yellow]")
         sys.exit(1)

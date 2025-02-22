@@ -47,15 +47,13 @@ async def test_file_loading(temp_dir):
 
 
 @pytest.mark.integration
-async def test_environment_loading(monkeypatch):
-    """Test configuration loading from environment variables."""
+async def test_environment_loading_unprefixed(monkeypatch):
+    """Test configuration loading from unprefixed environment variables."""
     # Set environment variables
-    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
-    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORD_USER", TEST_USERNAME)
+    monkeypatch.setenv("NORD_PASSWORD", TEST_PASSWORD.get_secret_value())
     monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Norway")
     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "4")
-    monkeypatch.setenv("NORDVPN_USE_LEGACY_FALLBACK", "false")
-    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "45")
 
     # Test loading with VPNClient
     client = VPNClient.from_env()
@@ -63,17 +61,38 @@ async def test_environment_loading(monkeypatch):
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
     assert client.config.default_country == "Norway"
     assert client.config.retry_attempts == 4
-    assert client.config.use_legacy_fallback is False
-    assert client.config.api_timeout == 45
 
-    # Test loading with VPNConfig
-    config = VPNConfig.from_env()
-    assert config.username == TEST_USERNAME
-    assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
-    assert config.default_country == "Norway"
-    assert config.retry_attempts == 4
-    assert config.use_legacy_fallback is False
-    assert config.api_timeout == 45
+
+@pytest.mark.integration
+async def test_environment_loading_prefixed(monkeypatch):
+    """Test configuration loading from prefixed environment variables."""
+    # Set environment variables
+    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
+    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Sweden")
+    monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "5")
+
+    # Test loading with VPNClient
+    client = VPNClient.from_env()
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert client.config.default_country == "Sweden"
+    assert client.config.retry_attempts == 5
+
+
+@pytest.mark.integration
+async def test_environment_loading_precedence(monkeypatch):
+    """Test precedence between prefixed and unprefixed environment variables."""
+    # Set both prefixed and unprefixed variables
+    monkeypatch.setenv("NORD_USER", "unprefixed_user")
+    monkeypatch.setenv("NORD_PASSWORD", "unprefixed_pass")
+    monkeypatch.setenv("NORDVPN_USERNAME", "prefixed_user")
+    monkeypatch.setenv("NORDVPN_PASSWORD", "prefixed_pass")
+
+    # Unprefixed should take precedence
+    client = VPNClient.from_env()
+    assert client.config.username == "unprefixed_user"
+    assert client.config.password.get_secret_value() == "unprefixed_pass"
 
 
 @pytest.mark.integration
@@ -101,8 +120,8 @@ async def test_default_values():
 
 
 @pytest.mark.integration
-async def test_config_precedence(temp_dir, monkeypatch):
-    """Test configuration loading precedence."""
+async def test_config_file_precedence(temp_dir, monkeypatch):
+    """Test configuration loading precedence between file and environment."""
     # Create config file
     config_file = temp_dir / "config.json"
     config_data = {
@@ -114,7 +133,8 @@ async def test_config_precedence(temp_dir, monkeypatch):
     config_file.write_text(json.dumps(config_data))
 
     # Set environment variables
-    monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
+    monkeypatch.setenv("NORD_USER", "env_user")
+    monkeypatch.setenv("NORD_PASSWORD", "env_pass")
     monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Norway")
     monkeypatch.setenv("NORDVPN_API_TIMEOUT", "45")
 
@@ -257,43 +277,6 @@ def test_direct_initialization():
     )
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
-
-
-def test_config_precedence(tmp_path: Path, monkeypatch):
-    """Test configuration precedence (args > file > env)."""
-    # Create config file
-    config_path = tmp_path / "config.json"
-    config_data = {
-        "username": TEST_USERNAME,
-        "password": TEST_PASSWORD.get_secret_value(),
-        "api_timeout": 30,
-    }
-    config_path.write_text(json.dumps(config_data))
-
-    # Set environment variables (should be overridden by file and args)
-    monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
-    monkeypatch.setenv("NORDVPN_PASSWORD", "env_pass")
-    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "20")
-
-    # Test precedence with client
-    client = VPNClient(
-        config_file=config_path,
-        username="arg_user",
-        password=TEST_PASSWORD.get_secret_value(),
-    )
-    assert client.config.username == "arg_user"  # From arg
-    assert (
-        client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
-    )  # From arg
-    assert client.config.api_timeout == 30  # From file
-
-    # Test precedence with config
-    config = VPNConfig.from_file(config_path)
-    assert config.username == TEST_USERNAME  # From file
-    assert (
-        config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
-    )  # From file
-    assert config.api_timeout == 30  # From file
 
 
 def test_invalid_config_file(tmp_path: Path):

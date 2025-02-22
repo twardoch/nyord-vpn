@@ -3,7 +3,7 @@
 from pathlib import Path
 import json
 
-from pydantic import SecretStr
+from pydantic import SecretStr, Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from nyord_vpn.core.exceptions import VPNConfigError
@@ -12,9 +12,19 @@ from nyord_vpn.core.exceptions import VPNConfigError
 class VPNConfig(BaseSettings):
     """VPN configuration settings."""
 
-    # Credentials
-    username: str
-    password: SecretStr
+    # Credentials - support both prefixed and unprefixed env vars
+    username: str = Field(
+        ...,  # Required field
+        validation_alias=AliasChoices(
+            "NORD_USER", "NORDVPN_USERNAME"
+        ),  # Support both variants
+    )
+    password: SecretStr = Field(
+        ...,  # Required field
+        validation_alias=AliasChoices(
+            "NORD_PASSWORD", "NORDVPN_PASSWORD"
+        ),  # Support both variants
+    )
 
     # Connection settings
     default_country: str = "United States"
@@ -68,9 +78,7 @@ class VPNConfig(BaseSettings):
             return cls(**config_data)
         except json.JSONDecodeError as e:
             msg = f"Invalid JSON in config file: {e}"
-            raise json.JSONDecodeError(
-                msg, e.doc, e.pos
-            ) from e
+            raise json.JSONDecodeError(msg, e.doc, e.pos) from e
         except Exception as e:
             msg = f"Failed to load config from file: {e}"
             raise ValueError(msg) from e

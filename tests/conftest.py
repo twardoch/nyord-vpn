@@ -13,8 +13,8 @@ from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.config import VPNConfig
 
 # Test credentials - load from environment variables
-TEST_USERNAME = os.getenv("TEST_NORDVPN_USERNAME", "test_user")
-TEST_PASSWORD = SecretStr(os.getenv("TEST_NORDVPN_PASSWORD", "test_password"))
+TEST_USERNAME = os.getenv("TEST_NORD_USER", "test_user")
+TEST_PASSWORD = SecretStr(os.getenv("TEST_NORD_PASSWORD", "test_password"))
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def temp_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def test_credentials() -> tuple[str, SecretStr]:
-    """Get test credentials from environment."""
+    """Get test credentials."""
     return TEST_USERNAME, TEST_PASSWORD
 
 
@@ -147,5 +147,5 @@ def mock_nordvpn_command(monkeypatch, tmp_path: Path) -> Generator[Path, None, N
 @pytest.fixture(autouse=True)
 def mock_env_credentials(monkeypatch):
     """Mock environment credentials for tests."""
-    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
-    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORD_USER", TEST_USERNAME)
+    monkeypatch.setenv("NORD_PASSWORD", TEST_PASSWORD.get_secret_value())

@@ -49,8 +49,10 @@ dev = [
 test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.23.0",
+    "pytest-asyncio>=0.25.0",
     "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.5.0",
 ]
 
 [project.scripts]
@@ -121,13 +123,19 @@ all = ["style", "typing"]
 
 [tool.hatch.envs.test]
 dependencies = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.5.0",
 ]
 
 [tool.hatch.envs.test.scripts]
-test = "python -m pytest -n auto -p no:briefcase {args:tests}"
-test-cov = "python -m pytest -n auto -p no:briefcase --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
-bench = "python -m pytest -v -p no:briefcase tests/test_benchmark.py --benchmark-only"
-bench-save = "python -m pytest -v -p no:briefcase tests/test_benchmark.py --benchmark-only --benchmark-json=benchmark/results.json"
+test = "python -m pytest {args:tests}"
+test-cov = "python -m pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
+bench = "python -m pytest -v tests/test_benchmark.py --benchmark-only"
+bench-save = "python -m pytest -v tests/test_benchmark.py --benchmark-only --benchmark-json=benchmark/results.json"
 
 [tool.hatch.version]
 source = "vcs"
@@ -187,18 +195,28 @@ ignore = ["ARG001", "E501", "I001", "RUF001", "PLR2004", "EXE003", "ISC001"]
 "tests/*" = ["S101"]
 
 [tool.pytest.ini_options]
-addopts = "-v --durations=10 -p no:briefcase"
-asyncio_mode = "auto"
+addopts = "-v --durations=10 -p no:briefcase --timeout=30 -n auto"
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 console_output_style = "progress"
-filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::pytest.PytestDeprecationWarning",
+]
 log_cli = true
 log_cli_level = "INFO"
 markers = [
-  "benchmark: marks tests as benchmarks (select with '-m benchmark')",
-  "unit: mark a test as a unit test",
-  "integration: mark a test as an integration test",
+    "benchmark: marks tests as benchmarks (select with '-m benchmark')",
+    "unit: mark a test as a unit test",
+    "integration: mark a test as an integration test",
+    "async_test: mark a test as an async test",
+    "config: mark a test as a configuration test",
+    "connection: mark a test as a connection test",
+    "security: mark a test as a security test",
 ]
 testpaths = ["tests"]
+timeout = 30
 
 [tool.pytest-benchmark]
 min_rounds = 100

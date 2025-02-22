@@ -8,15 +8,16 @@
    uv venv
    source .venv/bin/activate
    uv pip install -e '.[dev,test]'
-   hatch fmt --unsafe-fixes
-   hatch -e test run test
+   hatch fmt --unsafe-fixes  # CRITICAL: This identifies code quality issues
+   sudo hatch -e test run test # WE HAVE TO USE sudo
    ```
 
 2. After changes:
 
    ```bash
+   hatch fmt --unsafe-fixes  # CRITICAL: Run this twice to ensure all fixes are applied
    hatch fmt --unsafe-fixes
-   hatch -e test run test
+   sudo hatch -e test run test # WE HAVE TO USE sudo
    ```
 
 3. When editing TODO.md:
@@ -24,6 +25,8 @@
    - Use `- [ ]` for pending tasks
    - Use `- [x]` for completed tasks
    - Use `- [!]` for next priority tasks
+   - Update priorities based on formatting check results
+   - Add error codes (e.g., PYI021, BLE001) to tasks for tracking
 
 4. Code Quality Guidelines:
    - Exception Handling:
@@ -58,148 +61,75 @@
 
 ## 2. Immediate Next Steps
 
-1. [!] HIGHEST PRIORITY: Fix test configuration in conftest.py:
-   - [!] Fix test credentials handling:
-     - [!] Move TEST_USERNAME and TEST_PASSWORD to environment variables
-     - [!] Add proper SecretStr handling for passwords
-     - [!] Add validation for test credentials
-   - [!] Fix mock_client fixture:
-     - [!] Add proper async context management
-     - [!] Add proper cleanup
-     - [!] Fix mock API responses
-   - [!] Fix mock_aiohttp_session fixture:
-     - [!] Add proper error responses
-     - [!] Add timeout simulation
-     - [!] Add network error simulation
-   - [!] Fix mock_subprocess fixture:
-     - [!] Add proper command validation
-     - [!] Add error scenarios
-     - [!] Add timeout handling
-   - [!] Fix mock_nordvpn_command fixture:
-     - [!] Add proper command simulation
-     - [!] Add error handling
-     - [!] Add status responses
+1. [!] HIGHEST PRIORITY: Fix test execution environment:
+   - [!] Fix package installation issues with uv
+   - [!] Verify test command execution with sudo
+   - [!] Ensure proper virtual environment activation
+   - [!] Validate test dependencies installation
 
-2. [!] Fix failing tests in test_config_loading.py:
-   - [!] Fix test_file_loading:
-     - [!] Use mock_env_credentials fixture
-     - [!] Fix Path resolution for config_dir
-     - [!] Verify JSON file handling
-   - [!] Fix test_config_validation:
-     - [!] Add proper validation for country names using mock_pycountry
-     - [!] Add validation for numeric values
-     - [!] Improve error messages
-   - [!] Fix test_invalid_config_file:
-     - [!] Add proper error handling for missing files
-     - [!] Add validation for malformed JSON
-     - [!] Improve error messages
-   - [!] Fix test_invalid_environment:
-     - [!] Use mock_env_credentials fixture
-     - [!] Add type conversion for numeric values
-     - [!] Improve error messages
+2. [!] HIGHEST PRIORITY: Fix stub file issues in pycountry.pyi:
+   - [!] Remove docstrings (PYI021) - Found in formatting results
+   - [!] Fix function bodies (PYI048) - Found in formatting results
+   - [!] Remove unused TypeVar _DB (PYI018) - Found in formatting results
 
-3. [!] Fix failing connection tests in test_connection.py:
-   - [!] Fix test_connect_disconnect:
-     - [!] Use mock_client fixture properly
-     - [!] Fix status check implementation
-     - [!] Add proper cleanup
-   - [!] Fix test_connect_with_country:
-     - [!] Use mock_pycountry fixture
-     - [!] Fix server selection logic
-     - [!] Add proper error handling
-   - [!] Fix test_connection_failure:
-     - [!] Use mock_aiohttp_session for errors
-     - [!] Add timeout simulation
-     - [!] Add network error handling
-
-4. [!] Fix test configuration issues:
-   - [!] Update pyproject.toml:
-     - [!] Set asyncio_mode = "strict"
-     - [!] Add proper test markers
-     - [!] Configure test timeouts
-   - [!] Update test fixtures:
-     - [!] Add proper async fixture scopes
-     - [!] Add proper cleanup
-     - [!] Add proper mocking
-
-5. [!] Fix hardcoded passwords in tests (found in multiple files):
-   - [!] test_config_loading.py:83,93:
+3. [!] Fix hardcoded passwords in tests:
+   - [!] test_config_loading.py:83,93 (S106):
      - [!] Move to environment variables
      - [!] Add proper SecretStr handling
-   - [!] test_legacy_api.py:23:
+   - [!] test_legacy_api.py:23 (S106):
      - [!] Use test fixtures
      - [!] Add proper encryption
-   - [!] test_validation.py:36:
+   - [!] test_validation.py:36 (S105):
      - [!] Use environment variables
      - [!] Add proper validation
 
-6. [!] Fix test issues:
+4. [!] Fix test issues:
    - [!] Remove duplicate test functions:
-     - [!] test_config_loading.py:262 (F811):
-       - [!] Merge with existing test
-       - [!] Update test cases
-     - [!] test_connection.py:178 (F811):
-       - [!] Consolidate test cases
-       - [!] Update mocks
-     - [!] test_errors.py:217 (F811):
-       - [!] Merge error handling tests
-       - [!] Update assertions
+     - [!] test_config_loading.py:262 (F811)
+     - [!] test_connection.py:178 (F811)
+     - [!] test_errors.py:217 (F811)
    - [!] Add match parameter in pytest.raises():
-     - [!] test_config_loading.py:
-       - [!] Add specific error messages
-       - [!] Update assertions
-     - [!] test_security.py:
-       - [!] Add specific error patterns
-       - [!] Update error handling
+     - [!] test_config_loading.py (PT011)
+     - [!] test_security.py (PT011)
 
-7. [!] Fix private member access in tests:
-   - [!] test_validation_integration.py:37:
-     - [!] Add public interface
-     - [!] Update test approach
-   - [!] test_client.py:52:
-     - [!] Add proper mocking
-     - [!] Use public methods
-   - [!] test_legacy_api.py:26,35:
-     - [!] Add public interface
-     - [!] Update test strategy
+5. [!] Fix private member access in tests:
+   - [!] test_validation_integration.py:37 (SLF001)
+   - [!] test_client.py:52 (SLF001)
+   - [!] test_legacy_api.py:26,35 (SLF001)
 
-8. [!] Fix stub file issues in pycountry.pyi:
-   - [!] Remove docstrings (PYI021)
-   - [!] Fix function bodies (PYI048)
-   - [!] Remove unused TypeVar _DB (PYI018)
+6. [!] Fix exception handling and cleanup in utils/system.py:
+   - [!] Fix multiple TRY300 issues (move cleanup to else blocks)
+   - [!] Fix TRY301 issues (abstract raise statements)
+   - [!] Fix S603 issue (validate subprocess inputs)
 
-9. [!] NEXT TODO: Standardize authentication credentials:
-   - [!] Use ONLY NORD_USER and NORD_PASSWORD environment variables
-   - [!] Remove all other credential passing methods
-   - [!] Update credential file handling to use these variables
+7. [!] Fix broad exception handling (BLE001):
+   - [!] api/legacy.py
+   - [!] api/njord.py
+   - [!] cli/commands.py
+   - [!] core/client.py
+   - [!] utils/security.py
 
-10. [ ] Fix exception handling and cleanup in utils/system.py:
-    - [ ] Fix multiple TRY300 issues (move cleanup to else blocks)
-    - [ ] Fix TRY301 issues (abstract raise statements)
-    - [ ] Fix S603 issue (validate subprocess inputs)
+8. [!] Fix cleanup code placement (TRY300):
+   - [!] Move cleanup to else blocks in api/legacy.py
+   - [!] Move cleanup to else blocks in api/njord.py
+   - [!] Move cleanup to else blocks in core/client.py
+   - [!] Move cleanup to else blocks in utils/system.py
 
-11. [ ] Fix broad exception handling:
-    - [ ] api/legacy.py (BLE001)
-    - [ ] api/njord.py (BLE001)
-    - [ ] cli/commands.py (BLE001)
-    - [ ] core/client.py (BLE001)
-    - [ ] utils/security.py (BLE001)
-
-12. [ ] Fix cleanup code placement:
-    - [ ] Move cleanup to else blocks in api/legacy.py
-    - [ ] Move cleanup to else blocks in api/njord.py
-    - [ ] Move cleanup to else blocks in core/client.py
-    - [ ] Move cleanup to else blocks in utils/system.py
+9. [!] Fix newly discovered issues:
+   - [!] Fix SIM117 in test_security.py (use single with statement)
+   - [!] Fix FBT003 in test_validation.py (boolean positional value)
+   - [!] Fix RET506 in utils/security.py (unnecessary else after raise)
 
 ## 3. Core Functionality (High Priority)
 
 ### 3.1. Code Quality Issues
 
 - [x] Identify all linting errors (completed via hatch fmt)
-- [ ] Fix test issues:
-  - [ ] Improve pytest.raises() usage:
-    - [ ] Add match parameter in test_config_loading.py
-    - [ ] Add match parameter in test_security.py
+- [x] Run initial formatting checks
+- [!] Fix test issues:
+  - [!] Improve pytest.raises() usage:
+    - [!] Add match parameter in test_config_loading.py
+    - [!] Add match parameter in test_security.py
 
 ### 3.2. Security Improvements
 
