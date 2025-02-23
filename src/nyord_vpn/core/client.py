@@ -46,6 +46,7 @@ class VPNClient:
         username: str | None = None,
         password: str | None = None,
         log_file: Path | None = None,
+        use_legacy_api: bool = False,
     ):
         """Initialize VPN client.
 
@@ -54,6 +55,7 @@ class VPNClient:
             username: Optional username (overrides config)
             password: Optional password (overrides config)
             log_file: Optional path to log file
+            use_legacy_api: Whether to use legacy API only
         """
         # Setup logging
         log_config = LogConfig(log_file=log_file) if log_file else None
@@ -72,32 +74,49 @@ class VPNClient:
             self.config.password = SecretStr(password)
 
         # Initialize APIs
-        self.primary_api = NjordAPI(
-            username=self.config.username,
-            password=self.config.password.get_secret_value(),
-        )
-        self.fallback_api = LegacyAPI(
-            username=self.config.username,
-            password=self.config.password.get_secret_value(),
-        )
+        if use_legacy_api:
+            # Use only legacy API
+            self.primary_api = LegacyAPI(
+                username=self.config.username,
+                password=self.config.password.get_secret_value(),
+            )
+            self.fallback_api = None
+        else:
+            # Use njord with legacy fallback
+            self.primary_api = NjordAPI(
+                username=self.config.username,
+                password=self.config.password.get_secret_value(),
+            )
+            self.fallback_api = LegacyAPI(
+                username=self.config.username,
+                password=self.config.password.get_secret_value(),
+            )
 
-        # Setup API methods with fallback
-        self._connect = with_fallback(
-            self.primary_api.connect,
-            self.fallback_api.connect,
-        )
-        self._disconnect = with_fallback(
-            self.primary_api.disconnect,
-            self.fallback_api.disconnect,
-        )
-        self._status = with_fallback(
-            self.primary_api.status,
-            self.fallback_api.status,
-        )
-        self._list_countries = with_fallback(
-            self.primary_api.list_countries,
-            self.fallback_api.list_countries,
-        )
+        # Setup API methods
+        if self.fallback_api:
+            # Use fallback if available
+            self._connect = with_fallback(
+                self.primary_api.connect,
+                self.fallback_api.connect,
+            )
+            self._disconnect = with_fallback(
+                self.primary_api.disconnect,
+                self.fallback_api.disconnect,
+            )
+            self._status = with_fallback(
+                self.primary_api.status,
+                self.fallback_api.status,
+            )
+            self._list_countries = with_fallback(
+                self.primary_api.list_countries,
+                self.fallback_api.list_countries,
+            )
+        else:
+            # Use primary API directly
+            self._connect = self.primary_api.connect
+            self._disconnect = self.primary_api.disconnect
+            self._status = self.primary_api.status
+            self._list_countries = self.primary_api.list_countries
 
     @classmethod
     def from_file(
@@ -212,7 +231,17 @@ class VPNClient:
                 - ip (str): Current IP address
                 - server (str): Connected server if any
         """
-        return await self._status()
+        try:
+            status = await self._status()
+            # Ensure consistent status format
+            return {
+                "connected": bool(status.get("connected", False)),
+                "country": str(status.get("country", "")),
+                "ip": str(status.get("ip", "")),
+                "server": str(status.get("server", "")) if status.get("server") else "",
+            }
+        except Exception as e:
+            _raise_status_error(e)
 
     @with_retry()
     async def list_countries(self) -> list[str]:

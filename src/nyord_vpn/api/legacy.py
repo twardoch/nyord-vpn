@@ -1,209 +1,145 @@
-"""Legacy VPN API implementation."""
+"""Legacy VPN API implementation based on shell script."""
 
 import json
-import os
-import shutil
+import subprocess
 import tempfile
-import zipfile
 from pathlib import Path
-from typing import TypedDict, Any
-import asyncio
-import aiohttp
-import shlex
-import pycountry
+from typing import Any
 
-from nyord_vpn.api.base import BaseAPI
-from nyord_vpn.core.exceptions import VPNError
-from nyord_vpn.utils.validation import (
-    validate_country,
-    validate_credentials,
-    validate_hostname,
-)
-from nyord_vpn.utils.log_utils import log_error
-from nyord_vpn.utils.system import run_subprocess_safely
+import requests
+from loguru import logger
+from tenacity import retry, stop_after_attempt, wait_exponential
 
+from nyord_vpn.core.base import BaseVPNClient, VPNStatus
+from nyord_vpn.core.exceptions import VPNConfigError, VPNConnectionError, VPNServerError
 
-# Constants
-OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
-NORDVPN_CONFIG_DIR = Path("/etc/nordvpn_file")
-
-
-class ServerInfo(TypedDict):
-    name: str
-    id: str
+# Country ID mapping from shell script
+COUNTRY_IDS = {
+    "albania": 2,
+    "algeria": 3,
+    "andorra": 5,
+    "argentina": 10,
+    "armenia": 11,
+    "australia": 13,
+    "austria": 14,
+    # ... more countries to be added
+    "united_states": 228,
+    "united_kingdom": 227,
+}
 
 
-class CountryInfo(TypedDict):
-    name: str
-    id: str
+class LegacyVPNClient(BaseVPNClient):
+    """Legacy VPN client implementation."""
 
+    CONFIGS_DIR = Path("/etc/nordvpn_file")
+    CONFIGS_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
 
-def normalize_country(country: str) -> str:
-    """Normalize country name or code to full name.
+    def __init__(self) -> None:
+        """Initialize legacy VPN client."""
+        super().__init__()
+        self._openvpn_pid: int | None = None
+        self._current_server: str | None = None
+        self._ensure_openvpn()
 
-    Args:
-        country: Country name or ISO code (e.g. 'de', 'germany', 'Germany')
-
-    Returns:
-        str: Full country name
-
-    Raises:
-        VPNError: If country not found
-    """
-    try:
-        # Try as alpha_2 code first
-        c = pycountry.countries.get(alpha_2=country.upper())
-        if c:
-            return c.name
-
-        # Try as full name
-        c = pycountry.countries.get(name=country)
-        if c:
-            return c.name
-
-        # Try fuzzy search
-        matches = pycountry.countries.search_fuzzy(country)
-        if matches:
-            return matches[0].name
-
-        msg = f"Country not found: {country}"
-        raise VPNError(msg)
-
-    except LookupError as e:
-        msg = f"Invalid country: {country}"
-        raise VPNError(msg) from e
-
-
-class LegacyAPI(BaseAPI):
-    """Legacy NordVPN API implementation."""
-
-    def __init__(self, username: str, password: str):
-        """Initialize the API with NordVPN credentials.
-
-        Args:
-            username: NordVPN username
-            password: NordVPN password
-
-        Raises:
-            VPNError: If OpenVPN is not found
-        """
-        self.username = username
-        self.password = password
-
-        # Check if openvpn command exists
-        openvpn_path = shutil.which("openvpn")
-        if not openvpn_path:
-            msg = "openvpn command not found in PATH. Install it with 'brew install openvpn' on macOS"
-            raise VPNError(msg)
-        self.openvpn_path = Path(openvpn_path).resolve()
-
-        # Ensure config directory exists
-        self._setup_config_dir()
-
-    def _setup_config_dir(self) -> None:
-        """Set up NordVPN configuration directory."""
+    def _ensure_openvpn(self) -> None:
+        """Ensure OpenVPN is installed."""
         try:
-            # Create config directory if it doesn't exist
-            if not NORDVPN_CONFIG_DIR.exists():
-                os.makedirs(NORDVPN_CONFIG_DIR, mode=0o700, exist_ok=True)
+            subprocess.run(["openvpn", "--version"], check=True, capture_output=True)
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            msg = "OpenVPN not found. Install with: brew install openvpn"
+            raise VPNConfigError(
+                msg
+            ) from e
 
-            # Download and extract config files if they don't exist
-            ovpn_dir = NORDVPN_CONFIG_DIR / "ovpn_tcp"
-            if not ovpn_dir.exists():
-                # Create temporary directory for download
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    temp_path = Path(temp_dir)
-                    zip_path = temp_path / "ovpn.zip"
-
-                    # Download config files
-                    cmd = [
-                        "curl",
-                        "-sSL",
-                        OVPN_CONFIG_URL,
-                        "-o",
-                        str(zip_path),
-                    ]
-                    run_subprocess_safely(cmd, timeout=30)
-
-                    # Extract config files
-                    with zipfile.ZipFile(zip_path) as zf:
-                        zf.extractall(NORDVPN_CONFIG_DIR)
-
-        except Exception as e:
-            msg = f"Failed to setup config directory: {e}"
-            raise VPNError(msg) from e
-
-    async def _get_servers(self, country: str) -> list[dict[str, Any]]:
-        """Get list of servers for a country.
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def _get_server(self, country: str | None = None) -> str:
+        """Get recommended server for country.
 
         Args:
-            country: Country name or code
+            country: Optional country name or code
 
         Returns:
-            List of server information
+            str: Server hostname
 
         Raises:
-            VPNError: If server list cannot be retrieved
+            VPNServerError: If server cannot be found
         """
-        # Normalize country name
-        country = normalize_country(country)
+        try:
+            # Prepare country filter
+            country_id = ""
+            if country:
+                country = country.lower().replace(" ", "_")
+                country_id = COUNTRY_IDS.get(country, "")
 
-        async with aiohttp.ClientSession() as session:
+            # Get server recommendation
+            url = "https://nordvpn.com/wp-admin/admin-ajax.php"
+            params = {
+                "action": "servers_recommendations",
+                "filters": json.dumps({"country_id": country_id})
+                if country_id
+                else "{}",
+            }
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            # Get first TCP server
+            for server in data:
+                hostname = server.get("hostname")
+                if hostname:
+                    return f"{hostname}.tcp"
+
+            msg = "No suitable servers found"
+            raise VPNServerError(msg)
+        except (requests.RequestException, json.JSONDecodeError, KeyError) as e:
+            msg = "Failed to get server recommendations"
+            raise VPNServerError(msg) from e
+
+    def _ensure_configs(self) -> None:
+        """Ensure OpenVPN configs are downloaded and cached."""
+        if not self.CONFIGS_DIR.exists():
+            logger.info("Downloading OpenVPN configurations...")
             try:
-                # Get country ID first
-                async with session.get(
-                    "https://api.nordvpn.com/v1/servers/countries",
-                    timeout=aiohttp.ClientTimeout(total=10),
-                    ssl=True,
-                ) as response:
-                    response.raise_for_status()
-                    countries = await response.json()
-                    country_id = None
-                    for c in countries:
-                        if c["name"].lower() == country.lower():
-                            country_id = c["id"]
-                            break
-                    if not country_id:
-                        msg = f"Country not found in NordVPN: {country}"
-                        raise VPNError(msg)
+                # Create configs directory
+                self.CONFIGS_DIR.mkdir(parents=True, exist_ok=True)
 
-                # Get recommended servers
-                async with session.get(
-                    "https://nordvpn.com/wp-admin/admin-ajax.php",
-                    params={
-                        "action": "servers_recommendations",
-                        "filters": json.dumps({"country_id": country_id}),
-                    },
-                    timeout=aiohttp.ClientTimeout(total=10),
-                    ssl=True,
-                ) as response:
-                    response.raise_for_status()
-                    servers = await response.json()
-                    return [
-                        {"name": s["hostname"], "id": str(s["id"])} for s in servers
-                    ]
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                msg = f"Failed to get server list: {e}"
-                raise VPNError(msg) from e
+                # Download and extract configs
+                response = requests.get(self.CONFIGS_URL)
+                response.raise_for_status()
+                zip_path = self.CONFIGS_DIR / "ovpn.zip"
+                zip_path.write_bytes(response.content)
 
-    async def connect(self, country: str | None = None) -> bool:
-        """Connect to VPN.
+                # Extract TCP configs only
+                subprocess.run(
+                    [
+                        "unzip",
+                        "-qq",
+                        str(zip_path),
+                        "ovpn_tcp/*",
+                        "-d",
+                        str(self.CONFIGS_DIR),
+                    ],
+                    check=True,
+                )
 
-        Args:
-            country: Optional country to connect to
+                # Cleanup
+                zip_path.unlink()
+                logger.info("OpenVPN configurations downloaded and extracted")
+            except Exception as e:
+                msg = "Failed to download OpenVPN configurations"
+                raise VPNConfigError(msg) from e
 
-        Returns:
-            True if connection successful
-
-        Raises:
-            VPNError: If connection fails
-        """
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
         try:
-            # Get server
-            servers = await self._get_servers(country or "United States")
-            if not servers:
-                msg = "No servers found"
-                raise VPNError(msg)
+            # Disconnect if connected
+            self.disconnect()
+
+            # Get server and ensure configs
+            server = self._get_server(country)
+            self._ensure_configs()
 
             # Create temp auth file
             auth_file = Path(tempfile.mkstemp(prefix="nordvpn_", suffix=".auth")[1])
@@ -211,156 +147,86 @@ class LegacyAPI(BaseAPI):
             auth_file.chmod(0o600)
 
             try:
-                # Get config file
-                server = servers[0]["name"]
-                config_file = NORDVPN_CONFIG_DIR / "ovpn_tcp" / f"{server}.tcp.ovpn"
+                # Start OpenVPN
+                config_file = self.CONFIGS_DIR / "ovpn_tcp" / server
                 if not config_file.exists():
                     msg = f"Config file not found: {config_file}"
-                    raise VPNError(msg)
+                    raise VPNConfigError(msg)
 
-                # Build OpenVPN command with verbose logging
-                cmd = [
-                    "sudo",  # Run as root
-                    str(self.openvpn_path),
-                    "--config",
-                    str(config_file),
-                    "--auth-user-pass",
-                    str(auth_file),
-                    "--daemon",
-                    "--verb",
-                    "4",  # Verbose logging
-                    "--log",
-                    "/var/log/openvpn.log",  # Log to file
-                ]
-
-                # Check sudo access first
-                try:
-                    run_subprocess_safely(["sudo", "-n", "true"], timeout=5)
-                except Exception:
-                    print(
-                        "\nNeed sudo access to run OpenVPN. Please enter your password:"
-                    )
-                    run_subprocess_safely(["sudo", "-v"], timeout=30)
-
-                # Now run OpenVPN
-                print(f"\nConnecting to {server}...")
-                run_subprocess_safely(cmd, timeout=30)
-
-                # Wait for connection and show log
-                print("\nChecking connection status (log at /var/log/openvpn.log)...")
-                run_subprocess_safely(
-                    ["sudo", "tail", "-n", "20", "-f", "/var/log/openvpn.log"],
-                    timeout=5,
+                process = subprocess.Popen(
+                    [
+                        "sudo",
+                        "openvpn",
+                        "--config",
+                        str(config_file),
+                        "--auth-user-pass",
+                        str(auth_file),
+                        "--daemon",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
                 )
+                self._openvpn_pid = process.pid
+                self._current_server = server
+
+                # Wait for connection
+                logger.info(f"Connecting to {server}...")
                 return True
-
             finally:
-                # Clean up auth file
-                if auth_file.exists():
-                    auth_file.unlink()
-
+                # Cleanup auth file
+                auth_file.unlink()
         except Exception as e:
             msg = f"Failed to connect: {e}"
-            raise VPNError(msg) from e
+            raise VPNConnectionError(msg) from e
 
-    async def disconnect(self) -> bool:
-        """Disconnect from VPN.
-
-        Returns:
-            True if disconnection successful
-
-        Raises:
-            VPNError: If disconnection fails
-        """
+    def disconnect(self) -> bool:
+        """Disconnect from VPN."""
         try:
-            # Find and kill OpenVPN processes
-            ps_output = run_subprocess_safely(["ps", "-ax"], timeout=5).stdout
-            openvpn_procs = [
-                line.split()[0]
-                for line in ps_output.splitlines()
-                if "openvpn" in line.lower()
-            ]
-
-            if not openvpn_procs:
-                return True
-
-            for pid in openvpn_procs:
-                run_subprocess_safely(["kill", pid], timeout=5)
-
+            if self._openvpn_pid:
+                subprocess.run(["sudo", "kill", str(self._openvpn_pid)], check=True)
+                self._openvpn_pid = None
+                self._current_server = None
+            subprocess.run(["sudo", "pkill", "openvpn"], check=True)
             return True
+        except subprocess.SubprocessError as e:
+            msg = "Failed to disconnect"
+            raise VPNConnectionError(msg) from e
 
-        except Exception as e:
-            msg = f"Failed to disconnect: {e}"
-            raise VPNError(msg) from e
-
-    async def status(self) -> dict[str, Any]:
-        """Get current connection status.
-
-        Returns:
-            Dictionary with connection status
-
-        Raises:
-            VPNError: If status cannot be retrieved
-        """
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def protected(self) -> bool:
+        """Check if VPN is active."""
         try:
-            # Check if OpenVPN is running
-            ps_output = run_subprocess_safely(["ps", "-ax"], timeout=5).stdout
-            connected = any(
-                "openvpn" in line.lower() for line in ps_output.splitlines()
+            response = requests.get("https://ipinfo.io/json")
+            response.raise_for_status()
+            data = response.json()
+            return "nordvpn.com" in data.get("org", "").lower()
+        except Exception:
+            return False
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def status(self) -> VPNStatus:
+        """Get VPN status."""
+        try:
+            response = requests.get("https://ipinfo.io/json")
+            response.raise_for_status()
+            data = response.json()
+            return VPNStatus(
+                connected=self.protected(),
+                ip=data.get("ip", ""),
+                country=data.get("country", ""),
+                server=self._current_server or "",
             )
-
-            # Get public IP info
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://ipinfo.io/json",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as response:
-                    response.raise_for_status()
-                    ip_info = await response.json()
-
-            return {
-                "connected": connected,
-                "ip": ip_info.get("ip"),
-                "country": ip_info.get("country"),
-                "city": ip_info.get("city"),
-                "hostname": ip_info.get("hostname"),
-            }
-
         except Exception as e:
-            msg = f"Failed to get status: {e}"
-            raise VPNError(msg) from e
+            msg = "Failed to get status"
+            raise VPNConnectionError(msg) from e
 
-    async def list_countries(self) -> list[str]:
-        """Get list of available countries.
-
-        Returns:
-            List of country names
-
-        Raises:
-            VPNError: If country list cannot be retrieved
-        """
-
-        def handle_error(e: Exception) -> list[str]:
-            msg = f"Failed to get country list: {e}"
-            raise VPNError(msg) from e
-
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(
-                    "https://api.nordvpn.com/v1/servers/countries",
-                    timeout=aiohttp.ClientTimeout(total=10),
-                    ssl=True,
-                ) as response:
-                    response.raise_for_status()
-                    countries: list[CountryInfo] = await response.json()
-                    return [c["name"] for c in countries]
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                return handle_error(e)
-
-    async def get_credentials(self) -> tuple[str, str]:
-        """Get stored credentials.
-
-        Returns:
-            Tuple of (username, password)
-        """
-        return self.username, self.password
+    def list_countries(self) -> list[dict[str, Any]]:
+        """Get list of available countries."""
+        return [
+            {"name": name.replace("_", " ").title(), "code": code}
+            for name, code in COUNTRY_IDS.items()
+        ]

@@ -1,21 +1,27 @@
-"""Custom exceptions for VPN operations."""
+"""Exceptions for VPN operations."""
+
+from typing import Any
 
 
 class VPNError(Exception):
-    """Base exception for VPN-related errors."""
+    """Base exception for VPN operations."""
+
+    def __init__(self, message: str, details: Any = None) -> None:
+        super().__init__(message)
+        self.details = details
 
 
 class VPNConnectionError(VPNError):
-    """Raised when VPN connection fails."""
-
-
-class VPNStatusError(VPNError):
-    """Raised when getting VPN status fails."""
-
-
-class VPNConfigError(VPNError):
-    """Raised when configuration is invalid."""
+    """Error during VPN connection."""
 
 
 class VPNCredentialsError(VPNError):
-    """Raised when credentials are invalid or missing."""
+    """Invalid or missing VPN credentials."""
+
+
+class VPNConfigError(VPNError):
+    """Error with VPN configuration."""
+
+
+class VPNServerError(VPNError):
+    """Error getting VPN server information."""
