@@ -1,7 +1,7 @@
 OPENVPN_TEMPLATE = """client
 dev tun
 proto tcp
-remote {} 443
+remote {server} 443
 resolv-retry infinite
 remote-random
 nobind
@@ -15,7 +15,7 @@ ping-restart 60
 ping-timer-rem
 reneg-sec 0
 comp-lzo no
-verify-x509-name CN={}
+verify-x509-name CN={server}
 
 remote-cert-tls server
 

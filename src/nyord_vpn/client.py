@@ -171,8 +171,16 @@ class Client(NordVPNClient):
         username: Optional[str] = None,
         password: Optional[str] = None,
         verbose: bool = False,
+        auto_init: bool = True,
     ):
-        """Initialize NordVPN client."""
+        """Initialize NordVPN client.
+
+        Args:
+            username: Optional username (defaults to NORD_USER env var)
+            password: Optional password (defaults to NORD_PASSWORD env var)
+            verbose: Enable verbose logging
+            auto_init: Whether to automatically initialize the environment
+        """
         username_str = username or os.getenv("NORD_USER")
         password_str = password or os.getenv("NORD_PASSWORD")
         if not username_str or not password_str:
@@ -195,7 +203,17 @@ class Client(NordVPNClient):
         self._server = state.get("server")
         self._country_name = state.get("country")
 
-    BASE_API_URL: str = "https://api.nordvpn.com/v1"
+        # Initialize environment if requested
+        if auto_init:
+            try:
+                self.init()
+            except Exception as e:
+                if self.verbose:
+                    self.logger.warning(f"Failed to initialize environment: {e}")
+
+    BASE_API_URL: str = "https://api.nordvpn.com"
+    BASE_API_V1_URL: str = f"{BASE_API_URL}/v1"
+    BASE_API_V2_URL: str = f"{BASE_API_URL}/v2"
 
     def _create_auth_file(self) -> None:
         """Create auth file with credentials."""
@@ -551,9 +569,24 @@ class Client(NordVPNClient):
         except Exception:
             return False
 
-    def go(self, country_code: str) -> None:
-        """Connect to VPN in specified country."""
+    def go(self, country_code: str | None = None, random_select: bool = False) -> None:
+        """Connect to VPN in specified country.
+
+        Args:
+            country_code: Optional 2-letter country code (e.g. 'us', 'uk'). If None, a random country is selected.
+            random_select: If True, select a random server instead of fastest
+        """
         try:
+            # If no country specified, get a random one
+            if not country_code:
+                country_code = self.get_random_country()
+                if self.verbose:
+                    self.logger.info(f"Selected random country: {country_code}")
+                else:
+                    console.print(
+                        f"[cyan]Selected random country:[/cyan] {country_code}"
+                    )
+
             # Always disconnect any existing connection first
             try:
                 if self.verbose:
@@ -585,145 +618,124 @@ class Client(NordVPNClient):
             except Exception as e:
                 self.logger.warning(f"Failed to get normal IP: {e}")
 
-            country = self.get_country_by_code(country_code)
-            if not country:
-                raise ValueError(f"Country code '{country_code}' not found")
+            # Try to connect with retries
+            max_retries = 3
+            retry_count = 0
+            last_error = None
 
-            if self.verbose:
-                self.logger.info(f"Connecting to {country['name']}")
+            while retry_count < max_retries:
+                try:
+                    # Select server
+                    server = self.select_fastest_server(country_code, random_select)
+                    if not server:
+                        raise ConnectionError("Failed to select a server")
 
-            # Get server info using the API
-            server_info = self.fetch_server_info(country_code)
-            if not server_info:
-                raise ConnectionError("Failed to get server information")
+                    hostname = server["hostname"]
+                    ip = server.get("ip_address") or server.get("station")
+                    country_name = server.get("country", {}).get("name", "Unknown")
 
-            hostname, ip = server_info
-            self._server = hostname
-            self._country_name = country["name"]
+                    self._server = hostname
+                    self._country_name = country_name
 
-            if self.verbose:
-                self.logger.info(f"Selected server: {hostname}")
-            else:
-                console.print(f"[cyan]Server:[/cyan] {hostname}")
-
-            # Create auth file and set up OpenVPN
-            self._create_auth_file()
-            config = OPENVPN_TEMPLATE.format(ip, hostname)
-            OPENVPN_CONFIG.write_text(config)
-            OPENVPN_CONFIG.chmod(0o600)
-
-            cmd = [
-                "sudo",
-                "openvpn",
-                "--config",
-                str(OPENVPN_CONFIG),
-                "--auth-user-pass",
-                str(OPENVPN_AUTH),
-                "--daemon",
-                "--verb",
-                str(3),
-                "--connect-retry",
-                str(2),
-                "--connect-timeout",
-                str(30),
-                "--resolv-retry",
-                "infinite",
-                "--log",
-                str(OPENVPN_LOG),
-                "--ping",
-                str(10),
-                "--ping-restart",
-                str(60),
-                "--persist-tun",
-                "--persist-key",
-            ]
-
-            if self.verbose:
-                self.logger.debug(f"Running command: {' '.join(cmd)}")
-
-            # Start OpenVPN
-            try:
-                subprocess.run(cmd, check=True)
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Failed to start OpenVPN: {e}")
-                raise ConnectionError("Failed to start OpenVPN")
-
-            # Wait for connection with progress spinner
-            start_time = time.time()
-            initial_ip = self._initial_ip
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-                disable=not self.verbose,
-            ) as progress:
-                task = progress.add_task("Connecting...", total=None)
-                while time.time() - start_time < 60:
-                    try:
-                        # Check OpenVPN process
-                        openvpn_running = False
-                        for proc in psutil.process_iter(["name"]):
-                            if "openvpn" in proc.info["name"]:
-                                openvpn_running = True
-                                break
-
-                        if not openvpn_running:
-                            if OPENVPN_LOG.exists():
-                                log_content = OPENVPN_LOG.read_text()
-                                if "AUTH_FAILED" in log_content:
-                                    raise ConnectionError(
-                                        "Authentication failed - check your credentials"
-                                    )
-                                elif "TLS Error" in log_content:
-                                    raise ConnectionError(
-                                        "TLS handshake failed - server may be down"
-                                    )
-                            raise ConnectionError("OpenVPN process died unexpectedly")
-
-                        # Check if IP has changed
-                        status = self.status()
-                        current_ip = status.get("ip")
-
-                        if current_ip and current_ip != initial_ip:
-                            self._connected_ip = current_ip
-                            # Save full state with all connection details
-                            state = {
-                                "connected": True,
-                                "initial_ip": self._initial_ip,
-                                "connected_ip": current_ip,
-                                "server": self._server,
-                                "country": self._country_name,
-                                "timestamp": time.time(),
-                            }
-                            save_vpn_state(state)
-
-                            if self.verbose:
-                                self.logger.info(
-                                    f"Successfully connected to {country['name']}"
-                                )
-                                self.logger.info(f"Private IP: {current_ip}")
-                            else:
-                                console.print(f"[cyan]Private IP:[/cyan] {current_ip}")
-                            return
-
-                        if self.verbose:
-                            progress.update(
-                                task, description="Waiting for VPN connection..."
+                    if self.verbose:
+                        self.logger.info(f"Selected server: {hostname}")
+                        if retry_count > 0:
+                            self.logger.info(
+                                f"Retry attempt {retry_count + 1}/{max_retries}"
                             )
-                    except Exception as e:
+                    else:
+                        console.print(f"[cyan]Server:[/cyan] {hostname}")
+                        if retry_count > 0:
+                            console.print(
+                                f"[yellow]Retry attempt {retry_count + 1}/{max_retries}[/yellow]"
+                            )
+
+                    # Create OpenVPN config
+                    config = OPENVPN_TEMPLATE.format(server=hostname)
+                    OPENVPN_CONFIG.write_text(config)
+                    OPENVPN_CONFIG.chmod(0o600)
+
+                    # Create auth file
+                    self._create_auth_file()
+
+                    # Start OpenVPN
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        transient=True,
+                    ) as progress:
+                        progress.add_task(description="Connecting...", total=None)
+
+                        process = subprocess.Popen(
+                            [
+                                "sudo",
+                                "openvpn",
+                                "--config",
+                                str(OPENVPN_CONFIG),
+                                "--auth-user-pass",
+                                str(OPENVPN_AUTH),
+                                "--daemon",
+                                "--log",
+                                str(OPENVPN_LOG),
+                            ],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                        )
+
+                    # Wait for connection
+                    time.sleep(5)
+
+                    # Verify connection
+                    if not self.is_protected():
+                        raise ConnectionError("Failed to establish VPN connection")
+
+                    # Get new IP
+                    response = requests.get(
+                        "https://api.ipify.org?format=json", timeout=5
+                    )
+                    response.raise_for_status()
+                    self._connected_ip = response.json().get("ip")
+
+                    # Save connected state
+                    state = {
+                        "connected": True,
+                        "initial_ip": self._initial_ip,
+                        "connected_ip": self._connected_ip,
+                        "server": self._server,
+                        "country": self._country_name,
+                        "timestamp": time.time(),
+                    }
+                    save_vpn_state(state)
+
+                    if self.verbose:
+                        self.logger.info(f"Connected to {country_name}")
+                        self.logger.info(f"VPN IP: {self._connected_ip}")
+                    else:
+                        console.print(f"[green]Connected to {country_name}[/green]")
+                        console.print(f"[cyan]VPN IP:[/cyan] {self._connected_ip}")
+
+                    return  # Success!
+
+                except Exception as e:
+                    last_error = e
+                    retry_count += 1
+                    if retry_count < max_retries:
                         if self.verbose:
-                            self.logger.debug(f"Connection check error: {e}")
-
-                    time.sleep(2)
-
-            # If we get here, connection failed
-            self.disconnect(verbose=self.verbose)
-            raise ConnectionError("Failed to establish VPN connection after 60 seconds")
+                            self.logger.warning(f"Connection failed: {e}")
+                            self.logger.info("Retrying with different server...")
+                        else:
+                            console.print(f"[yellow]Connection failed: {e}[/yellow]")
+                            console.print(
+                                "[yellow]Retrying with different server...[/yellow]"
+                            )
+                        time.sleep(2)  # Wait before retry
+                    else:
+                        raise ConnectionError(
+                            f"Failed to connect after {max_retries} attempts: {e}"
+                        )
 
         except Exception as e:
-            self.logger.error(f"Connection failed: {e}")
-            self.disconnect(verbose=self.verbose)
-            raise
+            raise ConnectionError(f"Failed to connect: {e}")
 
     def flush(self) -> None:
         """Terminate all running OpenVPN processes."""
@@ -792,3 +804,262 @@ class Client(NordVPNClient):
                 print("Disconnected from VPN")
         except Exception as e:
             raise DisconnectionError(f"Error during disconnect: {e}")
+
+    def get_servers_cache(self) -> dict:
+        """Fetch and cache full server list from v2/servers.
+
+        Returns:
+            dict: Cached server data with structure:
+                {
+                    'servers': List[dict],
+                    'last_updated': str,
+                    'expires_at': float
+                }
+        """
+        cache_file = CACHE_DIR / "servers.json"
+
+        # Check if cache exists and is valid
+        if cache_file.exists():
+            try:
+                cache = json.loads(cache_file.read_text())
+                if time.time() < cache.get("expires_at", 0):
+                    return cache
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        # Fetch fresh data from v2 API
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://nordvpn.com/",
+            "Origin": "https://nordvpn.com",
+        }
+
+        try:
+            response = requests.get(
+                f"{self.BASE_API_V2_URL}/servers", headers=headers, timeout=10
+            )
+            response.raise_for_status()
+            servers = response.json()
+
+            # Create cache structure
+            cache = {
+                "servers": servers,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "expires_at": time.time() + CACHE_EXPIRY,
+            }
+
+            # Save to cache file
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(json.dumps(cache, indent=2))
+
+            return cache
+        except Exception as e:
+            self.logger.error(f"Failed to fetch servers: {e}")
+            if cache_file.exists():
+                # Return expired cache as fallback
+                return json.loads(cache_file.read_text())
+            return {"servers": [], "last_updated": "", "expires_at": 0}
+
+    def select_fastest_server(
+        self, country_code: str | None = None, random_select: bool = False
+    ) -> Optional[dict]:
+        """Select fastest server from a country.
+
+        Args:
+            country_code: Optional 2-letter country code
+            random_select: If True, select a random server instead of fastest
+
+        Returns:
+            dict: Selected server info or None if no server found
+        """
+        try:
+            # Get cached servers
+            cache = self.get_servers_cache()
+            servers = cache["servers"]
+
+            # Filter by country if specified
+            if country_code:
+                servers = [
+                    s
+                    for s in servers
+                    if s.get("country", {}).get("code") == country_code.upper()
+                ]
+            elif not random_select:
+                # If no country specified and not random, use servers with best score
+                servers.sort(key=lambda x: x.get("load", 100))
+                servers = servers[:5]
+
+            if not servers:
+                raise ServerError(
+                    f"No servers found{f' for country {country_code}' if country_code else ''}"
+                )
+
+            if random_select:
+                return random.choice(servers)
+
+            # Take top 5 by load and ping them
+            servers = sorted(servers, key=lambda x: x.get("load", 100))[:5]
+
+            # Show progress during ping tests
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+            ) as progress:
+                task = progress.add_task(
+                    description="Testing server speeds...", total=len(servers)
+                )
+
+                # Ping servers and track results
+                server_pings = []
+                for server in servers:
+                    ping_time = self._ping_server(server["hostname"])
+                    server_pings.append((server, ping_time))
+                    progress.advance(task)
+
+                # Select fastest responding server
+                fastest_server = min(server_pings, key=lambda x: x[1])[0]
+
+                if self.verbose:
+                    self.logger.info(
+                        f"Selected fastest server: {fastest_server['hostname']} ({fastest_server.get('load', '?')}% load)"
+                    )
+
+                return fastest_server
+        except Exception as e:
+            self.logger.error(f"Error selecting server: {e}")
+            return None
+
+    def _ping_server(self, hostname: str) -> float:
+        """Ping a server and return response time in ms.
+
+        Args:
+            hostname: Server hostname to ping
+
+        Returns:
+            float: Ping time in milliseconds, or float('inf') if ping failed
+        """
+        try:
+            # Use subprocess ping with 1 second timeout
+            result = subprocess.run(
+                ["ping", "-c", "1", "-W", "1", hostname],
+                capture_output=True,
+                text=True,
+                timeout=2,  # Overall timeout for the ping command
+            )
+
+            if result.returncode == 0:
+                # Extract time from ping output
+                time_str = result.stdout.split("time=")[-1].split()[0]
+                ping_time = float(time_str)
+                if self.verbose:
+                    self.logger.debug(f"Server {hostname} responded in {ping_time}ms")
+                return ping_time
+            else:
+                if self.verbose:
+                    self.logger.debug(
+                        f"Server {hostname} ping failed: {result.stderr.strip()}"
+                    )
+                return float("inf")
+
+        except subprocess.TimeoutExpired:
+            if self.verbose:
+                self.logger.debug(f"Server {hostname} ping timed out")
+            return float("inf")
+        except Exception as e:
+            if self.verbose:
+                self.logger.debug(f"Server {hostname} ping error: {e}")
+            return float("inf")
+
+    def get_random_country(self) -> str:
+        """Get a random country code from available servers."""
+        try:
+            cache = self.get_servers_cache()
+            countries = {
+                s.get("country", {}).get("code")
+                for s in cache["servers"]
+                if s.get("country", {}).get("code")
+            }
+            if not countries:
+                raise ServerError("No countries found in server list")
+            return random.choice(list(countries))
+        except Exception as e:
+            self.logger.error(f"Failed to get random country: {e}")
+            # Fallback to US if we can't get country list
+            return "US"
+
+    def init(self) -> None:
+        """Initialize the client environment.
+
+        This method:
+        1. Validates OpenVPN installation
+        2. Creates config directories
+        3. Tests API connectivity
+        4. Generates initial config
+        """
+        try:
+            # Check OpenVPN installation
+            try:
+                result = subprocess.run(
+                    ["which", "openvpn"], capture_output=True, text=True, check=True
+                )
+                openvpn_path = result.stdout.strip()
+                if self.verbose:
+                    self.logger.info(f"Found OpenVPN at: {openvpn_path}")
+            except subprocess.CalledProcessError:
+                raise ConnectionError(
+                    "OpenVPN not found. Please install OpenVPN first:\n"
+                    "  macOS: brew install openvpn\n"
+                    "  Linux: sudo apt install openvpn\n"
+                    "  Windows: Download from https://openvpn.net/community-downloads/"
+                )
+
+            # Create config directories
+            for directory in [CACHE_DIR, CONFIG_DIR, DATA_DIR]:
+                directory.mkdir(parents=True, exist_ok=True)
+                if self.verbose:
+                    self.logger.info(f"Created directory: {directory}")
+
+            # Test API connectivity
+            try:
+                response = requests.get(
+                    f"{self.BASE_API_V2_URL}/servers", headers=API_HEADERS, timeout=5
+                )
+                response.raise_for_status()
+                if self.verbose:
+                    self.logger.info("Successfully connected to NordVPN API")
+            except Exception as e:
+                raise ConnectionError(f"Failed to connect to NordVPN API: {e}")
+
+            # Get initial IP
+            try:
+                response = requests.get("https://api.ipify.org?format=json", timeout=5)
+                response.raise_for_status()
+                self._initial_ip = response.json().get("ip")
+                if self.verbose:
+                    self.logger.info(f"Initial IP: {self._initial_ip}")
+            except Exception as e:
+                raise ConnectionError(f"Failed to get initial IP: {e}")
+
+            # Save initial state
+            state = {
+                "connected": False,
+                "initial_ip": self._initial_ip,
+                "connected_ip": None,
+                "server": None,
+                "country": None,
+                "timestamp": time.time(),
+            }
+            save_vpn_state(state)
+
+            if self.verbose:
+                self.logger.info("Client environment initialized successfully")
+            else:
+                console.print(
+                    "[green]Client environment initialized successfully[/green]"
+                )
+
+        except Exception as e:
+            raise ConnectionError(f"Failed to initialize client environment: {e}")

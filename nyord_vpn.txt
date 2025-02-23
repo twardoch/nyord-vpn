@@ -1,0 +1,6482 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: _private, .specstory, .venv
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+
+Additional Info:
+----------------
+
+================================================================
+Directory Structure
+================================================================
+.cursor/
+  rules/
+    nyord-vpn.mdc
+.github/
+  workflows/
+    push.yml
+    release.yml
+src/
+  nyord_vpn/
+    data/
+      countries.json
+      country_ids.json
+    scripts/
+      __init__.py
+      update_countries.py
+    __init__.py
+    __main__.py
+    _templates.py
+    _utils.py
+    base.py
+    client.py
+    models.py
+    utils.py
+tests/
+  integration/
+    __init__.py
+    test_config_loading.py
+    test_connection.py
+    test_errors.py
+    test_validation_integration.py
+  __init__.py
+  conftest.py
+  test_client.py
+  test_legacy_api.py
+  test_package.py
+.gitignore
+.pre-commit-config.yaml
+LICENSE
+package.toml
+pyproject.toml
+README.md
+TODO.md
+
+================================================================
+Files
+================================================================
+
+================
+File: .cursor/rules/nyord-vpn.mdc
+================
+---
+description: nyord-vpn
+globs: 
+---
+# nyord-vpn
+
+A modern Python client for NordVPN with automatic API fallback support, providing both a CLI interface and a Python library.
+
+```bash
+# Install system requirements first
+brew install openvpn  # macOS
+sudo apt install openvpn  # Ubuntu/Debian
+sudo dnf install openvpn  # Fedora/RHEL
+
+# Then install and use the package
+pip install nyord-vpn
+export NORD_USER="username" NORD_PASSWORD="password"
+nyord-vpn connect de  # Connect to a German VPN
+nyord-vpn status  # Check status
+nyord-vpn disconnect  # Disconnect
+```
+
+## DEVELOPMENT
+
+After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+
+Periodically do:
+
+```
+uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; hatch -e test run test; 
+```
+
+and react to the results. Use `uv pip...` instead of `pip...` if needed.
+
+================
+File: .github/workflows/push.yml
+================
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+    tags-ignore: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Ruff lint
+        uses: astral-sh/ruff-action@v3
+        with:
+          version: "latest"
+          args: "check --output-format=github"
+
+      - name: Run Ruff Format
+        uses: astral-sh/ruff-action@v3
+        with:
+          version: "latest"
+          args: "format --check --respect-gitignore"
+
+  test:
+    name: Run Tests
+    needs: quality
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
+      fail-fast: true
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-suffix: ${{ matrix.os }}-${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        run: |
+          uv pip install --system --upgrade pip
+          uv pip install --system ".[test]"
+
+      - name: Run tests with Pytest
+        run: uv run pytest -n auto --maxfail=1 --disable-warnings --cov-report=xml --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests tests/
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
+          path: coverage.xml
+
+  build:
+    name: Build Distribution
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install build tools
+        run: uv pip install build hatchling hatch-vcs
+
+      - name: Build distributions
+        run: uv run python -m build --outdir dist
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-files
+          path: dist/
+          retention-days: 5
+
+================
+File: .github/workflows/release.yml
+================
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/nyord-vpn
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install build tools
+        run: uv pip install build hatchling hatch-vcs
+
+      - name: Build distributions
+        run: uv run python -m build --outdir dist
+
+      - name: Verify distribution files
+        run: |
+          ls -la dist/
+          test -n "$(find dist -name '*.whl')" || (echo "Wheel file missing" && exit 1)
+          test -n "$(find dist -name '*.tar.gz')" || (echo "Source distribution missing" && exit 1)
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+================
+File: src/nyord_vpn/data/countries.json
+================
+{
+  "countries": [
+    {
+      "id": 2,
+      "name": "Albania",
+      "code": "AL",
+      "serverCount": 20,
+      "cities": [
+        {
+          "id": 308615,
+          "name": "Tirana",
+          "latitude": 41.3275,
+          "longitude": 19.8188889,
+          "dns_name": "tirana",
+          "hub_score": 0,
+          "serverCount": 20
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Algeria",
+      "code": "DZ",
+      "serverCount": 4,
+      "cities": [
+        {
+          "id": 2438216,
+          "name": "Algiers",
+          "latitude": 36.7630556,
+          "longitude": 3.0505556,
+          "dns_name": "algiers",
+          "hub_score": 0,
+          "serverCount": 4
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Andorra",
+      "code": "AD",
+      "serverCount": 4,
+      "cities": [
+        {
+          "id": 20,
+          "name": "Andorra la Vella",
+          "latitude": 42.5,
+          "longitude": 1.5166667,
+          "dns_name": "andorra-la-vella",
+          "hub_score": 0,
+          "serverCount": 4
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Angola",
+      "code": "AO",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 351407,
+          "name": "Luanda",
+          "latitude": -8.836804,
+          "longitude": 13.233174,
+          "dns_name": "luanda",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Argentina",
+      "code": "AR",
+      "serverCount": 14,
+      "cities": [
+        {
+          "id": 384866,
+          "name": "Buenos Aires",
+          "latitude": -34.5875,
+          "longitude": -58.6725,
+          "dns_name": "buenos-aires",
+          "hub_score": 0,
+          "serverCount": 14
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Armenia",
+      "code": "AM",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 322385,
+          "name": "Yerevan",
+          "latitude": 40.1811111,
+          "longitude": 44.5136111,
+          "dns_name": "yerevan",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Australia",
+      "code": "AU",
+      "serverCount": 218,
+      "cities": [
+        {
+          "id": 452717,
+          "name": "Adelaide",
+          "latitude": -34.928661,
+          "longitude": 138.598633,
+          "dns_name": "adelaide",
+          "hub_score": 0,
+          "serverCount": 18
+        },
+        {
+          "id": 456494,
+          "name": "Brisbane",
+          "latitude": -27.47101,
+          "longitude": 153.024292,
+          "dns_name": "brisbane",
+          "hub_score": 0,
+          "serverCount": 34
+        },
+        {
+          "id": 470813,
+          "name": "Melbourne",
+          "latitude": -37.813938,
+          "longitude": 144.963425,
+          "dns_name": "melbourne",
+          "hub_score": 0,
+          "serverCount": 55
+        },
+        {
+          "id": 475799,
+          "name": "Perth",
+          "latitude": -31.95224,
+          "longitude": 115.861397,
+          "dns_name": "perth",
+          "hub_score": 0,
+          "serverCount": 34
+        },
+        {
+          "id": 479570,
+          "name": "Sydney",
+          "latitude": -33.861481,
+          "longitude": 151.205475,
+          "dns_name": "sydney",
+          "hub_score": 0,
+          "serverCount": 77
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Austria",
+      "code": "AT",
+      "serverCount": 69,
+      "cities": [
+        {
+          "id": 448799,
+          "name": "Vienna",
+          "latitude": 48.2,
+          "longitude": 16.366667,
+          "dns_name": "vienna",
+          "hub_score": 0,
+          "serverCount": 69
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Azerbaijan",
+      "code": "AZ",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 490037,
+          "name": "Baku",
+          "latitude": 40.395278,
+          "longitude": 49.882222,
+          "dns_name": "baku",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Bahamas",
+      "code": "BS",
+      "serverCount": 5,
+      "cities": [
+        {
+          "id": 988382,
+          "name": "Nassau",
+          "latitude": 25.078056,
+          "longitude": -77.338611,
+          "dns_name": "nassau",
+          "hub_score": 0,
+          "serverCount": 5
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Bahrain",
+      "code": "BH",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 789398,
+          "name": "Manama",
+          "latitude": 26.2361111,
+          "longitude": 50.5830556,
+          "dns_name": "manama",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Bangladesh",
+      "code": "BD",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 594935,
+          "name": "Dhaka",
+          "latitude": 23.7230556,
+          "longitude": 90.4086111,
+          "dns_name": "dhaka",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Belgium",
+      "code": "BE",
+      "serverCount": 88,
+      "cities": [
+        {
+          "id": 654293,
+          "name": "Brussels",
+          "latitude": 50.833333,
+          "longitude": 4.333333,
+          "dns_name": "brussels",
+          "hub_score": 0,
+          "serverCount": 88
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Belize",
+      "code": "BZ",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 1037459,
+          "name": "Belmopan",
+          "latitude": 17.25,
+          "longitude": -88.7666667,
+          "dns_name": "belmopan",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "Bermuda",
+      "code": "BM",
+      "serverCount": 3,
+      "cities": [
+        {
+          "id": 809078,
+          "name": "Hamilton",
+          "latitude": 32.2941667,
+          "longitude": -64.7838889,
+          "dns_name": "hamilton",
+          "hub_score": 0,
+          "serverCount": 3
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "Bhutan",
+      "code": "BT",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 989699,
+          "name": "Thimphu",
+          "latitude": 27.472222,
+          "longitude": 89.636111,
+          "dns_name": "thimphu",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "Bolivia",
+      "code": "BO",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 838514,
+          "name": "La Paz",
+          "latitude": -16.5,
+          "longitude": -68.15,
+          "dns_name": "la-paz",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "Bosnia and Herzegovina",
+      "code": "BA",
+      "serverCount": 5,
+      "cities": [
+        {
+          "id": 548462,
+          "name": "Novi Travnik",
+          "latitude": 44.1711111,
+          "longitude": 17.6575,
+          "dns_name": "novi-travnik",
+          "hub_score": 0,
+          "serverCount": 5
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "Brazil",
+      "code": "BR",
+      "serverCount": 38,
+      "cities": [
+        {
+          "id": 890249,
+          "name": "Sao Paulo",
+          "latitude": -23.533333,
+          "longitude": -46.616667,
+          "dns_name": "sao-paulo",
+          "hub_score": 0,
+          "serverCount": 38
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "Brunei Darussalam",
+      "code": "BN",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 809132,
+          "name": "Bandar Seri Begawan",
+          "latitude": 4.8833333,
+          "longitude": 114.9333333,
+          "dns_name": "bandar-seri-begawan",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "Bulgaria",
+      "code": "BG",
+      "serverCount": 30,
+      "cities": [
+        {
+          "id": 777368,
+          "name": "Sofia",
+          "latitude": 42.6833333,
+          "longitude": 23.3166667,
+          "dns_name": "sofia",
+          "hub_score": 0,
+          "serverCount": 30
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "Cambodia",
+      "code": "KH",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4658987,
+          "name": "Phnom Penh",
+          "latitude": 11.55,
+          "longitude": 104.9166667,
+          "dns_name": "phnom-penh",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "name": "Canada",
+      "code": "CA",
+      "serverCount": 342,
+      "cities": [
+        {
+          "id": 1048463,
+          "name": "Montreal",
+          "latitude": 45.5,
+          "longitude": -73.583333,
+          "dns_name": "montreal",
+          "hub_score": 0,
+          "serverCount": 88
+        },
+        {
+          "id": 1054250,
+          "name": "Toronto",
+          "latitude": 43.666667,
+          "longitude": -79.416667,
+          "dns_name": "toronto",
+          "hub_score": 0,
+          "serverCount": 179
+        },
+        {
+          "id": 1054610,
+          "name": "Vancouver",
+          "latitude": 49.25,
+          "longitude": -123.133333,
+          "dns_name": "vancouver",
+          "hub_score": 0,
+          "serverCount": 75
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "name": "Cayman Islands",
+      "code": "KY",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4922303,
+          "name": "George Town",
+          "latitude": 19.3,
+          "longitude": -81.3833333,
+          "dns_name": "george-town",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "Chile",
+      "code": "CL",
+      "serverCount": 7,
+      "cities": [
+        {
+          "id": 1227092,
+          "name": "Santiago",
+          "latitude": -33.45,
+          "longitude": -70.666667,
+          "dns_name": "santiago",
+          "hub_score": 0,
+          "serverCount": 7
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "Colombia",
+      "code": "CO",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 1980695,
+          "name": "Bogota",
+          "latitude": 4.649178,
+          "longitude": -74.062827,
+          "dns_name": "bogota",
+          "hub_score": 0,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "name": "Costa Rica",
+      "code": "CR",
+      "serverCount": 6,
+      "cities": [
+        {
+          "id": 2062994,
+          "name": "San Jose",
+          "latitude": 9.893385,
+          "longitude": -84.105407,
+          "dns_name": "san-jose",
+          "hub_score": 0,
+          "serverCount": 6
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "name": "Croatia",
+      "code": "HR",
+      "serverCount": 16,
+      "cities": [
+        {
+          "id": 3308120,
+          "name": "Zagreb",
+          "latitude": 45.8,
+          "longitude": 16,
+          "dns_name": "zagreb",
+          "hub_score": 0,
+          "serverCount": 16
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "name": "Cyprus",
+      "code": "CY",
+      "serverCount": 13,
+      "cities": [
+        {
+          "id": 2099627,
+          "name": "Nicosia",
+          "latitude": 35.1666667,
+          "longitude": 33.3666667,
+          "dns_name": "nicosia",
+          "hub_score": 0,
+          "serverCount": 13
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "name": "Czech Republic",
+      "code": "CZ",
+      "serverCount": 43,
+      "cities": [
+        {
+          "id": 2144945,
+          "name": "Prague",
+          "latitude": 50.083333,
+          "longitude": 14.466667,
+          "dns_name": "prague",
+          "hub_score": 0,
+          "serverCount": 43
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "name": "Denmark",
+      "code": "DK",
+      "serverCount": 71,
+      "cities": [
+        {
+          "id": 2382515,
+          "name": "Copenhagen",
+          "latitude": 55.666667,
+          "longitude": 12.583333,
+          "dns_name": "copenhagen",
+          "hub_score": 0,
+          "serverCount": 71
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "name": "Dominican Republic",
+      "code": "DO",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 2434841,
+          "name": "Santo Domingo",
+          "latitude": 18.4666667,
+          "longitude": -69.9,
+          "dns_name": "santo-domingo",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "name": "Ecuador",
+      "code": "EC",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 2485688,
+          "name": "Quito",
+          "latitude": -0.2166667,
+          "longitude": -78.5,
+          "dns_name": "quito",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "name": "Egypt",
+      "code": "EG",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 2528003,
+          "name": "Cairo",
+          "latitude": 30.05,
+          "longitude": 31.25,
+          "dns_name": "cairo",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "name": "El Salvador",
+      "code": "SV",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 7990847,
+          "name": "San Salvador",
+          "latitude": 13.7086111,
+          "longitude": -89.2030556,
+          "dns_name": "san-salvador",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 68,
+      "name": "Estonia",
+      "code": "EE",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 2514182,
+          "name": "Tallinn",
+          "latitude": 59.4338889,
+          "longitude": 24.7280556,
+          "dns_name": "tallinn",
+          "hub_score": 0,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "name": "Finland",
+      "code": "FI",
+      "serverCount": 21,
+      "cities": [
+        {
+          "id": 2704343,
+          "name": "Helsinki",
+          "latitude": 60.175556,
+          "longitude": 24.934167,
+          "dns_name": "helsinki",
+          "hub_score": 0,
+          "serverCount": 21
+        }
+      ]
+    },
+    {
+      "id": 74,
+      "name": "France",
+      "code": "FR",
+      "serverCount": 344,
+      "cities": [
+        {
+          "id": 2867102,
+          "name": "Marseille",
+          "latitude": 43.285413,
+          "longitude": 5.37606,
+          "dns_name": "marseille",
+          "hub_score": 0,
+          "serverCount": 108
+        },
+        {
+          "id": 2886284,
+          "name": "Paris",
+          "latitude": 48.866667,
+          "longitude": 2.333333,
+          "dns_name": "paris",
+          "hub_score": 0,
+          "serverCount": 236
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "name": "Georgia",
+      "code": "GE",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 3032063,
+          "name": "Tbilisi",
+          "latitude": 41.725,
+          "longitude": 44.7908333,
+          "dns_name": "tbilisi",
+          "hub_score": -5,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "name": "Germany",
+      "code": "DE",
+      "serverCount": 368,
+      "cities": [
+        {
+          "id": 2181458,
+          "name": "Berlin",
+          "latitude": 52.516667,
+          "longitude": 13.4,
+          "dns_name": "berlin",
+          "hub_score": 0,
+          "serverCount": 32
+        },
+        {
+          "id": 2215709,
+          "name": "Frankfurt",
+          "latitude": 50.116667,
+          "longitude": 8.683333,
+          "dns_name": "frankfurt",
+          "hub_score": 0,
+          "serverCount": 301
+        },
+        {
+          "id": 2234906,
+          "name": "Hamburg",
+          "latitude": 53.55,
+          "longitude": 10,
+          "dns_name": "hamburg",
+          "hub_score": 0,
+          "serverCount": 35
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "name": "Ghana",
+      "code": "GH",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 3040355,
+          "name": "Accra",
+          "latitude": 5.55,
+          "longitude": -0.2166667,
+          "dns_name": "accra",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 84,
+      "name": "Greece",
+      "code": "GR",
+      "serverCount": 23,
+      "cities": [
+        {
+          "id": 3131903,
+          "name": "Athens",
+          "latitude": 37.9833333,
+          "longitude": 23.7333333,
+          "dns_name": "athens",
+          "hub_score": 0,
+          "serverCount": 23
+        }
+      ]
+    },
+    {
+      "id": 85,
+      "name": "Greenland",
+      "code": "GL",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 3085001,
+          "name": "Nuuk",
+          "latitude": 64.1833333,
+          "longitude": -51.75,
+          "dns_name": "nuuk",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 88,
+      "name": "Guam",
+      "code": "GU",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 8808314,
+          "name": "Hagatna",
+          "latitude": 13.4741667,
+          "longitude": 144.7477778,
+          "dns_name": "hagatna",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 89,
+      "name": "Guatemala",
+      "code": "GT",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 3202463,
+          "name": "Guatemala City",
+          "latitude": 14.621111,
+          "longitude": -90.526944,
+          "dns_name": "guatemala-city",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 96,
+      "name": "Honduras",
+      "code": "HN",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 3270551,
+          "name": "Tegucigalpa",
+          "latitude": 14.1,
+          "longitude": -87.2166667,
+          "dns_name": "tegucigalpa",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 97,
+      "name": "Hong Kong",
+      "code": "HK",
+      "serverCount": 72,
+      "cities": [
+        {
+          "id": 3232931,
+          "name": "Hong Kong",
+          "latitude": 22.2833333,
+          "longitude": 114.15,
+          "dns_name": "hong-kong",
+          "hub_score": 0,
+          "serverCount": 72
+        }
+      ]
+    },
+    {
+      "id": 98,
+      "name": "Hungary",
+      "code": "HU",
+      "serverCount": 26,
+      "cities": [
+        {
+          "id": 3348344,
+          "name": "Budapest",
+          "latitude": 47.5,
+          "longitude": 19.083333,
+          "dns_name": "budapest",
+          "hub_score": 0,
+          "serverCount": 26
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "name": "Iceland",
+      "code": "IS",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 4509791,
+          "name": "Reykjavik",
+          "latitude": 64.15,
+          "longitude": -21.95,
+          "dns_name": "reykjavik",
+          "hub_score": 0,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 100,
+      "name": "India",
+      "code": "IN",
+      "serverCount": 27,
+      "cities": [
+        {
+          "id": 4041548,
+          "name": "Mumbai",
+          "latitude": 18.975,
+          "longitude": 72.825833,
+          "dns_name": "mumbai",
+          "hub_score": 0,
+          "serverCount": 27
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "name": "Indonesia",
+      "code": "ID",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 3560288,
+          "name": "Jakarta",
+          "latitude": -6.174444,
+          "longitude": 106.829444,
+          "dns_name": "jakarta",
+          "hub_score": 0,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "name": "Ireland",
+      "code": "IE",
+      "serverCount": 69,
+      "cities": [
+        {
+          "id": 3939200,
+          "name": "Dublin",
+          "latitude": 53.3330556,
+          "longitude": -6.2488889,
+          "dns_name": "dublin",
+          "hub_score": 0,
+          "serverCount": 69
+        }
+      ]
+    },
+    {
+      "id": 243,
+      "name": "Isle of Man",
+      "code": "IM",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 3965405,
+          "name": "Douglas",
+          "latitude": 54.15,
+          "longitude": -4.483333,
+          "dns_name": "douglas",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "name": "Israel",
+      "code": "IL",
+      "serverCount": 20,
+      "cities": [
+        {
+          "id": 3964220,
+          "name": "Tel Aviv",
+          "latitude": 32.066667,
+          "longitude": 34.766667,
+          "dns_name": "tel-aviv",
+          "hub_score": 0,
+          "serverCount": 20
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "name": "Italy",
+      "code": "IT",
+      "serverCount": 157,
+      "cities": [
+        {
+          "id": 4542737,
+          "name": "Milan",
+          "latitude": 45.466667,
+          "longitude": 9.2,
+          "dns_name": "milan",
+          "hub_score": 0,
+          "serverCount": 108
+        },
+        {
+          "id": 4548074,
+          "name": "Palermo",
+          "latitude": 38.116667,
+          "longitude": 13.366667,
+          "dns_name": "palermo",
+          "hub_score": 0,
+          "serverCount": 12
+        },
+        {
+          "id": 4555808,
+          "name": "Rome",
+          "latitude": 41.8902,
+          "longitude": 12.4922,
+          "dns_name": "rome",
+          "hub_score": 0,
+          "serverCount": 37
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "name": "Jamaica",
+      "code": "JM",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4576328,
+          "name": "Kingston",
+          "latitude": 18,
+          "longitude": -76.8,
+          "dns_name": "kingston",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 108,
+      "name": "Japan",
+      "code": "JP",
+      "serverCount": 259,
+      "cities": [
+        {
+          "id": 4621847,
+          "name": "Osaka",
+          "latitude": 34.6937,
+          "longitude": 135.5023,
+          "dns_name": "osaka",
+          "hub_score": 0,
+          "serverCount": 36
+        },
+        {
+          "id": 4633349,
+          "name": "Tokyo",
+          "latitude": 35.685,
+          "longitude": 139.751389,
+          "dns_name": "tokyo",
+          "hub_score": 0,
+          "serverCount": 223
+        }
+      ]
+    },
+    {
+      "id": 244,
+      "name": "Jersey",
+      "code": "JE",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4572281,
+          "name": "Saint Helier",
+          "latitude": 49.183333,
+          "longitude": -2.1,
+          "dns_name": "saint-helier",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 109,
+      "name": "Jordan",
+      "code": "JO",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4581203,
+          "name": "Amman",
+          "latitude": 31.95,
+          "longitude": 35.933333,
+          "dns_name": "amman",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 110,
+      "name": "Kazakhstan",
+      "code": "KZ",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4925732,
+          "name": "Astana",
+          "latitude": 51.181111,
+          "longitude": 71.427778,
+          "dns_name": "astana",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 111,
+      "name": "Kenya",
+      "code": "KE",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 4646603,
+          "name": "Nairobi",
+          "latitude": -1.2833333,
+          "longitude": 36.8166667,
+          "dns_name": "nairobi",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 116,
+      "name": "Kuwait",
+      "code": "KW",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9521894,
+          "name": "Kuwait City",
+          "latitude": 29.3759,
+          "longitude": 47.9774,
+          "dns_name": "kuwait-city",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "name": "Lao People's Democratic Republic",
+      "code": "LA",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5015876,
+          "name": "Vientiane",
+          "latitude": 17.966667,
+          "longitude": 102.6,
+          "dns_name": "vientiane",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 119,
+      "name": "Latvia",
+      "code": "LV",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 5192828,
+          "name": "Riga",
+          "latitude": 56.95,
+          "longitude": 24.1,
+          "dns_name": "riga",
+          "hub_score": 0,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "name": "Lebanon",
+      "code": "LB",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5022080,
+          "name": "Beirut",
+          "latitude": 33.8719444,
+          "longitude": 35.5097222,
+          "dns_name": "beirut",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 124,
+      "name": "Liechtenstein",
+      "code": "LI",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5037212,
+          "name": "Vaduz",
+          "latitude": 47.1333333,
+          "longitude": 9.5166667,
+          "dns_name": "vaduz",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 125,
+      "name": "Lithuania",
+      "code": "LT",
+      "serverCount": 12,
+      "cities": [
+        {
+          "id": 5166932,
+          "name": "Vilnius",
+          "latitude": 54.6833333,
+          "longitude": 25.3166667,
+          "dns_name": "vilnius",
+          "hub_score": 0,
+          "serverCount": 12
+        }
+      ]
+    },
+    {
+      "id": 126,
+      "name": "Luxembourg",
+      "code": "LU",
+      "serverCount": 12,
+      "cities": [
+        {
+          "id": 9521876,
+          "name": "Luxembourg",
+          "latitude": 49.6117,
+          "longitude": 6.13,
+          "dns_name": "luxembourg",
+          "hub_score": 0,
+          "serverCount": 12
+        }
+      ]
+    },
+    {
+      "id": 131,
+      "name": "Malaysia",
+      "code": "MY",
+      "serverCount": 10,
+      "cities": [
+        {
+          "id": 5820143,
+          "name": "Kuala Lumpur",
+          "latitude": 3.166667,
+          "longitude": 101.7,
+          "dns_name": "kuala-lumpur",
+          "hub_score": 0,
+          "serverCount": 10
+        }
+      ]
+    },
+    {
+      "id": 134,
+      "name": "Malta",
+      "code": "MT",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5554481,
+          "name": "Valletta",
+          "latitude": 35.899722,
+          "longitude": 14.514722,
+          "dns_name": "valletta",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 140,
+      "name": "Mexico",
+      "code": "MX",
+      "serverCount": 56,
+      "cities": [
+        {
+          "id": 5677037,
+          "name": "Mexico",
+          "latitude": 19.434167,
+          "longitude": -99.138611,
+          "dns_name": "mexico",
+          "hub_score": 0,
+          "serverCount": 56
+        }
+      ]
+    },
+    {
+      "id": 142,
+      "name": "Moldova",
+      "code": "MD",
+      "serverCount": 3,
+      "cities": [
+        {
+          "id": 5295179,
+          "name": "Chisinau",
+          "latitude": 47.005556,
+          "longitude": 28.8575,
+          "dns_name": "chisinau",
+          "hub_score": 0,
+          "serverCount": 3
+        }
+      ]
+    },
+    {
+      "id": 143,
+      "name": "Monaco",
+      "code": "MC",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5292332,
+          "name": "Monte Carlo",
+          "latitude": 43.739722,
+          "longitude": 7.427222,
+          "dns_name": "monte-carlo",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 144,
+      "name": "Mongolia",
+      "code": "MN",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5543669,
+          "name": "Ulaanbaatar",
+          "latitude": 47.9166667,
+          "longitude": 106.9166667,
+          "dns_name": "ulaanbaatar",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 146,
+      "name": "Montenegro",
+      "code": "ME",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5318561,
+          "name": "Podgorica",
+          "latitude": 42.441111,
+          "longitude": 19.263611,
+          "dns_name": "podgorica",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 147,
+      "name": "Morocco",
+      "code": "MA",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5271254,
+          "name": "Rabat",
+          "latitude": 34.013784,
+          "longitude": -6.844268,
+          "dns_name": "rabat",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 148,
+      "name": "Mozambique",
+      "code": "MZ",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5870336,
+          "name": "Maputo",
+          "latitude": -25.9652778,
+          "longitude": 32.5891667,
+          "dns_name": "maputo",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 149,
+      "name": "Myanmar",
+      "code": "MM",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9521893,
+          "name": "Naypyidaw",
+          "latitude": 19.7475,
+          "longitude": 96.115,
+          "dns_name": "naypyidaw",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 152,
+      "name": "Nepal",
+      "code": "NP",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 6142175,
+          "name": "Kathmandu",
+          "latitude": 27.7166667,
+          "longitude": 85.3166667,
+          "dns_name": "kathmandu",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 153,
+      "name": "Netherlands",
+      "code": "NL",
+      "serverCount": 255,
+      "cities": [
+        {
+          "id": 6076868,
+          "name": "Amsterdam",
+          "latitude": 52.35,
+          "longitude": 4.916667,
+          "dns_name": "amsterdam",
+          "hub_score": 0,
+          "serverCount": 255
+        }
+      ]
+    },
+    {
+      "id": 156,
+      "name": "New Zealand",
+      "code": "NZ",
+      "serverCount": 27,
+      "cities": [
+        {
+          "id": 6144239,
+          "name": "Auckland",
+          "latitude": -36.866667,
+          "longitude": 174.766667,
+          "dns_name": "auckland",
+          "hub_score": 0,
+          "serverCount": 27
+        }
+      ]
+    },
+    {
+      "id": 159,
+      "name": "Nigeria",
+      "code": "NG",
+      "serverCount": 4,
+      "cities": [
+        {
+          "id": 6010328,
+          "name": "Lagos",
+          "latitude": 6.453056,
+          "longitude": 3.395833,
+          "dns_name": "lagos",
+          "hub_score": 0,
+          "serverCount": 4
+        }
+      ]
+    },
+    {
+      "id": 128,
+      "name": "North Macedonia",
+      "code": "MK",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5386019,
+          "name": "Skopje",
+          "latitude": 42,
+          "longitude": 21.4333333,
+          "dns_name": "skopje",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 163,
+      "name": "Norway",
+      "code": "NO",
+      "serverCount": 86,
+      "cities": [
+        {
+          "id": 6127364,
+          "name": "Oslo",
+          "latitude": 59.916667,
+          "longitude": 10.75,
+          "dns_name": "oslo",
+          "hub_score": 0,
+          "serverCount": 86
+        }
+      ]
+    },
+    {
+      "id": 165,
+      "name": "Pakistan",
+      "code": "PK",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 6600485,
+          "name": "Karachi",
+          "latitude": 24.9056,
+          "longitude": 67.0822,
+          "dns_name": "karachi",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 168,
+      "name": "Panama",
+      "code": "PA",
+      "serverCount": 3,
+      "cities": [
+        {
+          "id": 6176273,
+          "name": "Panama City",
+          "latitude": 8.9666667,
+          "longitude": -79.5333333,
+          "dns_name": "panama-city",
+          "hub_score": 0,
+          "serverCount": 3
+        }
+      ]
+    },
+    {
+      "id": 169,
+      "name": "Papua New Guinea",
+      "code": "PG",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 6292406,
+          "name": "Port Moresby",
+          "latitude": -9.4647222,
+          "longitude": 147.1925,
+          "dns_name": "port-moresby",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 170,
+      "name": "Paraguay",
+      "code": "PY",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9521890,
+          "name": "Asuncion",
+          "latitude": -25.3,
+          "longitude": -57.633333,
+          "dns_name": "asuncion",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 171,
+      "name": "Peru",
+      "code": "PE",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 6222584,
+          "name": "Lima",
+          "latitude": -12.05,
+          "longitude": -77.05,
+          "dns_name": "lima",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 172,
+      "name": "Philippines",
+      "code": "PH",
+      "serverCount": 6,
+      "cities": [
+        {
+          "id": 6391379,
+          "name": "Manila",
+          "latitude": 14.6042,
+          "longitude": 120.9822,
+          "dns_name": "manila",
+          "hub_score": 0,
+          "serverCount": 6
+        }
+      ]
+    },
+    {
+      "id": 174,
+      "name": "Poland",
+      "code": "PL",
+      "serverCount": 75,
+      "cities": [
+        {
+          "id": 6863429,
+          "name": "Warsaw",
+          "latitude": 52.25,
+          "longitude": 21,
+          "dns_name": "warsaw",
+          "hub_score": 0,
+          "serverCount": 75
+        }
+      ]
+    },
+    {
+      "id": 175,
+      "name": "Portugal",
+      "code": "PT",
+      "serverCount": 52,
+      "cities": [
+        {
+          "id": 6906665,
+          "name": "Lisbon",
+          "latitude": 38.716667,
+          "longitude": -9.133333,
+          "dns_name": "lisbon",
+          "hub_score": 0,
+          "serverCount": 52
+        }
+      ]
+    },
+    {
+      "id": 176,
+      "name": "Puerto Rico",
+      "code": "PR",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9521884,
+          "name": "San Juan",
+          "latitude": 18.406389,
+          "longitude": -66.063889,
+          "dns_name": "san-juan",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 179,
+      "name": "Romania",
+      "code": "RO",
+      "serverCount": 25,
+      "cities": [
+        {
+          "id": 6953096,
+          "name": "Bucharest",
+          "latitude": 44.433333,
+          "longitude": 26.1,
+          "dns_name": "bucharest",
+          "hub_score": 0,
+          "serverCount": 25
+        }
+      ]
+    },
+    {
+      "id": 191,
+      "name": "Senegal",
+      "code": "SN",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 7924958,
+          "name": "Dakar",
+          "latitude": 14.6708333,
+          "longitude": -17.4380556,
+          "dns_name": "dakar",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 192,
+      "name": "Serbia",
+      "code": "RS",
+      "serverCount": 20,
+      "cities": [
+        {
+          "id": 7030907,
+          "name": "Belgrade",
+          "latitude": 44.818611,
+          "longitude": 20.468056,
+          "dns_name": "belgrad",
+          "hub_score": 0,
+          "serverCount": 20
+        }
+      ]
+    },
+    {
+      "id": 195,
+      "name": "Singapore",
+      "code": "SG",
+      "serverCount": 83,
+      "cities": [
+        {
+          "id": 7867982,
+          "name": "Singapore",
+          "latitude": 1.2930556,
+          "longitude": 103.8558333,
+          "dns_name": "singapore",
+          "hub_score": 0,
+          "serverCount": 83
+        }
+      ]
+    },
+    {
+      "id": 196,
+      "name": "Slovakia",
+      "code": "SK",
+      "serverCount": 15,
+      "cities": [
+        {
+          "id": 7884305,
+          "name": "Bratislava",
+          "latitude": 48.15,
+          "longitude": 17.1166667,
+          "dns_name": "bratislava",
+          "hub_score": 0,
+          "serverCount": 15
+        }
+      ]
+    },
+    {
+      "id": 197,
+      "name": "Slovenia",
+      "code": "SI",
+      "serverCount": 6,
+      "cities": [
+        {
+          "id": 7874306,
+          "name": "Ljubljana",
+          "latitude": 46.0552778,
+          "longitude": 14.5144444,
+          "dns_name": "ljubljana",
+          "hub_score": 0,
+          "serverCount": 6
+        }
+      ]
+    },
+    {
+      "id": 200,
+      "name": "South Africa",
+      "code": "ZA",
+      "serverCount": 25,
+      "cities": [
+        {
+          "id": 9383693,
+          "name": "Johannesburg",
+          "latitude": -26.205171,
+          "longitude": 28.049815,
+          "dns_name": "johannesburg",
+          "hub_score": 0,
+          "serverCount": 25
+        }
+      ]
+    },
+    {
+      "id": 114,
+      "name": "South Korea",
+      "code": "KR",
+      "serverCount": 37,
+      "cities": [
+        {
+          "id": 4879586,
+          "name": "Seoul",
+          "latitude": 37.5985,
+          "longitude": 126.9783,
+          "dns_name": "seoul",
+          "hub_score": 0,
+          "serverCount": 37
+        }
+      ]
+    },
+    {
+      "id": 202,
+      "name": "Spain",
+      "code": "ES",
+      "serverCount": 100,
+      "cities": [
+        {
+          "id": 2572757,
+          "name": "Barcelona",
+          "latitude": 41.398371,
+          "longitude": 2.1741,
+          "dns_name": "barcelona",
+          "hub_score": 0,
+          "serverCount": 24
+        },
+        {
+          "id": 2619989,
+          "name": "Madrid",
+          "latitude": 40.408566,
+          "longitude": -3.69222,
+          "dns_name": "madrid",
+          "hub_score": 0,
+          "serverCount": 76
+        }
+      ]
+    },
+    {
+      "id": 203,
+      "name": "Sri Lanka",
+      "code": "LK",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 5043197,
+          "name": "Colombo",
+          "latitude": 6.9319444,
+          "longitude": 79.8477778,
+          "dns_name": "colombo",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 208,
+      "name": "Sweden",
+      "code": "SE",
+      "serverCount": 163,
+      "cities": [
+        {
+          "id": 7852919,
+          "name": "Stockholm",
+          "latitude": 59.333333,
+          "longitude": 18.05,
+          "dns_name": "stockholm",
+          "hub_score": 0,
+          "serverCount": 163
+        }
+      ]
+    },
+    {
+      "id": 209,
+      "name": "Switzerland",
+      "code": "CH",
+      "serverCount": 135,
+      "cities": [
+        {
+          "id": 1171814,
+          "name": "Zurich",
+          "latitude": 47.366667,
+          "longitude": 8.55,
+          "dns_name": "zurich",
+          "hub_score": 0,
+          "serverCount": 135
+        }
+      ]
+    },
+    {
+      "id": 211,
+      "name": "Taiwan",
+      "code": "TW",
+      "serverCount": 30,
+      "cities": [
+        {
+          "id": 8544365,
+          "name": "Taipei",
+          "latitude": 25.0391667,
+          "longitude": 121.525,
+          "dns_name": "taipei",
+          "hub_score": 0,
+          "serverCount": 30
+        }
+      ]
+    },
+    {
+      "id": 214,
+      "name": "Thailand",
+      "code": "TH",
+      "serverCount": 12,
+      "cities": [
+        {
+          "id": 8121638,
+          "name": "Bangkok",
+          "latitude": 13.753979,
+          "longitude": 100.501444,
+          "dns_name": "bangkok",
+          "hub_score": 0,
+          "serverCount": 12
+        }
+      ]
+    },
+    {
+      "id": 218,
+      "name": "Trinidad and Tobago",
+      "code": "TT",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9521887,
+          "name": "Port of Spain",
+          "latitude": 10.666667,
+          "longitude": -61.516667,
+          "dns_name": "port-of-spain",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 219,
+      "name": "Tunisia",
+      "code": "TN",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 8295401,
+          "name": "Tunis",
+          "latitude": 36.806112,
+          "longitude": 10.171078,
+          "dns_name": "tunis",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 220,
+      "name": "Turkey",
+      "code": "TR",
+      "serverCount": 16,
+      "cities": [
+        {
+          "id": 8401790,
+          "name": "Istanbul",
+          "latitude": 41.018611,
+          "longitude": 28.964722,
+          "dns_name": "istanbul",
+          "hub_score": 0,
+          "serverCount": 16
+        }
+      ]
+    },
+    {
+      "id": 225,
+      "name": "Ukraine",
+      "code": "UA",
+      "serverCount": 14,
+      "cities": [
+        {
+          "id": 8626766,
+          "name": "Kyiv",
+          "latitude": 50.433333,
+          "longitude": 30.516667,
+          "dns_name": "kyiv",
+          "hub_score": 0,
+          "serverCount": 14
+        }
+      ]
+    },
+    {
+      "id": 226,
+      "name": "United Arab Emirates",
+      "code": "AE",
+      "serverCount": 15,
+      "cities": [
+        {
+          "id": 728,
+          "name": "Dubai",
+          "latitude": 25.258172,
+          "longitude": 55.304717,
+          "dns_name": "dubai",
+          "hub_score": 0,
+          "serverCount": 15
+        }
+      ]
+    },
+    {
+      "id": 227,
+      "name": "United Kingdom",
+      "code": "GB",
+      "serverCount": 984,
+      "cities": [
+        {
+          "id": 2975852,
+          "name": "Edinburgh",
+          "latitude": 55.95,
+          "longitude": -3.2,
+          "dns_name": "edinburgh",
+          "hub_score": 0,
+          "serverCount": 36
+        },
+        {
+          "id": 2978888,
+          "name": "Glasgow",
+          "latitude": 55.833333,
+          "longitude": -4.25,
+          "dns_name": "glasgow",
+          "hub_score": 0,
+          "serverCount": 36
+        },
+        {
+          "id": 2989907,
+          "name": "London",
+          "latitude": 51.514125,
+          "longitude": -0.093689,
+          "dns_name": "london",
+          "hub_score": 0,
+          "serverCount": 785
+        },
+        {
+          "id": 2991110,
+          "name": "Manchester",
+          "latitude": 53.5,
+          "longitude": -2.216667,
+          "dns_name": "manchester",
+          "hub_score": 0,
+          "serverCount": 127
+        }
+      ]
+    },
+    {
+      "id": 228,
+      "name": "United States",
+      "code": "US",
+      "serverCount": 2542,
+      "cities": [
+        {
+          "id": 8792429,
+          "name": "Atlanta",
+          "latitude": 33.7488889,
+          "longitude": -84.3880556,
+          "dns_name": "atlanta",
+          "hub_score": 0,
+          "serverCount": 156
+        },
+        {
+          "id": 8895305,
+          "name": "Boston",
+          "latitude": 42.3583333,
+          "longitude": -71.0602778,
+          "dns_name": "boston",
+          "hub_score": 0,
+          "serverCount": 40
+        },
+        {
+          "id": 8963153,
+          "name": "Buffalo",
+          "latitude": 42.8863889,
+          "longitude": -78.8786111,
+          "dns_name": "buffalo",
+          "hub_score": 0,
+          "serverCount": 99
+        },
+        {
+          "id": 8980922,
+          "name": "Charlotte",
+          "latitude": 35.2269444,
+          "longitude": -80.8433333,
+          "dns_name": "charlotte",
+          "hub_score": 0,
+          "serverCount": 38
+        },
+        {
+          "id": 8815352,
+          "name": "Chicago",
+          "latitude": 41.85,
+          "longitude": -87.65,
+          "dns_name": "chicago",
+          "hub_score": 0,
+          "serverCount": 263
+        },
+        {
+          "id": 9080300,
+          "name": "Dallas",
+          "latitude": 32.7833333,
+          "longitude": -96.8,
+          "dns_name": "dallas",
+          "hub_score": 0,
+          "serverCount": 243
+        },
+        {
+          "id": 8770934,
+          "name": "Denver",
+          "latitude": 39.7391667,
+          "longitude": -104.9841667,
+          "dns_name": "denver",
+          "hub_score": 0,
+          "serverCount": 95
+        },
+        {
+          "id": 8903312,
+          "name": "Detroit",
+          "latitude": 42.3313889,
+          "longitude": -83.0458333,
+          "dns_name": "detroit",
+          "hub_score": 0,
+          "serverCount": 10
+        },
+        {
+          "id": 9083687,
+          "name": "Houston",
+          "latitude": 29.7630556,
+          "longitude": -95.3630556,
+          "dns_name": "houston",
+          "hub_score": 0,
+          "serverCount": 20
+        },
+        {
+          "id": 8930717,
+          "name": "Kansas City",
+          "latitude": 39.0997222,
+          "longitude": -94.5783333,
+          "dns_name": "kansas-city",
+          "hub_score": 0,
+          "serverCount": 35
+        },
+        {
+          "id": 8761958,
+          "name": "Los Angeles",
+          "latitude": 34.0522222,
+          "longitude": -118.2427778,
+          "dns_name": "los-angeles",
+          "hub_score": 0,
+          "serverCount": 281
+        },
+        {
+          "id": 9113744,
+          "name": "Manassas",
+          "latitude": 38.7508333,
+          "longitude": -77.4755556,
+          "dns_name": "manassas",
+          "hub_score": 0,
+          "serverCount": 128
+        },
+        {
+          "id": 9086162,
+          "name": "McAllen",
+          "latitude": 26.2030556,
+          "longitude": -98.2297222,
+          "dns_name": "mcallen",
+          "hub_score": 0,
+          "serverCount": 20
+        },
+        {
+          "id": 8787782,
+          "name": "Miami",
+          "latitude": 25.7738889,
+          "longitude": -80.1938889,
+          "dns_name": "miami",
+          "hub_score": 0,
+          "serverCount": 183
+        },
+        {
+          "id": 8971718,
+          "name": "New York",
+          "latitude": 40.7141667,
+          "longitude": -74.0063889,
+          "dns_name": "new-york",
+          "hub_score": 0,
+          "serverCount": 529
+        },
+        {
+          "id": 8741960,
+          "name": "Phoenix",
+          "latitude": 33.4483333,
+          "longitude": -112.0733333,
+          "dns_name": "phoenix",
+          "hub_score": 0,
+          "serverCount": 47
+        },
+        {
+          "id": 8934551,
+          "name": "Saint Louis",
+          "latitude": 38.6272222,
+          "longitude": -90.1977778,
+          "dns_name": "saint-louis",
+          "hub_score": 0,
+          "serverCount": 36
+        },
+        {
+          "id": 9097865,
+          "name": "Salt Lake City",
+          "latitude": 40.7608333,
+          "longitude": -111.8902778,
+          "dns_name": "salt-lake-city",
+          "hub_score": 0,
+          "serverCount": 29
+        },
+        {
+          "id": 8766359,
+          "name": "San Francisco",
+          "latitude": 37.7698135,
+          "longitude": -122.4660005,
+          "dns_name": "san-francisco",
+          "hub_score": 0,
+          "serverCount": 107
+        },
+        {
+          "id": 9128402,
+          "name": "Seattle",
+          "latitude": 47.6063889,
+          "longitude": -122.3308333,
+          "dns_name": "seattle",
+          "hub_score": 0,
+          "serverCount": 183
+        }
+      ]
+    },
+    {
+      "id": 230,
+      "name": "Uruguay",
+      "code": "UY",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9150812,
+          "name": "Montevideo",
+          "latitude": -34.8580556,
+          "longitude": -56.1708333,
+          "dns_name": "montevideo",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 231,
+      "name": "Uzbekistan",
+      "code": "UZ",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9166826,
+          "name": "Tashkent",
+          "latitude": 41.3166667,
+          "longitude": 69.25,
+          "dns_name": "tashkent",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 233,
+      "name": "Venezuela",
+      "code": "VE",
+      "serverCount": 2,
+      "cities": [
+        {
+          "id": 9176843,
+          "name": "Caracas",
+          "latitude": 10.5,
+          "longitude": -66.9166667,
+          "dns_name": "caracas",
+          "hub_score": 0,
+          "serverCount": 2
+        }
+      ]
+    },
+    {
+      "id": 234,
+      "name": "Vietnam",
+      "code": "VN",
+      "serverCount": 6,
+      "cities": [
+        {
+          "id": 9270302,
+          "name": "Hanoi",
+          "latitude": 21.033333,
+          "longitude": 105.85,
+          "dns_name": "hanoi",
+          "hub_score": 0,
+          "serverCount": 2
+        },
+        {
+          "id": 9271799,
+          "name": "Ho Chi Minh City",
+          "latitude": 10.75,
+          "longitude": 106.666667,
+          "dns_name": "ho-chi-minh-city",
+          "hub_score": 0,
+          "serverCount": 4
+        }
+      ]
+    }
+  ],
+  "last_updated": "2025-02-23 04:30:37.988796"
+}
+
+================
+File: src/nyord_vpn/data/country_ids.json
+================
+{
+    "AL": "2",
+    "AR": "10",
+    "AU": "13",
+    "AT": "14",
+    "BE": "21",
+    "BA": "27",
+    "BR": "30",
+    "BG": "33",
+    "CA": "38",
+    "CL": "43",
+    "CR": "52",
+    "HR": "54",
+    "CY": "56",
+    "CZ": "57",
+    "DK": "58",
+    "EE": "68",
+    "FI": "73",
+    "FR": "74",
+    "GE": "80",
+    "DE": "81",
+    "GR": "84",
+    "HK": "97",
+    "HU": "98",
+    "IS": "99",
+    "IN": "100",
+    "ID": "101",
+    "IE": "104",
+    "IL": "105",
+    "IT": "106",
+    "JP": "108",
+    "LV": "119",
+    "LU": "126",
+    "MY": "131",
+    "MX": "140",
+    "MD": "142",
+    "NL": "153",
+    "NZ": "156",
+    "MK": "128",
+    "NO": "163",
+    "PL": "174",
+    "PT": "175",
+    "RO": "179",
+    "RS": "192",
+    "SG": "195",
+    "SK": "196",
+    "SI": "197",
+    "ZA": "200",
+    "KR": "114",
+    "ES": "202",
+    "SE": "208",
+    "CH": "209",
+    "TW": "211",
+    "TH": "214",
+    "TR": "220",
+    "UA": "225",
+    "GB": "227",
+    "US": "228",
+    "VN": "234"
+}
+
+================
+File: src/nyord_vpn/scripts/__init__.py
+================
+"""Utility scripts for nyord-vpn."""
+
+================
+File: src/nyord_vpn/scripts/update_countries.py
+================
+#!/usr/bin/env -S uv run
+# /// script
+# dependencies = ["requests", "rich"]
+# ///
+
+"""Script to fetch and update the country list from NordVPN API."""
+
+import json
+import sys
+import time
+from pathlib import Path
+from typing import Dict, List, TypedDict, Union
+
+import requests
+from rich import print as rprint
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+
+class City(TypedDict):
+    """City information from NordVPN API."""
+
+    dns_name: str
+    hub_score: int
+    id: int
+    latitude: float
+    longitude: float
+    name: str
+    serverCount: int
+
+
+class Country(TypedDict):
+    """Country information from NordVPN API."""
+
+    cities: List[City]
+    code: str
+    id: int
+    name: str
+    serverCount: int
+
+
+class CountryCache(TypedDict):
+    """Cache file structure."""
+
+    countries: List[Country]
+    last_updated: str
+
+
+def fetch_countries() -> List[Country]:
+    """Fetch countries from NordVPN API."""
+    url = "https://api.nordvpn.com/v1/servers/countries"
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        progress.add_task(
+            description="Fetching country list from NordVPN API...", total=None
+        )
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+    # The API already returns the exact structure we want
+    countries: List[Country] = response.json()
+    return sorted(countries, key=lambda x: x["name"])
+
+
+def main() -> None:
+    """Update the country list cache file."""
+    try:
+        # Get package data directory
+        package_dir = Path(__file__).parent.parent
+        data_dir = package_dir / "data"
+        cache_file = data_dir / "countries.json"
+
+        # Ensure data directory exists
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        # Fetch fresh data
+        countries = fetch_countries()
+
+        # Calculate total servers across all countries
+        total_servers = sum(country["serverCount"] for country in countries)
+        total_cities = sum(len(country["cities"]) for country in countries)
+
+        # Prepare cache data
+        cache_data: CountryCache = {
+            "countries": countries,
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+
+        # Save to file
+        with cache_file.open("w") as f:
+            json.dump(cache_data, f, indent=2, sort_keys=True)
+        cache_file.chmod(0o644)
+
+        rprint(f"[green]✓ Updated country list cache with:[/green]")
+        rprint(f"  • [cyan]{len(countries)}[/cyan] countries")
+        rprint(f"  • [cyan]{total_cities}[/cyan] cities")
+        rprint(f"  • [cyan]{total_servers}[/cyan] servers")
+        rprint(f"[blue]Cache file: {cache_file}[/blue]")
+
+    except requests.RequestException as e:
+        rprint(f"[red]✗ Failed to fetch country list: {e}[/red]")
+        sys.exit(1)
+    except (OSError, json.JSONDecodeError) as e:
+        rprint(f"[red]✗ Failed to update cache file: {e}[/red]")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
+================
+File: src/nyord_vpn/__init__.py
+================
+"""NordVPN client for Python."""
+
+from .client import Client
+from .models import (
+    ConnectionError,
+    CredentialsError,
+    ServerError,
+    DisconnectionError,
+    VPNError,
+)
+
+__all__ = [
+    "Client",
+    "ConnectionError",
+    "CredentialsError",
+    "ServerError",
+    "DisconnectionError",
+    "VPNError",
+]
+
+================
+File: src/nyord_vpn/__main__.py
+================
+"""Command line interface for nyord-vpn."""
+
+import os
+import sys
+from typing import List, Optional
+import json
+from datetime import datetime
+import subprocess
+import time
+
+import fire
+from rich.console import Console
+from rich.table import Table
+
+from .client import Client, VPNError
+from .scripts.update_countries import fetch_countries
+
+console = Console()
+
+
+def _check_root() -> None:
+    """Request root privileges using sudo."""
+    if os.geteuid() != 0:
+        try:
+            # Re-run the script with sudo
+            args = ["sudo", sys.executable] + sys.argv
+            console.print(
+                "[yellow]This command requires administrator privileges.[/yellow]"
+            )
+            console.print("[cyan]Please enter your password when prompted.[/cyan]")
+            subprocess.run(args, check=True)
+            sys.exit(0)
+        except subprocess.CalledProcessError:
+            console.print("[red]Error: Administrator privileges required.[/red]")
+            console.print("[yellow]Please run the command again with sudo:[/yellow]")
+            console.print(f"[blue]sudo {' '.join(sys.argv)}[/blue]")
+            sys.exit(1)
+
+
+class CLI:
+    """NordVPN CLI interface."""
+
+    def __init__(self, verbose: bool = False):
+        """Initialize CLI."""
+        try:
+            self.client = Client(verbose=verbose)
+        except VPNError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country.
+
+        Args:
+            country_code: Two-letter country code (e.g. 'us', 'uk')
+        """
+        _check_root()
+        try:
+            # First check if we're already connected
+            status = self.client.status()
+            if status and status.get("status", False):
+                self.client.disconnect()
+
+            # Connect to VPN
+            self.client.go(country_code)
+        except VPNError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+
+    def bye(self) -> None:
+        """Disconnect from VPN."""
+        _check_root()
+        try:
+            # First check if we're actually connected
+            status = self.client.status()
+            if not status or not status.get("status", False):
+                console.print("[yellow]Not connected to VPN[/yellow]")
+                console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                return
+
+            # Store the private IP for display
+            private_ip = status.get("ip", "Unknown")
+
+            # Disconnect
+            self.client.disconnect()
+
+            # Get new status for normal IP
+            status = self.client.status()
+            console.print("[green]Successfully disconnected from VPN[/green]")
+            console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+            console.print(f"Previous Private IP: [yellow]{private_ip}[/yellow]")
+        except VPNError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+
+    def info(self) -> None:
+        """Show current connection info."""
+        try:
+            status = self.client.status()
+            if status:
+                connected = status.get("status", False)
+                ip = status.get("ip", "Unknown")
+                country = status.get("country", "Unknown")
+                server = status.get("server", "Unknown")
+
+                if connected:
+                    console.print("[green]VPN Status: Connected[/green]")
+                    console.print(f"Private IP: [cyan]{ip}[/cyan]")
+                    console.print(f"Country: [cyan]{country}[/cyan]")
+                    console.print(f"Server: [cyan]{server}[/cyan]")
+                else:
+                    console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                    console.print(f"Normal IP: [cyan]{ip}[/cyan]")
+            else:
+                console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+        except VPNError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+
+    def where(self, live: bool = False) -> None:
+        """List available countries.
+
+        Args:
+            live: If True, fetch fresh data from API instead of using cache
+        """
+        try:
+            if live:
+                countries = fetch_countries()
+            else:
+                countries = self.client.countries
+
+            table = Table(title="Available Countries")
+            table.add_column("Country", style="cyan")
+            table.add_column("Code", style="yellow")
+            table.add_column("Servers", justify="right", style="green")
+            table.add_column("Cities", justify="right", style="blue")
+
+            for country in sorted(countries, key=lambda x: x["name"]):
+                table.add_row(
+                    country["name"],
+                    country["code"].lower(),
+                    str(country["serverCount"]),
+                    str(len(country["cities"])),
+                )
+
+            console.print(table)
+            total_servers = sum(country["serverCount"] for country in countries)
+            total_cities = sum(len(country["cities"]) for country in countries)
+            console.print(
+                f"\nTotal: [cyan]{len(countries)}[/cyan] countries, "
+                f"[blue]{total_cities}[/blue] cities, "
+                f"[green]{total_servers}[/green] servers"
+            )
+
+        except VPNError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+
+    def update(self) -> None:
+        """Update country list from NordVPN API."""
+        try:
+            countries = fetch_countries()
+            total_servers = sum(country["serverCount"] for country in countries)
+            total_cities = sum(len(country["cities"]) for country in countries)
+
+            with open(self.client.cache_file, "w") as f:
+                json.dump(
+                    {
+                        "countries": countries,
+                        "last_updated": time.strftime(
+                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                        ),
+                    },
+                    f,
+                    indent=2,
+                )
+
+            console.print("[green]✓ Updated country list cache with:[/green]")
+            console.print(f"  • [cyan]{len(countries)}[/cyan] countries")
+            console.print(f"  • [blue]{total_cities}[/blue] cities")
+            console.print(f"  • [green]{total_servers}[/green] servers")
+            console.print(f"[blue]Cache file: {self.client.cache_file}[/blue]")
+
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+
+
+def main() -> None:
+    """Main entry point."""
+    try:
+        fire.Fire(CLI)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
+================
+File: src/nyord_vpn/_templates.py
+================
+OPENVPN_TEMPLATE = """client
+dev tun
+proto tcp
+remote {} 443
+resolv-retry infinite
+remote-random
+nobind
+tun-mtu 1500
+tun-mtu-extra 32
+mssfix 1450
+persist-key
+persist-tun
+ping 15
+ping-restart 60
+ping-timer-rem
+reneg-sec 0
+comp-lzo no
+verify-x509-name CN={}
+
+remote-cert-tls server
+
+auth-user-pass
+verb 3
+pull
+fast-io
+cipher AES-256-GCM
+auth SHA512
+<ca>
+-----BEGIN CERTIFICATE-----
+MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ
+MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2
+MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV
+BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI
+hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF
+kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr
+XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU
+eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV
+skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu
+MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA
+37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR
+hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s
+Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy
+WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6
+MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST
+LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG
+SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g
+nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/
+k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S
+DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/
+pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo
+k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp
++RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd
+NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa
+wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC
+VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S
+PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==
+-----END CERTIFICATE-----
+</ca>
+key-direction 1
+<tls-auth>
+#
+# 2048 bit OpenVPN static key
+#
+-----BEGIN OpenVPN Static key V1-----
+e685bdaf659a25a200e2b9e39e51ff03
+0fc72cf1ce07232bd8b2be5e6c670143
+f51e937e670eee09d4f2ea5a6e4e6996
+5db852c275351b86fc4ca892d78ae002
+d6f70d029bd79c4d1c26cf14e9588033
+cf639f8a74809f29f72b9d58f9b8f5fe
+fc7938eade40e9fed6cb92184abb2cc1
+0eb1a296df243b251df0643d53724cdb
+5a92a1d6cb817804c4a9319b57d53be5
+80815bcfcb2df55018cc83fc43bc7ff8
+2d51f9b88364776ee9d12fc85cc7ea5b
+9741c4f598c485316db066d52db4540e
+212e1518a9bd4828219e24b20d88f598
+a196c9de96012090e333519ae18d3509
+9427e7b372d348d352dc4c85e18cd4b9
+3f8a56ddb2e64eb67adfc9b337157ff4
+-----END OpenVPN Static key V1-----
+</tls-auth>
+redirect-gateway def1
+dhcp-option DNS 103.86.96.100
+dhcp-option DNS 103.86.99.100
+explicit-exit-notify 1
+script-security 2"""
+
+================
+File: src/nyord_vpn/_utils.py
+================
+import os
+
+
+def is_process_running(process_id):
+    try:
+        # os.kill(process_id, 0)
+        os.system("sudo kill -0 " + str(process_id))
+        return True
+    except Exception:
+        return False
+
+================
+File: src/nyord_vpn/base.py
+================
+"""Base NordVPN client implementation.
+
+This module contains the base NordVPN client class that handles:
+- Country list management
+- Cache handling
+- Location lookup
+- API interaction
+
+This class is extended by the main Client class to add connection functionality.
+"""
+
+import json
+import time, sys
+from typing import List, Optional
+import requests
+from loguru import logger
+
+from .models import City, Country, CountryCache
+from .utils import (
+    CACHE_FILE,
+    COUNTRIES_CACHE,
+    CACHE_EXPIRY,
+    API_HEADERS,
+)
+
+# Fallback data in case API is unreachable
+FALLBACK_DATA: CountryCache = {
+    "countries": [
+        {
+            "cities": [
+                {
+                    "dns_name": "new-york",
+                    "hub_score": 0,
+                    "id": 8971718,
+                    "latitude": 40.7141667,
+                    "longitude": -74.0063889,
+                    "name": "New York",
+                    "serverCount": 529,
+                }
+            ],
+            "code": "US",
+            "id": 228,
+            "name": "United States",
+            "serverCount": 529,
+        },
+        {
+            "cities": [
+                {
+                    "dns_name": "london",
+                    "hub_score": 0,
+                    "id": 2989907,
+                    "latitude": 51.514125,
+                    "longitude": -0.093689,
+                    "name": "London",
+                    "serverCount": 785,
+                }
+            ],
+            "code": "GB",
+            "id": 227,
+            "name": "United Kingdom",
+            "serverCount": 785,
+        },
+        {
+            "cities": [
+                {
+                    "dns_name": "frankfurt",
+                    "hub_score": 0,
+                    "id": 2215709,
+                    "latitude": 50.116667,
+                    "longitude": 8.683333,
+                    "name": "Frankfurt",
+                    "serverCount": 301,
+                }
+            ],
+            "code": "DE",
+            "id": 81,
+            "name": "Germany",
+            "serverCount": 301,
+        },
+    ],
+    "last_updated": "2024-02-23T00:00:00Z",
+}
+
+
+class NordVPNClient:
+    """Base NordVPN client for managing country data and API interactions."""
+
+    BASE_API_URL: str = "https://api.nordvpn.com/v1"
+
+    def __init__(self, username: str, password: str, verbose: bool = False):
+        """Initialize NordVPN client.
+
+        Args:
+            username: NordVPN username
+            password: NordVPN password
+            verbose: Whether to enable verbose logging
+        """
+        self.username = username
+        self.password = password
+        self.verbose = verbose
+        self.logger = logger
+        self.cache_file = CACHE_FILE
+        self.countries = self._load_countries()
+        self.logger.add(sys.stdout, level="DEBUG" if self.verbose else "INFO")
+
+    def _load_countries(self) -> List[Country]:
+        """Load countries from cache or fallback data."""
+        try:
+            with open(self.cache_file, "r") as f:
+                cache_data: CountryCache = json.load(f)
+                return cache_data["countries"]
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self.logger.warning(f"Failed to load cache: {e}. Using fallback data.")
+            return FALLBACK_DATA["countries"]
+
+    def get_country_by_code(self, code: str) -> Optional[Country]:
+        """Get country by its code.
+
+        Args:
+            code: Two-letter country code (e.g. 'us', 'uk')
+        """
+        code = code.upper()
+        for country in self.countries:
+            if country["code"] == code:
+                return country
+        return None
+
+    def get_country_by_name(self, name: str) -> Optional[Country]:
+        """Get country by its name.
+
+        Args:
+            name: Country name (case-insensitive)
+        """
+        name = name.lower()
+        for country in self.countries:
+            if country["name"].lower() == name:
+                return country
+        return None
+
+    def get_available_locations(self) -> List[str]:
+        """Get list of available locations with server counts."""
+        locations = []
+        for country in sorted(self.countries, key=lambda x: x["name"]):
+            total_servers = country["serverCount"]
+            locations.append(
+                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers"
+            )
+            for city in sorted(country["cities"], key=lambda x: x["name"]):
+                locations.append(f"  {city['name']} - {city['serverCount']} servers")
+        return locations
+
+    def get_best_city(self, country_code: str) -> Optional[City]:
+        """Get the best city in a country based on hub score and server count.
+
+        Args:
+            country_code: Two-letter country code
+        """
+        country = self.get_country_by_code(country_code)
+        if not country:
+            return None
+
+        # Sort cities by hub score (higher is better) and server count
+        sorted_cities = sorted(
+            country["cities"],
+            key=lambda x: (x["hub_score"], x["serverCount"]),
+            reverse=True,
+        )
+        return sorted_cities[0] if sorted_cities else None
+
+    def list_countries(self, use_cache: bool = True) -> List[Country]:
+        """Fetch a list of all available server countries from the NordVPN API.
+
+        Args:
+            use_cache: Whether to use cached country list (default: True)
+                     If False, forces a fresh fetch from the API
+
+        Returns:
+            List of dictionaries containing country information
+        """
+        try:
+            if use_cache:
+                cached = self._get_cached_countries()
+                if cached:
+                    return cached["countries"]
+
+            url = f"{self.BASE_API_URL}/servers/countries"
+            response = requests.get(url, headers=API_HEADERS, timeout=10)
+            response.raise_for_status()
+            countries: List[Country] = response.json()
+
+            # Cache the fresh data
+            cache_data: CountryCache = {
+                "countries": countries,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            self._cache_countries(cache_data)
+            return countries
+
+        except requests.RequestException as e:
+            self.logger.warning(f"Failed to fetch countries: {e}")
+            # Try to use cache regardless of use_cache setting
+            cached = self._get_cached_countries()
+            if cached:
+                return cached["countries"]
+
+            # If no cache available, use fallback list
+            return FALLBACK_DATA["countries"]
+
+    def _get_cached_countries(self) -> Optional[CountryCache]:
+        """Get cached country list if available and not expired."""
+        try:
+            if not COUNTRIES_CACHE.exists():
+                return None
+
+            # Check if cache is expired
+            if time.time() - COUNTRIES_CACHE.stat().st_mtime > CACHE_EXPIRY:
+                return None
+
+            with COUNTRIES_CACHE.open("r") as f:
+                return json.load(f)
+
+        except (json.JSONDecodeError, OSError) as e:
+            self.logger.warning(f"Failed to load country cache: {e}")
+            return None
+
+    def _cache_countries(self, data: CountryCache) -> None:
+        """Cache the country list to disk.
+
+        Args:
+            data: Dictionary containing countries list and last_updated timestamp
+        """
+        try:
+            COUNTRIES_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            with COUNTRIES_CACHE.open("w") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+            COUNTRIES_CACHE.chmod(0o644)  # Make readable for all users
+        except OSError as e:
+            self.logger.warning(f"Failed to cache countries: {e}")
+
+================
+File: src/nyord_vpn/client.py
+================
+"""Main NordVPN client implementation.
+
+This module contains the main Client class that extends the base NordVPNClient to add:
+- OpenVPN connection management
+- Status checking and monitoring
+- Connection state persistence
+- Error handling and recovery
+"""
+
+import json
+import os, sys
+import random
+import signal
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, TypedDict, Union, cast
+
+import psutil
+from loguru import logger
+import requests
+from dotenv import load_dotenv
+import shutil
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.logging import RichHandler
+
+load_dotenv()
+logger.configure(
+    handlers=[
+        {
+            "sink": RichHandler(),
+            "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        }
+    ]
+)
+
+from ._templates import OPENVPN_TEMPLATE
+from .base import NordVPNClient
+from .models import (
+    ConnectionError,
+    CredentialsError,
+    ServerError,
+    DisconnectionError,
+    VPNError,
+)
+from .utils import (
+    API_HEADERS,
+    CACHE_DIR,
+    CONFIG_DIR,
+    DATA_DIR,
+    NORDVPN_COUNTRY_IDS,
+    OPENVPN_AUTH,
+    OPENVPN_CONFIG,
+    OPENVPN_LOG,
+    load_vpn_state,
+    save_vpn_state,
+)
+
+# Constants
+PACKAGE_DIR = Path(__file__).parent
+CACHE_FILE = DATA_DIR / "countries.json"
+
+# Rich console for pretty output
+console = Console()
+
+
+# Store cache in the package directory
+COUNTRIES_CACHE = PACKAGE_DIR / "data" / "countries.json"
+
+
+# Type definitions for country data
+class City(TypedDict):
+    """City information from NordVPN API."""
+
+    dns_name: str
+    hub_score: int
+    id: int
+    latitude: float
+    longitude: float
+    name: str
+    serverCount: int
+
+
+class Country(TypedDict):
+    """Country information from NordVPN API."""
+
+    cities: List[City]
+    code: str
+    id: int
+    name: str
+    serverCount: int
+
+
+class CountryCache(TypedDict):
+    """Cache file structure."""
+
+    countries: List[Country]
+    last_updated: str
+
+
+# Fallback country list in case API is unreachable
+FALLBACK_DATA: CountryCache = {
+    "countries": [
+        {
+            "cities": [
+                {
+                    "dns_name": "new-york",
+                    "hub_score": 0,
+                    "id": 8971718,
+                    "latitude": 40.7141667,
+                    "longitude": -74.0063889,
+                    "name": "New York",
+                    "serverCount": 529,
+                }
+            ],
+            "code": "US",
+            "id": 228,
+            "name": "United States",
+            "serverCount": 529,
+        },
+        {
+            "cities": [
+                {
+                    "dns_name": "london",
+                    "hub_score": 0,
+                    "id": 2989907,
+                    "latitude": 51.514125,
+                    "longitude": -0.093689,
+                    "name": "London",
+                    "serverCount": 785,
+                }
+            ],
+            "code": "GB",
+            "id": 227,
+            "name": "United Kingdom",
+            "serverCount": 785,
+        },
+        {
+            "cities": [
+                {
+                    "dns_name": "frankfurt",
+                    "hub_score": 0,
+                    "id": 2215709,
+                    "latitude": 50.116667,
+                    "longitude": 8.683333,
+                    "name": "Frankfurt",
+                    "serverCount": 301,
+                }
+            ],
+            "code": "DE",
+            "id": 81,
+            "name": "Germany",
+            "serverCount": 301,
+        },
+    ],
+    "last_updated": "2024-02-23T00:00:00Z",
+}
+
+# Cache expiry in seconds (24 hours)
+CACHE_EXPIRY = 24 * 60 * 60
+
+
+class Client(NordVPNClient):
+    """NordVPN client for managing VPN connections."""
+
+    def __init__(
+        self,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        verbose: bool = False,
+    ):
+        """Initialize NordVPN client."""
+        username_str = username or os.getenv("NORD_USER")
+        password_str = password or os.getenv("NORD_PASSWORD")
+        if not username_str or not password_str:
+            raise CredentialsError(
+                "NORD_USER and NORD_PASSWORD environment variables must be set"
+            )
+        super().__init__(username_str, password_str, verbose)
+        self.country: Optional[str] = None
+        self._initial_ip: Optional[str] = None
+        self._connected_ip: Optional[str] = None
+        self._server: Optional[str] = None
+        self._country_name: Optional[str] = None
+        self.logger = logger
+        self.logger.add(sys.stdout, level="DEBUG" if self.verbose else "INFO")
+
+        # Load saved state
+        state = load_vpn_state()
+        self._initial_ip = state.get("initial_ip")
+        self._connected_ip = state.get("connected_ip")
+        self._server = state.get("server")
+        self._country_name = state.get("country")
+
+    BASE_API_URL: str = "https://api.nordvpn.com/v1"
+
+    def _create_auth_file(self) -> None:
+        """Create auth file with credentials."""
+        OPENVPN_AUTH.write_text(f"{self.username}\n{self.password}")
+        OPENVPN_AUTH.chmod(0o600)
+
+    def _save_state(self) -> None:
+        """Save current connection state."""
+        state = {
+            "connected": self.is_protected(),
+            "initial_ip": self._initial_ip,  # This will be converted to non_vpn_ip if disconnected
+            "connected_ip": self._connected_ip,
+            "server": self._server,
+            "country": self._country_name,
+            "timestamp": time.time(),
+        }
+        save_vpn_state(state)
+
+    def fetch_server_info(
+        self, country: str | None = None
+    ) -> Optional[Tuple[str, str]]:
+        """Fetch information about a recommended server that supports OpenVPN.
+
+        Args:
+            country: Optional 2-letter country code (e.g. 'us', 'uk')
+        """
+        # Add browser-like headers to avoid 403
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://nordvpn.com/",
+            "Origin": "https://nordvpn.com",
+        }
+
+        url = f"{self.BASE_API_URL}/servers/recommendations"
+        params = {
+            "filters[servers_technologies][identifier]": "openvpn_tcp",
+            "limit": "5",  # Get top 5 servers to show stats
+        }
+
+        if country:
+            # Get country ID from mapping
+            country_id = NORDVPN_COUNTRY_IDS.get(country.upper())
+            if not country_id:
+                raise ServerError(f"Country code '{country}' not found")
+            params["filters[country_id]"] = country_id
+
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if not isinstance(data, list) or not data:
+                # If no servers found with initial query, try without technology filter
+                params.pop("filters[servers_technologies][identifier]", None)
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+
+            if not isinstance(data, list) or not data:
+                raise ServerError(
+                    f"No servers available{' in ' + country.upper() if country else ''}"
+                )
+
+            # Show server stats if verbose
+            if self.verbose:
+                table = Table(
+                    title=f"Available servers in {country if country else 'recommended locations'}"
+                )
+                table.add_column("Server", style="cyan")
+                table.add_column("Load", justify="right")
+
+                for server in data:
+                    load = server.get("load", 0)
+                    hostname = server.get("hostname", "")
+                    # Color code based on load
+                    load_style = (
+                        "green" if load < 30 else "yellow" if load < 70 else "red"
+                    )
+                    table.add_row(hostname, f"[{load_style}]{load}%[/{load_style}]")
+
+                console.print(table)
+
+            # Select the server with lowest load
+            server = min(data, key=lambda x: x.get("load", 100))
+            hostname = server.get("hostname")
+            if not isinstance(hostname, str) or not hostname:
+                raise ServerError(
+                    f"Invalid server data received for {country if country else 'recommended locations'}"
+                )
+
+            return hostname, server.get("station", "")
+
+        except requests.RequestException as e:
+            raise ServerError(f"Failed to fetch server info: {e}")
+
+    def list_countries(self, use_cache: bool = True) -> List[Country]:
+        """Fetch a list of all available server countries from the NordVPN API.
+
+        Args:
+            use_cache: Whether to use cached country list (default: True)
+                     If False, forces a fresh fetch from the API
+
+        Returns:
+            List of dictionaries containing country information
+        """
+        try:
+            url = f"{self.BASE_API_URL}/servers/countries"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            countries: List[Country] = response.json()
+
+            # Cache the fresh data
+            cache_data: CountryCache = {
+                "countries": countries,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            self._cache_countries(cache_data)
+            return countries
+
+        except requests.RequestException as e:
+            self.logger.warning(f"Failed to fetch countries: {e}")
+            # Try to use cache regardless of use_cache setting
+            cached = self._get_cached_countries()
+            if cached:
+                return cached["countries"]
+
+            # If no cache available, use fallback list
+            return FALLBACK_DATA["countries"]
+
+    def _get_cached_countries(self) -> Optional[CountryCache]:
+        """Get cached country list if available and not expired."""
+        try:
+            if not COUNTRIES_CACHE.exists():
+                return None
+
+            # Check if cache is expired
+            if time.time() - COUNTRIES_CACHE.stat().st_mtime > CACHE_EXPIRY:
+                return None
+
+            with COUNTRIES_CACHE.open("r") as f:
+                return json.load(f)
+
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def _cache_countries(self, data: CountryCache) -> None:
+        """Cache the country list to disk.
+
+        Args:
+            data: Dictionary containing countries list and last_updated timestamp
+        """
+        try:
+            COUNTRIES_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            with COUNTRIES_CACHE.open("w") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+            COUNTRIES_CACHE.chmod(0o644)  # Make readable for all users
+        except OSError:
+            pass  # Silently fail if caching isn't possible
+
+    def connect(self, country: str | None = None, max_retries: int = 5) -> bool:
+        """Connect to a NordVPN server.
+
+        Args:
+            country: Optional 2-letter country code (e.g. 'us', 'uk')
+            max_retries: Number of connection retry attempts
+        """
+        raise NotImplementedError("Use go() method instead")
+
+    def status(self) -> dict:
+        """Get current VPN status."""
+        try:
+            # First try the more reliable IP API
+            response = requests.get("https://api.ipify.org?format=json", timeout=5)
+            response.raise_for_status()
+            current_ip = response.json().get("ip")
+            if self.verbose:
+                self.logger.debug(f"Current IP: {current_ip}")
+
+            # Load cached state
+            state = load_vpn_state()
+            initial_ip = state.get("initial_ip")
+            connected_ip = state.get("connected_ip")
+            if self.verbose:
+                self.logger.debug(f"Initial IP: {initial_ip}")
+                self.logger.debug(f"Connected IP: {connected_ip}")
+
+            # Check if OpenVPN is running
+            openvpn_running = False
+            for proc in psutil.process_iter(["name"]):
+                if proc.info["name"] == "openvpn":
+                    openvpn_running = True
+                    break
+            if self.verbose:
+                self.logger.debug(f"OpenVPN running: {openvpn_running}")
+
+            # Then check if it's a NordVPN IP
+            try:
+                response = requests.get(
+                    "https://nordvpn.com/wp-admin/admin-ajax.php?action=get_user_info_data",
+                    headers=API_HEADERS,
+                    timeout=5,
+                )
+                response.raise_for_status()
+                nord_data = response.json()
+                if self.verbose:
+                    self.logger.debug(f"NordVPN data: {nord_data}")
+
+                # We're connected if:
+                # 1. OpenVPN is running AND
+                # 2. Current IP matches our last known VPN IP OR NordVPN recognizes the IP
+                # 3. Current IP is different from our initial non-VPN IP
+                is_connected = (
+                    openvpn_running
+                    and (current_ip == connected_ip or nord_data.get("status", False))
+                    and (not initial_ip or current_ip != initial_ip)
+                )
+
+                # Additional check - if we're not connected but OpenVPN is running and IP matches connected_ip,
+                # we might have stale state
+                if not is_connected and openvpn_running and current_ip == connected_ip:
+                    is_connected = True
+
+                if self.verbose:
+                    self.logger.debug(f"Connection status: {is_connected}")
+                    self.logger.debug(f"Status check conditions:")
+                    self.logger.debug(f"  1. OpenVPN running: {openvpn_running}")
+                    self.logger.debug(
+                        f"  2a. Current IP matches connected IP: {current_ip == connected_ip}"
+                    )
+                    self.logger.debug(
+                        f"  2b. NordVPN recognizes IP: {nord_data.get('status', False)}"
+                    )
+                    self.logger.debug(
+                        f"  3. Current IP differs from initial: {not initial_ip or current_ip != initial_ip}"
+                    )
+
+                if is_connected:
+                    # Update state to ensure it's fresh
+                    state = {
+                        "connected": True,
+                        "initial_ip": initial_ip or self._initial_ip,
+                        "connected_ip": current_ip,
+                        "server": self._server or state.get("server"),
+                        "country": self._country_name or state.get("country"),
+                        "timestamp": time.time(),
+                    }
+                    save_vpn_state(state)
+                    if self.verbose:
+                        self.logger.debug("Updated state with connected status")
+
+                return {
+                    "status": is_connected,
+                    "ip": current_ip,
+                    "country": nord_data.get(
+                        "country", state.get("country", "Unknown")
+                    ),
+                    "city": nord_data.get("city", "Unknown"),
+                    "server": state.get("server"),
+                }
+            except requests.RequestException:
+                # If NordVPN API check fails, use process and IP check
+                # We're connected if:
+                # 1. OpenVPN is running AND
+                # 2. Current IP matches our last known VPN IP
+                # 3. Current IP is different from our initial non-VPN IP
+                is_connected = (
+                    openvpn_running
+                    and current_ip == connected_ip
+                    and (not initial_ip or current_ip != initial_ip)
+                )
+
+                # Additional check - if we're not connected but OpenVPN is running and IP matches connected_ip,
+                # we might have stale state
+                if not is_connected and openvpn_running and current_ip == connected_ip:
+                    is_connected = True
+
+                if is_connected:
+                    # Update state to ensure it's fresh
+                    state = {
+                        "connected": True,
+                        "initial_ip": initial_ip or self._initial_ip,
+                        "connected_ip": current_ip,
+                        "server": self._server or state.get("server"),
+                        "country": self._country_name or state.get("country"),
+                        "timestamp": time.time(),
+                    }
+                    save_vpn_state(state)
+
+                return {
+                    "status": is_connected,
+                    "ip": current_ip,
+                    "country": state.get("country", "Unknown"),
+                    "city": "Unknown",
+                    "server": state.get("server"),
+                }
+
+        except Exception as e:
+            raise ConnectionError(f"Failed to get status: {e}")
+
+    def is_protected(self) -> bool:
+        """Check if VPN is active by verifying IP change."""
+        try:
+            # Get current IP
+            response = requests.get("https://api.ipify.org?format=json", timeout=5)
+            response.raise_for_status()
+            current_ip = response.json().get("ip")
+
+            # Load state to get initial and connected IPs
+            state = load_vpn_state()
+            initial_ip = state.get("initial_ip")
+            connected_ip = state.get("connected_ip")
+
+            # If we don't have an initial IP yet, store this one
+            if not initial_ip and not self._initial_ip:
+                self._initial_ip = current_ip
+                state = {
+                    "connected": False,
+                    "initial_ip": current_ip,
+                    "connected_ip": None,
+                    "server": None,
+                    "country": None,
+                    "timestamp": time.time(),
+                }
+                save_vpn_state(state)
+                return False
+
+            # Check if OpenVPN is running
+            openvpn_running = False
+            for proc in psutil.process_iter(["name"]):
+                if proc.info["name"] == "openvpn":
+                    openvpn_running = True
+                    break
+
+            # Connection is active if:
+            # 1. OpenVPN is running AND
+            # 2. Current IP matches our last known VPN IP
+            # 3. Current IP is different from our initial non-VPN IP
+            is_connected = (
+                openvpn_running
+                and current_ip == connected_ip
+                and (not initial_ip or current_ip != initial_ip)
+            )
+
+            # Additional check - if we're not connected but OpenVPN is running and IP matches connected_ip,
+            # we might have stale state
+            if not is_connected and openvpn_running and current_ip == connected_ip:
+                is_connected = True
+
+            return is_connected
+
+        except Exception:
+            return False
+
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country."""
+        try:
+            # Always disconnect any existing connection first
+            try:
+                if self.verbose:
+                    self.logger.info("Ensuring no existing VPN connection...")
+                self.disconnect(verbose=self.verbose)
+                time.sleep(2)  # Wait for cleanup
+            except Exception as e:
+                self.logger.warning(f"Error during disconnect: {e}")
+
+            # Get fresh initial IP after disconnect
+            try:
+                response = requests.get("https://api.ipify.org?format=json", timeout=5)
+                response.raise_for_status()
+                self._initial_ip = response.json().get("ip")
+                # Save initial state
+                state = {
+                    "connected": False,
+                    "initial_ip": self._initial_ip,
+                    "connected_ip": None,
+                    "server": None,
+                    "country": None,
+                    "timestamp": time.time(),
+                }
+                save_vpn_state(state)
+                if self.verbose:
+                    self.logger.info(f"Normal IP: {self._initial_ip}")
+                else:
+                    console.print(f"[cyan]Normal IP:[/cyan] {self._initial_ip}")
+            except Exception as e:
+                self.logger.warning(f"Failed to get normal IP: {e}")
+
+            country = self.get_country_by_code(country_code)
+            if not country:
+                raise ValueError(f"Country code '{country_code}' not found")
+
+            if self.verbose:
+                self.logger.info(f"Connecting to {country['name']}")
+
+            # Get server info using the API
+            server_info = self.fetch_server_info(country_code)
+            if not server_info:
+                raise ConnectionError("Failed to get server information")
+
+            hostname, ip = server_info
+            self._server = hostname
+            self._country_name = country["name"]
+
+            if self.verbose:
+                self.logger.info(f"Selected server: {hostname}")
+            else:
+                console.print(f"[cyan]Server:[/cyan] {hostname}")
+
+            # Create auth file and set up OpenVPN
+            self._create_auth_file()
+            config = OPENVPN_TEMPLATE.format(ip, hostname)
+            OPENVPN_CONFIG.write_text(config)
+            OPENVPN_CONFIG.chmod(0o600)
+
+            cmd = [
+                "sudo",
+                "openvpn",
+                "--config",
+                str(OPENVPN_CONFIG),
+                "--auth-user-pass",
+                str(OPENVPN_AUTH),
+                "--daemon",
+                "--verb",
+                str(5 if self.verbose else 3),
+                "--connect-retry",
+                str(2),
+                "--connect-timeout",
+                str(30),
+                "--resolv-retry",
+                "infinite",
+                "--log",
+                str(OPENVPN_LOG),
+                "--ping",
+                str(10),
+                "--ping-restart",
+                str(60),
+                "--persist-tun",
+                "--persist-key",
+            ]
+
+            if self.verbose:
+                self.logger.debug(f"Running command: {' '.join(cmd)}")
+
+            # Start OpenVPN
+            try:
+                subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to start OpenVPN: {e}")
+                raise ConnectionError("Failed to start OpenVPN")
+
+            # Wait for connection with progress spinner
+            start_time = time.time()
+            initial_ip = self._initial_ip
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                disable=not self.verbose,
+            ) as progress:
+                task = progress.add_task("Connecting...", total=None)
+                while time.time() - start_time < 60:
+                    try:
+                        # Check OpenVPN process
+                        openvpn_running = False
+                        for proc in psutil.process_iter(["name"]):
+                            if "openvpn" in proc.info["name"]:
+                                openvpn_running = True
+                                break
+
+                        if not openvpn_running:
+                            if OPENVPN_LOG.exists():
+                                log_content = OPENVPN_LOG.read_text()
+                                if "AUTH_FAILED" in log_content:
+                                    raise ConnectionError(
+                                        "Authentication failed - check your credentials"
+                                    )
+                                elif "TLS Error" in log_content:
+                                    raise ConnectionError(
+                                        "TLS handshake failed - server may be down"
+                                    )
+                            raise ConnectionError("OpenVPN process died unexpectedly")
+
+                        # Check if IP has changed
+                        status = self.status()
+                        current_ip = status.get("ip")
+
+                        if current_ip and current_ip != initial_ip:
+                            self._connected_ip = current_ip
+                            # Save full state with all connection details
+                            state = {
+                                "connected": True,
+                                "initial_ip": self._initial_ip,
+                                "connected_ip": current_ip,
+                                "server": self._server,
+                                "country": self._country_name,
+                                "timestamp": time.time(),
+                            }
+                            save_vpn_state(state)
+
+                            if self.verbose:
+                                self.logger.info(
+                                    f"Successfully connected to {country['name']}"
+                                )
+                                self.logger.info(f"Private IP: {current_ip}")
+                            else:
+                                console.print(f"[cyan]Private IP:[/cyan] {current_ip}")
+                            return
+
+                        if self.verbose:
+                            progress.update(
+                                task, description="Waiting for VPN connection..."
+                            )
+                    except Exception as e:
+                        if self.verbose:
+                            self.logger.debug(f"Connection check error: {e}")
+
+                    time.sleep(2)
+
+            # If we get here, connection failed
+            self.disconnect(verbose=self.verbose)
+            raise ConnectionError("Failed to establish VPN connection after 60 seconds")
+
+        except Exception as e:
+            self.logger.error(f"Connection failed: {e}")
+            self.disconnect(verbose=self.verbose)
+            raise
+
+    def flush(self) -> None:
+        """Terminate all running OpenVPN processes."""
+        try:
+            # First try graceful shutdown
+            for proc in psutil.process_iter(attrs=["name", "pid"]):
+                if proc.info["name"] == "openvpn":
+                    try:
+                        # Try SIGTERM first
+                        subprocess.run(
+                            ["sudo", "kill", str(proc.info["pid"])],
+                            check=True,
+                            timeout=5,
+                        )
+                    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                        # If SIGTERM fails, force kill
+                        subprocess.run(
+                            ["sudo", "kill", "-9", str(proc.info["pid"])], check=True
+                        )
+
+            # Double check no processes remain
+            time.sleep(1)
+            for proc in psutil.process_iter(attrs=["name"]):
+                if proc.info["name"] == "openvpn":
+                    raise DisconnectionError(
+                        "Failed to terminate all OpenVPN processes"
+                    )
+
+        except Exception as e:
+            if isinstance(e, DisconnectionError):
+                raise
+            raise DisconnectionError(f"Failed to flush OpenVPN processes: {e}")
+
+    def disconnect(self, verbose: bool = True) -> None:
+        """Disconnect from the current server and clean up."""
+        try:
+            # Kill all OpenVPN processes
+            self.flush()
+
+            # Save disconnected state
+            state = {
+                "connected": False,
+                "initial_ip": None,  # Reset initial IP so we get a fresh one next connect
+                "connected_ip": None,
+                "server": None,
+                "country": None,
+                "timestamp": time.time(),
+            }
+            save_vpn_state(state)
+
+            # Reset instance state
+            self._initial_ip = None
+            self._connected_ip = None
+            self._server = None
+            self._country_name = None
+
+            # Clean up files
+            for file in [OPENVPN_CONFIG, OPENVPN_AUTH, OPENVPN_LOG]:
+                if file.exists():
+                    file.unlink()
+
+            # Wait briefly for network to stabilize
+            time.sleep(1)
+
+            if verbose:
+                print("Disconnected from VPN")
+        except Exception as e:
+            raise DisconnectionError(f"Error during disconnect: {e}")
+
+================
+File: src/nyord_vpn/models.py
+================
+"""Data models and exceptions for the NordVPN client.
+
+This module contains:
+- Type definitions for API responses (City, Country)
+- Cache data structures
+- Custom exceptions for error handling
+"""
+
+from typing import List, TypedDict
+
+
+class City(TypedDict):
+    """City information from NordVPN API."""
+
+    dns_name: str
+    hub_score: int
+    id: int
+    latitude: float
+    longitude: float
+    name: str
+    serverCount: int
+
+
+class Country(TypedDict):
+    """Country information from NordVPN API."""
+
+    cities: List[City]
+    code: str
+    id: int
+    name: str
+    serverCount: int
+
+
+class CountryCache(TypedDict):
+    """Cache file structure."""
+
+    countries: List[Country]
+    last_updated: str
+
+
+# Base exceptions
+class VPNError(Exception):
+    """Base exception for VPN-related errors."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(message or "An unknown VPN error occurred")
+
+
+class ServerError(VPNError):
+    """Raised when server selection fails."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message
+            or "Failed to select a server. Please try again or choose a different country."
+        )
+
+
+class ConnectionError(VPNError):
+    """Raised when connection fails."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message
+            or "Failed to establish VPN connection. Please check your internet connection and try again."
+        )
+
+
+class DisconnectionError(VPNError):
+    """Raised when disconnection fails."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message
+            or "Failed to disconnect from VPN. You may need to manually kill the OpenVPN process."
+        )
+
+
+class AuthenticationError(VPNError):
+    """Raised when authentication fails."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message or "Authentication failed. Please check your NordVPN credentials."
+        )
+
+
+class CredentialsError(VPNError):
+    """Raised when credentials are missing or invalid."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message
+            or (
+                "NordVPN credentials not found. Please set environment variables:\n"
+                "  export NORD_USER='your-username'\n"
+                "  export NORD_PASSWORD='your-password'\n"
+                "\nOr provide them directly when running the command:\n"
+                "  NORD_USER='your-username' NORD_PASSWORD='your-password' nyord-vpn <command>"
+            )
+        )
+
+
+class StateError(VPNError):
+    """Raised when state operations fail."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message
+            or "Failed to manage VPN state. Please try disconnecting and reconnecting."
+        )
+
+
+class CacheError(VPNError):
+    """Raised when cache operations fail."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message
+            or "Failed to manage cache. Try running 'nyord-vpn update' to refresh the cache."
+        )
+
+================
+File: src/nyord_vpn/utils.py
+================
+"""Utility functions and constants for the NordVPN client.
+
+This module contains:
+- Logger configuration
+- Path constants
+- Country ID mapping
+- API request headers
+- Cache settings
+"""
+
+import json
+from loguru import logger
+from pathlib import Path
+from platformdirs import user_cache_dir, user_config_dir
+import time, sys
+
+# Application directories
+APP_NAME = "nyord-vpn"
+APP_AUTHOR = "twardoch"
+CACHE_DIR = Path(user_cache_dir(APP_NAME, APP_AUTHOR))
+CONFIG_DIR = Path(user_config_dir(APP_NAME, APP_AUTHOR))
+
+# Ensure directories exist
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+# File paths
+PACKAGE_DIR = Path(__file__).parent
+DATA_DIR = PACKAGE_DIR / "data"
+CACHE_FILE = DATA_DIR / "countries.json"
+COUNTRIES_CACHE = CACHE_DIR / "countries.json"
+COUNTRY_IDS_FILE = DATA_DIR / "country_ids.json"
+STATE_FILE = CACHE_DIR / "vpn_state.json"
+OPENVPN_CONFIG = CACHE_DIR / "openvpn.ovpn"
+OPENVPN_AUTH = CACHE_DIR / "openvpn.auth"
+OPENVPN_LOG = CACHE_DIR / "openvpn.log"
+
+# Cache expiry in seconds (24 hours)
+CACHE_EXPIRY = 24 * 60 * 60  # 24 hours in seconds
+
+
+def ensure_data_dir() -> None:
+    """Ensure the data directory exists."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# Create data directory if it doesn't exist
+ensure_data_dir()
+
+
+# Load country IDs from JSON file
+try:
+    with open(COUNTRY_IDS_FILE) as f:
+        NORDVPN_COUNTRY_IDS: dict[str, str] = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    # Fallback data if file doesn't exist or is invalid
+    NORDVPN_COUNTRY_IDS = {
+        "US": "228",  # United States
+        "GB": "227",  # United Kingdom
+        "DE": "81",  # Germany
+    }
+
+# Browser-like headers for API requests
+API_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://nordvpn.com/",
+    "Origin": "https://nordvpn.com",
+}
+
+
+def save_vpn_state(state: dict) -> None:
+    """Save VPN connection state to file.
+
+    The state includes:
+    - connected: bool - current connection status
+    - initial_ip: str - the original IP before VPN connection
+    - connected_ip: str - the IP address when connected to VPN
+    - server: str - current VPN server hostname
+    - country: str - current VPN server country
+    - timestamp: float - when the state was last updated
+    """
+    try:
+        STATE_FILE.write_text(json.dumps(state, indent=2))
+    except Exception as e:
+        logger.warning(f"Failed to save VPN state: {e}")
+
+
+def load_vpn_state() -> dict:
+    """Load VPN connection state from file."""
+    try:
+        if STATE_FILE.exists():
+            state = json.loads(STATE_FILE.read_text())
+            # State is valid for 5 minutes
+            if time.time() - state.get("timestamp", 0) < 300:
+                return state
+    except Exception as e:
+        logger.warning(f"Failed to load VPN state: {e}")
+
+    return {
+        "connected": False,
+        "initial_ip": None,  # Original IP before VPN connection
+        "connected_ip": None,  # IP address when connected to VPN
+        "server": None,
+        "country": None,
+        "timestamp": time.time(),
+    }
+
+================
+File: tests/integration/__init__.py
+================
+"""Integration tests for nyord_vpn."""
+
+================
+File: tests/integration/test_config_loading.py
+================
+"""Integration tests for configuration loading."""
+
+import pytest
+from pathlib import Path
+import json
+
+from nyord_vpn.core.client import VPNClient
+from nyord_vpn.core.config import VPNConfig
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
+
+
+@pytest.mark.integration
+async def test_file_loading(temp_dir):
+    """Test configuration loading from file."""
+    # Create config file with all options
+    config_file = temp_dir / "config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "default_country": "Sweden",
+        "retry_attempts": 5,
+        "use_legacy_fallback": False,
+        "config_dir": "custom/config/dir",
+        "api_timeout": 60,
+    }
+    config_file.write_text(json.dumps(config_data))
+
+    # Test loading with VPNClient
+    client = VPNClient.from_file(config_file)
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert client.config.default_country == "Sweden"
+    assert client.config.retry_attempts == 5
+    assert client.config.use_legacy_fallback is False
+    assert client.config.config_dir == Path("custom/config/dir").resolve()
+    assert client.config.api_timeout == 60
+
+    # Test loading with VPNConfig
+    config = VPNConfig.from_file(config_file)
+    assert config.username == TEST_USERNAME
+    assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert config.default_country == "Sweden"
+    assert config.retry_attempts == 5
+    assert config.use_legacy_fallback is False
+    assert config.config_dir == Path("custom/config/dir").resolve()
+    assert config.api_timeout == 60
+
+
+@pytest.mark.integration
+async def test_environment_loading_unprefixed(monkeypatch):
+    """Test configuration loading from unprefixed environment variables."""
+    # Set environment variables
+    monkeypatch.setenv("NORD_USER", TEST_USERNAME)
+    monkeypatch.setenv("NORD_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Norway")
+    monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "4")
+
+    # Test loading with VPNClient
+    client = VPNClient.from_env()
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert client.config.default_country == "Norway"
+    assert client.config.retry_attempts == 4
+
+
+@pytest.mark.integration
+async def test_environment_loading_prefixed(monkeypatch):
+    """Test configuration loading from prefixed environment variables."""
+    # Set environment variables
+    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
+    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Sweden")
+    monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "5")
+
+    # Test loading with VPNClient
+    client = VPNClient.from_env()
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert client.config.default_country == "Sweden"
+    assert client.config.retry_attempts == 5
+
+
+@pytest.mark.integration
+async def test_environment_loading_precedence(monkeypatch):
+    """Test precedence between prefixed and unprefixed environment variables."""
+    # Set both prefixed and unprefixed variables
+    monkeypatch.setenv("NORD_USER", "unprefixed_user")
+    monkeypatch.setenv("NORD_PASSWORD", "unprefixed_pass")
+    monkeypatch.setenv("NORDVPN_USERNAME", "prefixed_user")
+    monkeypatch.setenv("NORDVPN_PASSWORD", "prefixed_pass")
+
+    # Unprefixed should take precedence
+    client = VPNClient.from_env()
+    assert client.config.username == "unprefixed_user"
+    assert client.config.password.get_secret_value() == "unprefixed_pass"
+
+
+@pytest.mark.integration
+async def test_default_values():
+    """Test configuration default values."""
+    # Test with minimal configuration
+    config = VPNConfig(username="test", password="test")
+    assert config.username == "test"
+    assert config.password.get_secret_value() == "test"
+    assert config.default_country == "United States"
+    assert config.retry_attempts == 3
+    assert config.use_legacy_fallback is True
+    assert config.config_dir == Path.home() / ".config" / "nyord-vpn"
+    assert config.api_timeout == 30
+
+    # Test with VPNClient
+    client = VPNClient(username="test", password="test")
+    assert client.config.username == "test"
+    assert client.config.password.get_secret_value() == "test"
+    assert client.config.default_country == "United States"
+    assert client.config.retry_attempts == 3
+    assert client.config.use_legacy_fallback is True
+    assert client.config.config_dir == Path.home() / ".config" / "nyord-vpn"
+    assert client.config.api_timeout == 30
+
+
+@pytest.mark.integration
+async def test_config_file_precedence(temp_dir, monkeypatch):
+    """Test configuration loading precedence between file and environment."""
+    # Create config file
+    config_file = temp_dir / "config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "default_country": "Sweden",
+        "retry_attempts": 5,
+    }
+    config_file.write_text(json.dumps(config_data))
+
+    # Set environment variables
+    monkeypatch.setenv("NORD_USER", "env_user")
+    monkeypatch.setenv("NORD_PASSWORD", "env_pass")
+    monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Norway")
+    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "45")
+
+    # Test with VPNClient - explicit args > file > env > defaults
+    client = VPNClient.from_file(
+        config_file,
+        username="arg_user",
+        password=TEST_PASSWORD.get_secret_value(),
+    )
+    assert client.config.username == "arg_user"  # From arg
+    assert (
+        client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    )  # From arg
+    assert client.config.default_country == "Sweden"  # From file
+    assert client.config.retry_attempts == 5  # From file
+    assert client.config.api_timeout == 45  # From env
+    assert client.config.use_legacy_fallback is True  # Default
+
+    # Test with VPNConfig - file > env > defaults
+    config = VPNConfig.from_file(config_file)
+    assert config.username == TEST_USERNAME  # From file
+    assert (
+        config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    )  # From file
+    assert config.default_country == "Sweden"  # From file
+    assert config.retry_attempts == 5  # From file
+    assert config.api_timeout == 45  # From env
+    assert config.use_legacy_fallback is True  # Default
+
+
+@pytest.mark.integration
+async def test_config_validation(temp_dir):
+    """Test configuration validation."""
+    # Test invalid retry attempts
+    config_file = temp_dir / "invalid_retry.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "retry_attempts": 0,
+    }
+    config_file.write_text(json.dumps(config_data))
+    with pytest.raises(ValueError, match="ensure this value is greater than 0"):
+        VPNConfig.from_file(config_file)
+
+    # Test invalid timeout
+    config_file = temp_dir / "invalid_timeout.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "api_timeout": -1,
+    }
+    config_file.write_text(json.dumps(config_data))
+    with pytest.raises(ValueError, match="ensure this value is greater than 0"):
+        VPNConfig.from_file(config_file)
+
+    # Test invalid config directory
+    config_file = temp_dir / "invalid_dir.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "config_dir": "/nonexistent/dir",
+    }
+    config_file.write_text(json.dumps(config_data))
+    with pytest.raises(ValueError, match="Failed to setup config directory"):
+        VPNConfig.from_file(config_file)
+
+    # Test missing required fields
+    config_file = temp_dir / "missing_fields.json"
+    config_data = {
+        "default_country": "Sweden",
+        "retry_attempts": 5,
+    }
+    config_file.write_text(json.dumps(config_data))
+    with pytest.raises(ValueError, match="Field required"):
+        VPNConfig.from_file(config_file)
+
+
+def test_load_from_file(tmp_path: Path):
+    """Test loading configuration from file."""
+    # Create config file
+    config_path = tmp_path / "config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "api_timeout": 30,
+        "retry_attempts": 5,
+    }
+    config_path.write_text(json.dumps(config_data))
+
+    # Test client initialization from file
+    client = VPNClient(config_file=config_path)
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert client.config.api_timeout == 30
+    assert client.config.retry_attempts == 5
+
+    # Test direct config loading
+    config = VPNConfig.from_file(config_path)
+    assert config.username == TEST_USERNAME
+    assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert config.api_timeout == 30
+    assert config.retry_attempts == 5
+
+
+def test_load_from_env(monkeypatch):
+    """Test loading configuration from environment variables."""
+    # Set environment variables
+    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
+    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "30")
+    monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "5")
+
+    # Test client initialization from env
+    client = VPNClient()  # Will load from env by default
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert client.config.api_timeout == 30
+    assert client.config.retry_attempts == 5
+
+    # Test direct config loading
+    config = VPNConfig.from_env()
+    assert config.username == TEST_USERNAME
+    assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+    assert config.api_timeout == 30
+    assert config.retry_attempts == 5
+
+
+def test_direct_initialization():
+    """Test direct initialization with parameters."""
+    # Test config initialization
+    config = VPNConfig(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+    assert config.username == TEST_USERNAME
+    assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+
+    # Test client initialization
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+    assert client.config.username == TEST_USERNAME
+    assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
+
+
+def test_invalid_config_file(tmp_path: Path):
+    """Test handling of invalid configuration files."""
+    # Test non-existent file
+    with pytest.raises(FileNotFoundError):
+        VPNConfig.from_file(tmp_path / "nonexistent.json")
+
+    # Test invalid JSON
+    invalid_path = tmp_path / "invalid.json"
+    invalid_path.write_text("invalid json content")
+    with pytest.raises(json.JSONDecodeError):
+        VPNConfig.from_file(invalid_path)
+
+    # Test missing required fields
+    empty_path = tmp_path / "empty.json"
+    empty_path.write_text("{}")
+    with pytest.raises(ValueError):
+        VPNConfig.from_file(empty_path)
+
+
+def test_invalid_environment(monkeypatch):
+    """Test handling of invalid environment variables."""
+    # Test missing required variables
+    with pytest.raises(ValueError):
+        VPNConfig.from_env()
+
+    # Test invalid values
+    monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
+    monkeypatch.setenv("NORDVPN_PASSWORD", TEST_PASSWORD.get_secret_value())
+    monkeypatch.setenv("NORDVPN_API_TIMEOUT", "invalid")
+    with pytest.raises(ValueError):
+        VPNConfig.from_env()
+
+================
+File: tests/integration/test_connection.py
+================
+"""Integration tests for VPN connection."""
+
+import asyncio
+import pytest
+
+from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_connection_success(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test successful VPN connection."""
+    # Test primary API
+    async with mock_client as client:
+        await client.connect()
+        status = await client.status()
+        assert status["connected"] is True
+        assert status["country"] == "Test Country"
+        assert status["ip"] == "1.2.3.4"
+        assert status["server"] == "test.server.com"
+
+    # Test fallback API
+    mock_client.primary_api.connect.side_effect = VPNError("Primary API failed")
+    async with mock_client as client:
+        await client.connect()
+        status = await client.status()
+        assert status["connected"] is True
+        assert status["country"] == "Test Country"
+        assert status["ip"] == "1.2.3.4"
+        assert status["server"] == "test.server.com"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_connection_failure(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test VPN connection failure handling."""
+    # Test primary API failure
+    mock_client.primary_api.connect.side_effect = VPNError("Primary API failed")
+    mock_client.fallback_api.connect.side_effect = VPNError("Fallback API failed")
+
+    with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test network error
+    mock_aiohttp_session.get.side_effect = asyncio.TimeoutError()
+    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test subprocess error
+    mock_subprocess.side_effect = Exception("Subprocess error")
+    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+        async with mock_client as client:
+            await client.connect()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_country_selection(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test VPN country selection."""
+    # Test valid country
+    async with mock_client as client:
+        await client.connect("Test Country")
+        status = await client.status()
+        assert status["country"] == "Test Country"
+
+    # Test invalid country
+    mock_client.primary_api.connect.side_effect = VPNError("Invalid country")
+    mock_client.fallback_api.connect.side_effect = VPNError("Invalid country")
+    with pytest.raises(VPNConnectionError, match="Invalid country"):
+        async with mock_client as client:
+            await client.connect("Invalid Country")
+
+================
+File: tests/integration/test_errors.py
+================
+"""Integration tests for error handling."""
+
+import asyncio
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+import json
+from pathlib import Path
+import subprocess
+
+from nyord_vpn.core.client import VPNClient
+from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNConfigError
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_network_errors(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test handling of network-related errors."""
+    # Test connection timeout
+    mock_aiohttp_session.get.side_effect = asyncio.TimeoutError()
+    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test connection refused
+    mock_aiohttp_session.get.side_effect = ConnectionRefusedError()
+    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test DNS resolution error
+    mock_aiohttp_session.get.side_effect = Exception("DNS resolution failed")
+    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test SSL error
+    mock_aiohttp_session.get.side_effect = Exception("SSL verification failed")
+    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+        async with mock_client as client:
+            await client.connect()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_subprocess_errors(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test handling of subprocess-related errors."""
+    # Test OpenVPN not found
+    mock_subprocess.side_effect = FileNotFoundError("openvpn not found")
+    with pytest.raises(VPNConfigError):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test OpenVPN error
+    mock_subprocess.side_effect = subprocess.SubprocessError("OpenVPN error")
+    with pytest.raises(VPNConnectionError):
+        async with mock_client as client:
+            await client.connect()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_configuration_errors(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    temp_dir,
+):
+    """Test handling of configuration-related errors."""
+    # Test missing credentials
+    with pytest.raises(VPNConfigError, match="Field required"):
+        VPNClient()
+
+    # Test invalid config file
+    config_file = temp_dir / "invalid.toml"
+    config_file.write_text("invalid = toml [ content")
+    with pytest.raises(VPNConfigError, match="Failed to load configuration"):
+        VPNClient(config_file=config_file)
+
+    # Test non-existent config file
+    with pytest.raises(VPNConfigError, match="Failed to load configuration"):
+        VPNClient(config_file=temp_dir / "nonexistent.toml")
+
+    # Test invalid config directory
+    config_file = temp_dir / "config.toml"
+    config_file.write_text(
+        """
+        username = "test_user"
+        password = "test_pass"
+        config_dir = "/nonexistent/dir"
+        """
+    )
+    with pytest.raises(VPNConfigError, match="Failed to setup config directory"):
+        VPNClient(config_file=config_file)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_api_errors(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test handling of API-related errors."""
+    # Test API error response
+    mock_aiohttp_session.get.return_value.__aenter__.return_value.json.return_value = {
+        "error": "API error"
+    }
+    with pytest.raises(VPNConnectionError):
+        async with mock_client as client:
+            await client.connect()
+
+    # Test invalid API response
+    mock_aiohttp_session.get.return_value.__aenter__.return_value.json.side_effect = (
+        json.JSONDecodeError("Invalid JSON", "{", 0)
+    )
+    with pytest.raises(VPNConnectionError):
+        async with mock_client as client:
+            await client.connect()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_error_recovery(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+):
+    """Test error recovery behavior."""
+    # Test recovery after network error
+    mock_aiohttp_session.get.side_effect = [
+        asyncio.TimeoutError(),  # First attempt fails
+        MagicMock(  # Second attempt succeeds
+            status=200,
+            json=AsyncMock(
+                return_value={
+                    "ip": "1.2.3.4",
+                    "country": "Test Country",
+                    "hostname": "test.server.com",
+                }
+            ),
+        ),
+    ]
+
+    async with mock_client as client:
+        result = await client.connect()
+        assert result is True
+
+        # Verify status
+        status = await client.status()
+        assert status["connected"] is True
+
+    # Test recovery after subprocess error
+    mock_subprocess.side_effect = [
+        Exception("First attempt failed"),  # First attempt fails
+        MagicMock(  # Second attempt succeeds
+            returncode=0,
+            communicate=AsyncMock(return_value=(b"Success", b"")),
+        ),
+    ]
+
+    async with mock_client as client:
+        result = await client.connect()
+        assert result is True
+
+        # Verify status
+        status = await client.status()
+        assert status["connected"] is True
+
+
+@pytest.mark.asyncio
+async def test_invalid_credentials():
+    """Test handling of invalid credentials."""
+    client = VPNClient(username="invalid", password=TEST_PASSWORD.get_secret_value())
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+
+@pytest.mark.asyncio
+async def test_network_errors():
+    """Test handling of network errors."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test connection with network error
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+    # Test status check with network error
+    with pytest.raises(VPNError):
+        await client.status()
+
+    # Test country listing with network error
+    with pytest.raises(VPNError):
+        await client.list_countries()
+
+
+@pytest.mark.asyncio
+async def test_timeout_handling(tmp_path: Path):
+    """Test handling of timeouts."""
+    # Create config with short timeout
+    config_path = tmp_path / "timeout_config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "api_timeout": 1,
+    }
+    config_path.write_text(json.dumps(config_data))
+
+    client = VPNClient(config_file=config_path)
+
+    # Test connection timeout
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+    # Test status check timeout
+    with pytest.raises(VPNError):
+        await client.status()
+
+
+@pytest.mark.asyncio
+async def test_retry_behavior(tmp_path: Path):
+    """Test retry behavior on failures."""
+    # Create config with retry settings
+    config_path = tmp_path / "retry_config.json"
+    config_data = {
+        "username": TEST_USERNAME,
+        "password": TEST_PASSWORD.get_secret_value(),
+        "retry_attempts": 2,
+    }
+    config_path.write_text(json.dumps(config_data))
+
+    client = VPNClient(config_file=config_path)
+
+    # Test connection retries
+    with pytest.raises(VPNConnectionError):
+        await client.connect()
+
+    # Test status check retries
+    with pytest.raises(VPNError):
+        await client.status()
+
+
+@pytest.mark.asyncio
+async def test_fallback_behavior():
+    """Test fallback to legacy API."""
+    client = VPNClient(
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
+        use_legacy_fallback=True,
+    )
+
+    # Test connection with fallback
+    assert await client.connect() is True
+    status = await client.status()
+    assert status["connected"] is True
+
+    # Cleanup
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_invalid_country():
+    """Test handling of invalid country names."""
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
+
+    # Test connection with invalid country
+    with pytest.raises(VPNConnectionError):
+        await client.connect("Invalid Country")
+
+    # Test connection with empty country
+    with pytest.raises(VPNConnectionError):
+        await client.connect("")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_cleanup_after_error(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test cleanup after errors."""
+    # Test cleanup after connection error
+    mock_client.primary_api.connect.side_effect = VPNError("Connection failed")
+    mock_client.fallback_api.connect.side_effect = VPNError("Connection failed")
+
+    try:
+        async with mock_client as client:
+            await client.connect()
+    except VPNConnectionError:
+        pass
+
+    # Verify cleanup
+    status = mock_client.status()
+    assert status["connected"] is False
+    assert status["server"] == ""
+
+================
+File: tests/integration/test_validation_integration.py
+================
+"""Integration tests for validation."""
+
+import os
+import pytest
+
+from nyord_vpn.core.exceptions import VPNError
+from nyord_vpn.api.njord import NjordVPNClient
+from nyord_vpn.api.legacy import LegacyVPNClient
+
+
+@pytest.fixture(autouse=True)
+def clear_env():
+    """Clear environment variables before each test."""
+    os.environ.pop("NORD_USER", None)
+    os.environ.pop("NORD_PASSWORD", None)
+    yield
+    os.environ.pop("NORD_USER", None)
+    os.environ.pop("NORD_PASSWORD", None)
+
+
+def test_invalid_credentials_njord():
+    """Test invalid credentials with Njord API."""
+    with pytest.raises(VPNError, match="Missing credentials"):
+        NjordVPNClient()
+
+
+def test_invalid_credentials_legacy():
+    """Test invalid credentials with Legacy API."""
+    with pytest.raises(VPNError, match="Missing credentials"):
+        LegacyVPNClient()
+
+
+def test_invalid_country_njord():
+    """Test invalid country with Njord API."""
+    os.environ["NORD_USER"] = "test_user"
+    os.environ["NORD_PASSWORD"] = "test_pass"
+    with pytest.raises(VPNError):
+        client = NjordVPNClient()
+        client.connect("Invalid Country")
+
+
+def test_invalid_country_legacy():
+    """Test invalid country with Legacy API."""
+    os.environ["NORD_USER"] = "test_user"
+    os.environ["NORD_PASSWORD"] = "test_pass"
+    with pytest.raises(VPNError):
+        client = LegacyVPNClient()
+        client.connect("Invalid Country")
+
+================
+File: tests/__init__.py
+================
+"""Test suite for nyord-vpn package."""
+
+================
+File: tests/conftest.py
+================
+"""Test fixtures and configuration."""
+
+from unittest.mock import patch
+import json
+
+import pytest
+
+from nyord_vpn.core.client import VPNClient
+
+
+@pytest.fixture
+def mock_env_credentials(monkeypatch):
+    """Mock environment variables for testing."""
+    monkeypatch.setenv("NORD_USER", "test_user")
+    monkeypatch.setenv("NORD_PASSWORD", "test_pass")
+
+
+@pytest.fixture
+def mock_openvpn():
+    """Mock OpenVPN command."""
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = b"OpenVPN 2.5.0\n"
+        yield mock_run
+
+
+@pytest.fixture
+def mock_requests():
+    """Mock requests for API calls."""
+    with patch("requests.get") as mock_get:
+        # Mock server recommendations
+        mock_get.return_value.json.return_value = [
+            {"hostname": "test.server.com", "load": 10, "status": "online"}
+        ]
+        mock_get.return_value.status_code = 200
+        yield mock_get
+
+
+@pytest.fixture
+def mock_process():
+    """Mock subprocess for OpenVPN."""
+    with patch("subprocess.Popen") as mock_popen:
+        mock_popen.return_value.pid = 12345
+        mock_popen.return_value.returncode = 0
+        yield mock_popen
+
+
+@pytest.fixture
+def mock_client(mock_env_credentials, mock_openvpn, mock_requests, mock_process):
+    """Create a mock VPN client."""
+    with patch("nyord_vpn.api.legacy.LegacyVPNClient") as mock_legacy:
+        # Setup mock APIs
+        mock_legacy.return_value.connect.return_value = True
+        mock_legacy.return_value.disconnect.return_value = True
+        mock_legacy.return_value.status.return_value = {
+            "connected": True,
+            "country": "Test Country",
+            "ip": "1.2.3.4",
+            "server": "test.server.com",
+        }
+        mock_legacy.return_value.list_countries.return_value = [
+            {"name": "Country 1", "code": "1"},
+            {"name": "Country 2", "code": "2"},
+        ]
+
+        # Create client
+        client = VPNClient()
+        yield client
+
+
+@pytest.fixture
+def temp_config_file(tmp_path):
+    """Create a temporary config file."""
+    config = {
+        "username": "test_user",
+        "password": "test_pass",
+        "default_country": "us",
+        "use_legacy_fallback": True,
+    }
+
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps(config))
+    return config_file
+
+
+@pytest.fixture
+def mock_ip_info():
+    """Mock IP info response."""
+    with patch("requests.get") as mock_get:
+        mock_get.return_value.json.return_value = {
+            "ip": "1.2.3.4",
+            "country": "US",
+            "org": "NordVPN",
+        }
+        mock_get.return_value.status_code = 200
+        yield mock_get
+
+================
+File: tests/test_client.py
+================
+"""Tests for VPN client."""
+
+import pytest
+
+from nyord_vpn.core.exceptions import VPNError
+
+
+def test_client_connect(mock_client):
+    """Test VPN client connect."""
+    # Test successful connection
+    result = mock_client.connect("Test Country")
+    assert result is True
+
+    # Test connection status
+    status = mock_client.status()
+    assert status["connected"] is True
+    assert status["country"] == "Test Country"
+    assert status["ip"] == "1.2.3.4"
+    assert status["server"] == "test.server.com"
+
+
+def test_client_disconnect(mock_client):
+    """Test VPN client disconnect."""
+    # Connect first
+    mock_client.connect("Test Country")
+
+    # Test disconnection
+    result = mock_client.disconnect()
+    assert result is True
+
+    # Test status after disconnect
+    status = mock_client.status()
+    assert status["connected"] is False
+
+
+def test_client_list_countries(mock_client):
+    """Test VPN client country listing."""
+    countries = mock_client.list_countries()
+    assert isinstance(countries, list)
+    assert len(countries) > 0
+    assert all(isinstance(c, dict) for c in countries)
+    assert all("name" in c and "code" in c for c in countries)
+
+
+def test_client_error_handling(mock_client, mocker):
+    """Test VPN client error handling."""
+    # Mock API to raise error
+    mocker.patch.object(
+        mock_client._connect,
+        "__call__",
+        side_effect=VPNError("Test error"),
+    )
+
+    # Test error handling
+    with pytest.raises(VPNError, match="Test error"):
+        mock_client.connect("Test Country")
+
+
+@pytest.mark.asyncio
+async def test_client_context_manager(mock_client):
+    """Test VPN client context manager."""
+    async with mock_client as client:
+        # Test connection inside context
+        result = await client.connect("Test Country")
+        assert result is True
+
+        # Test status
+        status = await client.status()
+        assert status["connected"] is True
+
+    # Test auto-disconnect after context
+    status = await mock_client.status()
+    assert status["connected"] is False
+
+================
+File: tests/test_legacy_api.py
+================
+"""Tests for LegacyVPNClient implementation."""
+
+import pytest
+import requests
+import os
+import subprocess
+
+from nyord_vpn.core.exceptions import VPNError
+from nyord_vpn.api.legacy import LegacyVPNClient
+
+
+def test_init(mock_env_credentials, mock_openvpn):
+    """Test LegacyVPNClient initialization."""
+    api = LegacyVPNClient()
+    assert api.username == os.getenv("NORD_USER")
+    assert isinstance(api.password, str)
+    assert api.password == os.getenv("NORD_PASSWORD")
+
+
+def test_connect_success(
+    mock_env_credentials, mock_openvpn, mock_requests, mock_process, mock_ip_info
+):
+    """Test successful connection."""
+    api = LegacyVPNClient()
+    assert api.connect() is True
+
+
+def test_connect_failure(
+    mock_env_credentials, mock_openvpn, mock_requests, mock_process
+):
+    """Test connection failure."""
+    mock_process.side_effect = requests.RequestException("Failed to connect")
+    api = LegacyVPNClient()
+    with pytest.raises(VPNError, match="Failed to connect"):
+        api.connect()
+
+
+def test_disconnect_success(mock_env_credentials, mock_openvpn, mock_process):
+    """Test successful disconnection."""
+    api = LegacyVPNClient()
+    assert api.disconnect() is True
+
+
+def test_status_connected(mock_env_credentials, mock_openvpn, mock_ip_info):
+    """Test status when connected."""
+    api = LegacyVPNClient()
+    status = api.status()
+    assert status["connected"] is True
+    assert status["country"] == "US"
+    assert status["ip"] == "1.2.3.4"
+    assert status["server"] == ""
+
+
+def test_list_countries(mock_env_credentials, mock_openvpn, mock_requests):
+    """Test listing available countries."""
+    mock_requests.return_value.json.return_value = [
+        {"name": "United States", "id": 228},
+        {"name": "United Kingdom", "id": 227},
+    ]
+    api = LegacyVPNClient()
+    countries = api.list_countries()
+    assert len(countries) == 2
+    assert all(isinstance(c, dict) for c in countries)
+    assert all("name" in c and "code" in c for c in countries)
+    assert countries[0]["name"] == "United Kingdom"
+    assert countries[1]["name"] == "United States"
+
+
+def test_openvpn_not_found(mock_env_credentials):
+    """Test OpenVPN not found error."""
+    with pytest.raises(VPNError, match="OpenVPN not found"):
+        LegacyVPNClient()
+
+
+def test_server_not_found(mock_env_credentials, mock_openvpn, mock_requests):
+    """Test server not found error."""
+    mock_requests.return_value.json.return_value = []
+    api = LegacyVPNClient()
+    with pytest.raises(VPNError, match="No servers found"):
+        api.connect("invalid_country")
+
+
+def test_config_download_error(mock_env_credentials, mock_openvpn, mock_requests):
+    """Test config download error."""
+    mock_requests.side_effect = requests.RequestException("Failed to download")
+    api = LegacyVPNClient()
+    with pytest.raises(VPNError, match="Failed to download"):
+        api.connect()
+
+
+def test_process_error(mock_env_credentials, mock_openvpn, mock_requests, mock_process):
+    """Test process error handling."""
+    mock_process.side_effect = subprocess.SubprocessError("Process failed")
+    api = LegacyVPNClient()
+    with pytest.raises(VPNError, match="Failed to connect"):
+        api.connect()
+
+================
+File: tests/test_package.py
+================
+"""Test suite for nyord_vpn."""
+
+def test_version():
+    """Verify package exposes version."""
+    import nyord_vpn
+    assert nyord_vpn.__version__
+
+================
+File: .gitignore
+================
+*_autogen/
+.DS_Store
+__version__.py
+__pycache__/
+_Chutzpah*
+_deps
+_NCrunch_*
+_pkginfo.txt
+_Pvt_Extensions
+_ReSharper*/
+_TeamCity*
+_UpgradeReport_Files/
+!?*.[Cc]ache/
+!.axoCover/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!**/[Pp]ackages/build/
+!Directory.Build.rsp
+.*crunch*.local.xml
+.axoCover/*
+.builds
+.cr/personal
+.fake/
+.history/
+.ionide/
+.localhistory/
+.mfractor/
+.ntvs_analysis.dat
+.paket/paket.exe
+.sass-cache/
+.vs/
+.vscode
+.vscode/*
+.vshistory/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Bb]in/
+[Bb]uild[Ll]og.*
+[Dd]ebug/
+[Dd]ebugPS/
+[Dd]ebugPublic/
+[Ee]xpress/
+[Ll]og/
+[Ll]ogs/
+[Oo]bj/
+[Rr]elease/
+[Rr]eleasePS/
+[Rr]eleases/
+[Tt]est[Rr]esult*/
+[Ww][Ii][Nn]32/
+*_h.h
+*_i.c
+*_p.c
+*_wpftmp.csproj
+*- [Bb]ackup ([0-9]).rdl
+*- [Bb]ackup ([0-9][0-9]).rdl
+*- [Bb]ackup.rdl
+*.[Cc]ache
+*.[Pp]ublish.xml
+*.[Rr]e[Ss]harper
+*.a
+*.app
+*.appx
+*.appxbundle
+*.appxupload
+*.aps
+*.azurePubxml
+*.bim_*.settings
+*.bim.layout
+*.binlog
+*.btm.cs
+*.btp.cs
+*.build.csdef
+*.cab
+*.cachefile
+*.code-workspace
+*.coverage
+*.coveragexml
+*.d
+*.dbmdl
+*.dbproj.schemaview
+*.dll
+*.dotCover
+*.DotSettings.user
+*.dsp
+*.dsw
+*.dylib
+*.e2e
+*.exe
+*.gch
+*.GhostDoc.xml
+*.gpState
+*.ilk
+*.iobj
+*.ipdb
+*.jfm
+*.jmconfig
+*.la
+*.lai
+*.ldf
+*.lib
+*.lo
+*.log
+*.mdf
+*.meta
+*.mm.*
+*.mod
+*.msi
+*.msix
+*.msm
+*.msp
+*.ncb
+*.ndf
+*.nuget.props
+*.nuget.targets
+*.nupkg
+*.nvuser
+*.o
+*.obj
+*.odx.cs
+*.opendb
+*.opensdf
+*.opt
+*.out
+*.pch
+*.pdb
+*.pfx
+*.pgc
+*.pgd
+*.pidb
+*.plg
+*.psess
+*.publishproj
+*.publishsettings
+*.pubxml
+*.pyc
+*.rdl.data
+*.rptproj.bak
+*.rptproj.rsuser
+*.rsp
+*.rsuser
+*.sap
+*.sbr
+*.scc
+*.sdf
+*.sln.docstates
+*.sln.iml
+*.slo
+*.smod
+*.snupkg
+*.so
+*.suo
+*.svclog
+*.tlb
+*.tlh
+*.tli
+*.tlog
+*.tmp
+*.tmp_proj
+*.tss
+*.user
+*.userosscache
+*.userprefs
+*.vbp
+*.vbw
+*.VC.db
+*.VC.VC.opendb
+*.VisualState.xml
+*.vsp
+*.vspscc
+*.vspx
+*.vssscc
+*.xsd.cs
+**/[Pp]ackages/*
+**/*.DesktopClient/GeneratedArtifacts
+**/*.DesktopClient/ModelManifest.xml
+**/*.HTMLClient/GeneratedArtifacts
+**/*.Server/GeneratedArtifacts
+**/*.Server/ModelManifest.xml
+*~
+~$*
+$tf/
+AppPackages/
+artifacts/
+ASALocalRun/
+AutoTest.Net/
+Backup*/
+BenchmarkDotNet.Artifacts/
+bld/
+BundleArtifacts/
+ClientBin/
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles
+CMakeLists.txt.user
+CMakeScripts
+CMakeUserPresets.json
+compile_commands.json
+coverage*.info
+coverage*.json
+coverage*.xml
+csx/
+CTestTestfile.cmake
+dlldata.c
+DocProject/buildhelp/
+DocProject/Help/*.hhc
+DocProject/Help/*.hhk
+DocProject/Help/*.hhp
+DocProject/Help/*.HxC
+DocProject/Help/*.HxT
+DocProject/Help/html
+DocProject/Help/Html2
+ecf/
+FakesAssemblies/
+FodyWeavers.xsd
+Generated_Code/
+Generated\ Files/
+healthchecksdb
+install_manifest.txt
+ipch/
+Makefile
+MigrationBackup/
+mono_crash.*
+nCrunchTemp_*
+node_modules/
+nunit-*.xml
+OpenCover/
+orleans.codegen.cs
+Package.StoreAssociation.xml
+paket-files/
+project.fragment.lock.json
+project.lock.json
+publish/
+PublishScripts/
+rcf/
+ScaffoldingReadMe.txt
+ServiceFabricBackup/
+StyleCopReport.xml
+Testing
+TestResult.xml
+UpgradeLog*.htm
+UpgradeLog*.XML
+x64/
+x86/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Distribution / packaging
+!dist/.gitkeep
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+.ruff_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+__version__.py
+_private
+
+================
+File: .pre-commit-config.yaml
+================
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+        args: [--respect-gitignore]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: debug-statements
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+================
+File: LICENSE
+================
+MIT License
+
+Copyright (c) 2025 Adam Twardoch
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================
+File: package.toml
+================
+# Package configuration
+[package]
+include_cli = true        # Include CLI boilerplate
+include_logging = true    # Include logging setup
+use_pydantic = true      # Use Pydantic for data validation
+use_rich = true          # Use Rich for terminal output
+
+[features]
+mkdocs = false           # Enable MkDocs documentation
+vcs = true              # Initialize Git repository
+github_actions = true   # Add GitHub Actions workflows
+
+================
+File: pyproject.toml
+================
+# this_file: pyproject.toml
+[build-system]
+requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nyord-vpn"
+version = "0.1.0"
+description = "NordVPN client with API fallback support"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["vpn", "nordvpn", "security"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+dependencies = [
+    "njord>=0.0.1",
+    "tenacity>=8.0.0",
+    "backoff>=2.0.0",
+    "rich>=13.4.2",
+    "fire>=0.7.0",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.8.0",
+    "requests>=2.31.0",
+    "keyring>=24.2.0",
+    "pycountry>=24.6.1",
+    "psutil>=5.9.5",
+    "python-dotenv>=1.0.0",
+    "aiohttp>=3.11.0",
+    "cryptography>=42.0.0",
+    "black>=23.7.0",
+    "bleach>=6.0.0",
+    "build>=0.10.0",
+    "certifi>=2023.5.7",
+    "charset-normalizer>=3.2.0",
+    "click>=8.1.5",
+    "docutils>=0.20.1",
+    "idna>=3.4",
+    "importlib-metadata>=6.8.0",
+    "jaraco-classes>=3.3.0",
+    "markdown-it-py>=3.0.0",
+    "mdurl>=0.1.2",
+    "more-itertools>=9.1.0",
+    "mypy-extensions>=1.0.0",
+    "packaging>=23.1",
+    "pathspec>=0.11.1",
+    "pkginfo>=1.9.6",
+    "platformdirs>=3.9.1",
+    "pygments>=2.15.1",
+    "pyproject-hooks>=1.0.0",
+    "readme-renderer>=40.0",
+    "requests-toolbelt>=1.0.0",
+    "rfc3986>=2.0.0",
+    "six>=1.16.0",
+    "tomli>=2.0.1",
+    "twine>=4.0.2",
+    "typing-extensions>=4.7.1",
+    "urllib3>=2.0.3",
+    "webencodings>=0.5.1",
+    "zipp>=3.16.2",
+    "loguru>=0.7.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.6.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pyupgrade>=3.19.0",
+]
+
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.5.0",
+]
+
+[project.scripts]
+nyord-vpn = "nyord_vpn.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["nyord_vpn"]
+package-data = {"nyord_vpn" = ["data/*.json"]}
+
+[[project.authors]]
+name = "Adam Twardoch"
+email = "adam+github@twardoch.com"
+
+[project.urls]
+Documentation = "https://github.com/twardoch/nyord-vpn#readme"
+Issues = "https://github.com/twardoch/nyord-vpn/issues"
+Source = "https://github.com/twardoch/nyord-vpn"
+
+[tool.coverage.paths]
+nyord_vpn = ["src/nyord_vpn", "*/nyord-vpn/src/nyord_vpn"]
+tests = ["tests", "*/nyord-vpn/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.run]
+source_pkgs = ["nyord_vpn", "tests"]
+branch = true
+parallel = true
+omit = [
+    "src/nyord_vpn/__about__.py",
+]
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/nyord_vpn/__version__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nyord_vpn"]
+
+[tool.hatch.envs.default]
+dependencies = [
+]
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.10", "3.11", "3.12"]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
+type-check = "mypy src/nyord_vpn tests"
+lint = ["ruff check src/nyord_vpn tests", "ruff format --respect-gitignore src/nyord_vpn tests"]
+fix = ["ruff check  --fix --unsafe-fixes src/nyord_vpn tests", "ruff format --respect-gitignore src/nyord_vpn tests"]
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+]
+
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive {args:src/nyord_vpn tests}"
+style = ["ruff check {args:.}", "ruff format --respect-gitignore {args:.}"]
+fmt = ["ruff format --respect-gitignore {args:.}", "ruff check --fix {args:.}"]
+all = ["style", "typing"]
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.5.0",
+]
+
+[tool.hatch.envs.test.scripts]
+test = "python -m pytest {args:tests}"
+test-cov = "python -m pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
+bench = "python -m pytest -v tests/test_benchmark.py --benchmark-only"
+bench-save = "python -m pytest -v tests/test_benchmark.py --benchmark-only --benchmark-json=benchmark/results.json"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "post-release"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "FBT",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = ["ARG001", "E501", "I001", "RUF001", "PLR2004", "EXE003", "ISC001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+addopts = "-v --durations=10 -p no:briefcase --timeout=30 -n auto"
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+console_output_style = "progress"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::pytest.PytestDeprecationWarning",
+]
+log_cli = true
+log_cli_level = "INFO"
+markers = [
+    "benchmark: marks tests as benchmarks (select with '-m benchmark')",
+    "unit: mark a test as a unit test",
+    "integration: mark a test as an integration test",
+    "async_test: mark a test as an async test",
+    "config: mark a test as a configuration test",
+    "connection: mark a test as a connection test",
+    "security: mark a test as a security test",
+]
+testpaths = ["tests"]
+timeout = 30
+
+[tool.pytest-benchmark]
+min_rounds = 100
+min_time = 0.1
+histogram = true
+storage = "file"
+save-data = true
+compare = [
+    "min",    # Minimum time
+    "max",    # Maximum time
+    "mean",   # Mean time
+    "stddev", # Standard deviation
+    "median", # Median time
+    "iqr",    # Inter-quartile range
+    "ops",    # Operations per second
+    "rounds", # Number of rounds
+]
+
+================
+File: README.md
+================
+# nyord-vpn
+
+A simple and reliable NordVPN client for macOS with support for both legacy OpenVPN and njord APIs.
+
+## Features
+
+- Simple and reliable VPN connection management
+- Support for both legacy OpenVPN and njord APIs
+- Country selection
+- Basic status monitoring
+- Clear error messages
+- Minimal dependencies
+
+## Installation
+
+```bash
+# Install system requirements
+brew install openvpn
+
+# Install package
+pip install nyord-vpn
+
+# Optional: Install njord support
+pip install nyord-vpn[njord]
+```
+
+## Usage
+
+### Environment Variables
+
+Set your NordVPN credentials:
+
+```bash
+export NORD_USER="your-username"
+export NORD_PASSWORD="your-password"
+```
+
+### CLI Commands
+
+```bash
+# Connect to VPN (defaults to US)
+nyord-vpn connect
+
+# Connect to specific country
+nyord-vpn connect --country netherlands
+
+# Use njord API
+nyord-vpn --api njord connect
+
+# Enable debug logging
+nyord-vpn --verbose connect
+
+# Check status
+nyord-vpn status
+
+# List available countries
+nyord-vpn list-countries
+
+# Disconnect
+nyord-vpn disconnect
+```
+
+### Python API
+
+```python
+from nyord_vpn.core.factory import create_client
+
+# Create client (legacy or njord)
+client = create_client("legacy")
+
+# Connect to VPN
+client.connect("netherlands")
+
+# Check status
+status = client.status()
+print(f"Connected to {status['server']} ({status['ip']})")
+
+# Disconnect
+client.disconnect()
+```
+
+## Development
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Install optional njord support
+pip install njord
+
+# Run with debug logging
+NORD_USER="username" NORD_PASSWORD="password" nyord-vpn --verbose connect
+```
+
+## Error Handling
+
+The client uses simple retry logic for API calls and provides clear error messages. Common errors:
+
+- `VPNCredentialsError`: Missing or invalid credentials
+- `VPNConnectionError`: Failed to connect/disconnect
+- `VPNConfigError`: Configuration issues (e.g., missing OpenVPN)
+- `VPNServerError`: Failed to get server information
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+MIT
+
+================
+File: TODO.md
+================
+# TODO
+
+Do it! Remember, keep it simple, effective, eyes on the goal!
+
+## 1. Core Implementation
+
+- [x] **Legacy API (Shell Script Port)**
+  - _Core Functionality_:
+    - [x] Port server selection from shell script
+      - [x] Use official NordVPN API v1 endpoints
+      - [x] Add proper headers and timeouts
+      - [x] Add server filtering for TCP only
+    - [x] Implement OpenVPN config download and caching
+      - [x] Use secure temp directory
+      - [x] Download individual configs
+      - [x] Add proper file permissions
+    - [x] Add robust process management
+      - [x] Graceful shutdown with fallback
+      - [x] Proper process monitoring
+      - [x] Complete cleanup on exit
+    - [x] Add comprehensive status check
+      - [x] Process status verification
+      - [x] IP ownership validation
+      - [x] Connection monitoring
+  - _Error Handling_:
+    - [x] Add specific error classes
+    - [x] Implement retry with proper backoff
+    - [x] Add detailed error messages
+    - [x] Add comprehensive logging
+
+## 2. Core Features
+
+```python
+# Use either API through the same interface
+import nyord_vpn
+
+# Legacy API (direct OpenVPN)
+client = nyord_vpn.Client(country="de", api="legacy")
+client.connect()      # Connects to VPN using legacy API
+client.protected()    # Checks if connected
+client.disconnect()   # Disconnects from VPN
+
+# Njord API (modern API)
+client = nyord_vpn.Client(country="de", api="njord")
+client.connect()      # Connects to VPN using njord API
+client.protected()    # Checks if connected
+client.disconnect()   # Disconnects from VPN
+```
+
+## 3. Tasks
+
+1. **Legacy API Engine** [!]
+
+   - [ ] Fix server recommendations (403 errors)
+   - [ ] Fix OpenVPN config download/caching
+   - [ ] Fix process management
+   - [ ] Fix status check via IP lookup
+
+2. **Njord API Engine** [!]
+
+   - [ ] Fix client initialization
+   - [ ] Fix connection handling
+   - [ ] Fix status check
+   - [ ] Fix country selection
+
+3. **Common Interface** [!]
+
+   - [ ] Fix VPNClient initialization (config_file, username/password)
+   - [ ] Implement unified connect/disconnect
+   - [ ] Implement unified status check
+   - [ ] Add basic error handling
+
+4. **CLI Commands** [!]
+
+   ```bash
+   # Works the same with both APIs
+   nyord-vpn --api njord connect de    # Connect using country code
+   nyord-vpn --api legacy connect us   # Connect using country code
+   nyord-vpn status                    # Check connection status
+   nyord-vpn disconnect                # Disconnect VPN
+   nyord-vpn list-countries           # List available countries
+   ```
+
+5. **Basic Tests** [!]
+   - [ ] Test legacy API engine
+   - [ ] Test njord API engine
+   - [ ] Test common interface
+   - [ ] Test CLI commands
+
+## 4. Development
+
+1. **Setup**
+
+   ```bash
+   # Create environment
+   rm -rf .venv
+   uv venv
+   source .venv/bin/activate
+   uv pip install -e ".[dev,test]"
+
+   # Install OpenVPN (needed for legacy API)
+   brew install openvpn  # or apt install openvpn
+   ```
+
+2. **Test**
+
+   ```bash
+   hatch fmt --unsafe-fixes
+   sudo hatch -e test run test
+   ```
+
+## 5. Dependencies
+
+1. **System**
+
+   - Python 3.10+
+   - OpenVPN (for legacy API)
+   - sudo access
+
+2. **Python**
+   - requests (API calls)
+   - pydantic (config)
+   - python-dotenv (auth)
+   - loguru (logging)
+   - fire (CLI)
+   - rich (output)
+
+Remember: Two engines (legacy and njord), one simple interface.
+
+## 6. Code Quality Improvements
+
+- [!] **Security Fixes**
+
+  - _API Calls_:
+    - [x] Add timeouts to all requests calls
+    - [x] Add proper error handling for timeouts
+    - [x] Add retry logic for network errors
+  - _Process Management_:
+    - [x] Validate all subprocess inputs
+    - [x] Add proper error handling for process failures
+    - [!] Add process isolation
+  - _Test Security_:
+    - [!] Remove hardcoded credentials
+    - [!] Add security test suite
+    - [!] Test privilege escalation
+
+- [!] **Code Cleanup**
+
+  - _Error Handling_:
+    - [x] Use specific exceptions
+    - [x] Add error context
+    - [x] Improve error messages
+  - _Refactoring_:
+    - [x] Split complex functions
+    - [x] Add proper logging
+    - [x] Fix function arguments
+  - _Type Safety_:
+    - [x] Add comprehensive type hints
+    - [!] Add type tests
+    - [!] Add runtime type checking
+
+- [!] **Test Infrastructure**
+  - _Setup_:
+    - [!] Add pytest fixtures for VPN testing
+    - [!] Add mock responses
+    - [!] Add process mocks
+  - _Coverage_:
+    - [!] Add connection flow tests
+    - [!] Add error handling tests
+    - [!] Add security tests
+  - _Integration_:
+    - [!] Test both APIs together
+    - [!] Test fallback behavior
+    - [!] Test error recovery
+
+Remember: Focus on reliability and simplicity over features. Keep both APIs working independently with a common interface.
+
+
+
+================================================================
+End of Codebase
+================================================================

@@ -59,15 +59,7 @@ class CLI:
             # First check if we're already connected
             status = self.client.status()
             if status and status.get("status", False):
-                console.print("[yellow]Already connected to VPN.[/yellow]")
-                console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
-                console.print(
-                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
-                )
-                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
-                console.print("\n[yellow]Please disconnect first with:[/yellow]")
-                console.print("[blue]sudo nyord-vpn bye[/blue]")
-                sys.exit(1)
+                self.client.disconnect()
 
             # Connect to VPN
             self.client.go(country_code)
