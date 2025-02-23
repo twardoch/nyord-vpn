@@ -4,8 +4,8 @@ Usage:
     nyord-vpn [--api=<api>] [--verbose] <command> [<args>...]
     
 Commands:
-    connect [<country>]    Connect to VPN in specified country (optional)
-    disconnect            Disconnect from VPN
+    connect [<country>]    Connect to VPN in specified country (optional). Requires administrator password.
+    disconnect            Disconnect from VPN. Requires administrator password.
     status               Show current VPN connection status
     list-countries       List available countries
 
@@ -16,6 +16,10 @@ Options:
 Environment Variables:
     NORD_USER          NordVPN username (required)
     NORD_PASSWORD      NordVPN password (required)
+
+Note:
+    The connect and disconnect commands require administrator/sudo access to configure
+    system networking. You will be prompted for your administrator password.
 """
 
 import sys
@@ -23,6 +27,7 @@ from typing import Literal, cast
 
 import fire
 from loguru import logger
+from rich.prompt import Prompt
 
 from nyord_vpn.core.exceptions import VPNError, VPNConfigError
 from nyord_vpn.core.factory import create_client
@@ -60,7 +65,7 @@ class CLI:
             msg = "API must be 'legacy' or 'njord'"
             raise VPNConfigError(msg)
         try:
-            self.client = create_client(cast(Literal["legacy", "njord"], api))
+            self._client = create_client(cast(Literal["legacy", "njord"], api))
         except VPNError as e:
             logger.error(f"Failed to initialize client: {e}")
             sys.exit(1)
@@ -72,19 +77,28 @@ class CLI:
             country: Optional country to connect to
         """
         try:
-            self.client.connect(country)
-            status = self.client.status()
+            logger.info(
+                "Requesting administrator password to configure VPN connection..."
+            )
+            self._client.connect(country)
+            status = self._client.status()
             logger.info(
                 f"Connected to {status['server']} ({status['ip']}, {status['country']})"
             )
         except VPNError as e:
-            logger.error(f"Failed to connect: {e}")
+            if "RetryError" in str(e):
+                logger.error(
+                    "Failed to connect: VPN server is not responding. Please try again later or try a different server."
+                )
+            else:
+                logger.error(f"Failed to connect: {e}")
             sys.exit(1)
 
     def disconnect(self) -> None:
         """Disconnect from VPN."""
         try:
-            self.client.disconnect()
+            logger.info("Requesting administrator password to disconnect VPN...")
+            self._client.disconnect()
             logger.info("Disconnected from VPN")
         except VPNError as e:
             logger.error(f"Failed to disconnect: {e}")
@@ -93,7 +107,7 @@ class CLI:
     def status(self) -> None:
         """Show VPN status."""
         try:
-            status = self.client.status()
+            status = self._client.status()
             if status["connected"]:
                 logger.info(
                     f"Connected to {status['server']} "
@@ -108,12 +122,18 @@ class CLI:
     def list_countries(self) -> None:
         """List available countries."""
         try:
-            countries = self.client.list_countries()
+            countries = self._client.list_countries()
             for country in countries:
                 logger.info(f"{country['name']} ({country['code']})")
         except VPNError as e:
             logger.error(f"Failed to list countries: {e}")
             sys.exit(1)
+
+    # Hide client attribute from Fire's command discovery
+    @property
+    def client(self) -> None:
+        """Hide client attribute from Fire's command discovery."""
+        return None
 
 
 def main() -> None:
