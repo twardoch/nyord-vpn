@@ -10,19 +10,15 @@ This class is extended by the main Client class to add connection functionality.
 """
 
 import json
-import time, sys
-from typing import List, Optional
+import sys
+import time
+
 import requests
 from loguru import logger
 
-from .models import City, Country, CountryCache
-from .utils import (
-    CACHE_FILE,
-    CACHE_EXPIRY,
-    API_HEADERS,
-)
-from .country_cache import get_cached_countries, cache_countries
-from .utils import COUNTRIES_CACHE
+from src.nyord_vpn.network.country_cache import get_cached_countries, cache_countries
+from src.nyord_vpn.models import City, Country, CountryCache
+from src.nyord_vpn.utils.utils import CACHE_FILE, API_HEADERS
 
 # Fallback data in case API is unreachable
 FALLBACK_DATA: CountryCache = {
@@ -104,17 +100,17 @@ class NordVPNClient:
         self.countries = self._load_countries()
         self.logger.add(sys.stdout, level="DEBUG" if self.verbose else "INFO")
 
-    def _load_countries(self) -> List[Country]:
+    def _load_countries(self) -> list[Country]:
         """Load countries from cache or fallback data."""
         try:
-            with open(self.cache_file, "r") as f:
+            with open(self.cache_file) as f:
                 cache_data: CountryCache = json.load(f)
                 return cache_data["countries"]
         except (FileNotFoundError, json.JSONDecodeError) as e:
             self.logger.warning(f"Failed to load cache: {e}. Using fallback data.")
             return FALLBACK_DATA["countries"]
 
-    def get_country_by_code(self, code: str) -> Optional[Country]:
+    def get_country_by_code(self, code: str) -> Country | None:
         """Get country by its code.
 
         Args:
@@ -126,7 +122,7 @@ class NordVPNClient:
                 return country
         return None
 
-    def get_country_by_name(self, name: str) -> Optional[Country]:
+    def get_country_by_name(self, name: str) -> Country | None:
         """Get country by its name.
 
         Args:
@@ -138,7 +134,7 @@ class NordVPNClient:
                 return country
         return None
 
-    def get_available_locations(self) -> List[str]:
+    def get_available_locations(self) -> list[str]:
         """Get list of available locations with server counts."""
         locations = []
         for country in sorted(self.countries, key=lambda x: x["name"]):
@@ -150,7 +146,7 @@ class NordVPNClient:
                 locations.append(f"  {city['name']} - {city['serverCount']} servers")
         return locations
 
-    def get_best_city(self, country_code: str) -> Optional[City]:
+    def get_best_city(self, country_code: str) -> City | None:
         """Get the best city in a country based on hub score and server count.
 
         Args:
@@ -168,7 +164,7 @@ class NordVPNClient:
         )
         return sorted_cities[0] if sorted_cities else None
 
-    def list_countries(self, use_cache: bool = True) -> List[Country]:
+    def list_countries(self, use_cache: bool = True) -> list[Country]:
         """Fetch a list of all available server countries from the NordVPN API.
 
         Args:
@@ -182,7 +178,7 @@ class NordVPNClient:
             url = f"{self.BASE_API_URL}/servers/countries"
             response = requests.get(url, headers=API_HEADERS, timeout=10)
             response.raise_for_status()
-            countries: List[Country] = response.json()
+            countries: list[Country] = response.json()
 
             # Cache the fresh data
             cache_data: CountryCache = {

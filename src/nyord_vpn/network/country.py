@@ -1,13 +1,11 @@
 import json
 import time
-from pathlib import Path
-from typing import Optional
 
-from .utils import COUNTRIES_CACHE, CACHE_EXPIRY
-from .models import CountryCache
+from src.nyord_vpn.models import CountryCache
+from src.nyord_vpn.utils.utils import COUNTRIES_CACHE, CACHE_EXPIRY
 
 
-def get_cached_countries() -> Optional[CountryCache]:
+def get_cached_countries() -> CountryCache | None:
     """Get cached country list if available and not expired."""
     try:
         if not COUNTRIES_CACHE.exists():

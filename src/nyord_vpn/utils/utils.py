@@ -9,10 +9,11 @@ This module contains:
 """
 
 import json
-from loguru import logger
+import time
 from pathlib import Path
+
+from loguru import logger
 from platformdirs import user_cache_dir, user_config_dir
-import time, sys
 
 # Application directories
 APP_NAME = "nyord-vpn"

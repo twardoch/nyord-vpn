@@ -1,14 +1,13 @@
 """NordVPN API client for basic data retrieval and API interactions."""
 
-import json
 import time
-from typing import List, Optional
-import requests
-from loguru import logger
 
-from .models import City, Country, CountryCache
-from .utils import API_HEADERS, CACHE_FILE
-from .country_cache import get_cached_countries, cache_countries
+from loguru import logger
+from requests import get, RequestException
+
+from src.nyord_vpn.network.country_cache import get_cached_countries, cache_countries
+from src.nyord_vpn.models import City, Country, CountryCache
+from src.nyord_vpn.utils.utils import API_HEADERS, CACHE_FILE
 
 
 class NordVPNAPIClient:
@@ -32,13 +31,13 @@ class NordVPNAPIClient:
         self.logger = logger
         self.cache_file = CACHE_FILE
 
-    def list_countries(self, use_cache: bool = True) -> List[Country]:
+    def list_countries(self, use_cache: bool = True) -> list[Country]:
         """Fetch list of available server countries."""
         try:
             url = f"{self.BASE_API_URL}/servers/countries"
-            response = requests.get(url, headers=API_HEADERS, timeout=10)
+            response = get(url, headers=API_HEADERS, timeout=10)
             response.raise_for_status()
-            countries: List[Country] = response.json()
+            countries: list[Country] = response.json()
 
             cache_data: CountryCache = {
                 "countries": countries,
@@ -47,14 +46,14 @@ class NordVPNAPIClient:
             cache_countries(cache_data)
             return countries
 
-        except requests.RequestException as e:
+        except RequestException as e:
             self.logger.warning(f"Failed to fetch countries: {e}")
             cached = get_cached_countries()
             if cached:
                 return cached["countries"]
             return []
 
-    def get_country_by_code(self, code: str) -> Optional[Country]:
+    def get_country_by_code(self, code: str) -> Country | None:
         """Get country info by code."""
         code = code.upper()
         for country in self.list_countries():
@@ -62,7 +61,7 @@ class NordVPNAPIClient:
                 return country
         return None
 
-    def get_country_by_name(self, name: str) -> Optional[Country]:
+    def get_country_by_name(self, name: str) -> Country | None:
         """Get country info by name."""
         name = name.lower()
         for country in self.list_countries():
@@ -70,7 +69,7 @@ class NordVPNAPIClient:
                 return country
         return None
 
-    def get_available_locations(self) -> List[str]:
+    def get_available_locations(self) -> list[str]:
         """Get formatted list of available locations."""
         locations = []
         for country in sorted(self.list_countries(), key=lambda x: x["name"]):
@@ -82,7 +81,7 @@ class NordVPNAPIClient:
                 locations.append(f"  {city['name']} - {city['serverCount']} servers")
         return locations
 
-    def get_best_city(self, country_code: str) -> Optional[City]:
+    def get_best_city(self, country_code: str) -> City | None:
         """Get best city in country based on hub score."""
         country = self.get_country_by_code(country_code)
         if not country:
@@ -97,7 +96,7 @@ class NordVPNAPIClient:
     def test_api_connectivity(self) -> bool:
         """Test connection to NordVPN API."""
         try:
-            response = requests.get(
+            response = get(
                 f"{self.BASE_API_V2_URL}/servers", headers=API_HEADERS, timeout=5
             )
             response.raise_for_status()

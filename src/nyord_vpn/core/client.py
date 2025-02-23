@@ -6,24 +6,16 @@ This module contains the main Client class that coordinates:
 - Server selection via ServerManager
 """
 
-import json
-import os, sys
-import random
-import signal
-import subprocess
-import tempfile
+import os
+import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, TypedDict, Union, cast
+from typing import TypedDict
 
-import psutil
-from loguru import logger
 import requests
 from dotenv import load_dotenv
-import shutil
+from loguru import logger
 from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.logging import RichHandler
 
 load_dotenv()
@@ -36,30 +28,21 @@ logger.configure(
     ]
 )
 
-from ._templates import OPENVPN_TEMPLATE
-from .base import NordVPNClient
 from .models import (
     ConnectionError,
     CredentialsError,
-    ServerError,
-    DisconnectionError,
     VPNError,
 )
-from .utils import (
+from src.nyord_vpn.utils.utils import (
     API_HEADERS,
     CACHE_DIR,
     CONFIG_DIR,
     DATA_DIR,
-    NORDVPN_COUNTRY_IDS,
-    OPENVPN_AUTH,
-    OPENVPN_CONFIG,
-    OPENVPN_LOG,
-    load_vpn_state,
     save_vpn_state,
 )
-from .server_manager import ServerManager
+from src.nyord_vpn.network.server_manager import ServerManager
 from .api_client import NordVPNAPIClient
-from .vpn_manager import VPNConnectionManager
+from src.nyord_vpn.network.vpn_manager import VPNConnectionManager
 
 # Constants
 PACKAGE_DIR = Path(__file__).parent
@@ -89,7 +72,7 @@ class City(TypedDict):
 class Country(TypedDict):
     """Country information from NordVPN API."""
 
-    cities: List[City]
+    cities: list[City]
     code: str
     id: int
     name: str
@@ -99,7 +82,7 @@ class Country(TypedDict):
 class CountryCache(TypedDict):
     """Cache file structure."""
 
-    countries: List[Country]
+    countries: list[Country]
     last_updated: str
 
 
@@ -170,8 +153,8 @@ class Client:
 
     def __init__(
         self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+        username: str | None = None,
+        password: str | None = None,
         verbose: bool = False,
         auto_init: bool = True,
     ):
@@ -182,10 +165,18 @@ class Client:
             password: Optional password (defaults to NORD_PASSWORD env var)
             verbose: Enable verbose logging
             auto_init: Whether to automatically initialize the environment
+
+        Environment variables:
+            NORD_USER: NordVPN username (primary)
+            NORD_PASSWORD: NordVPN password (primary)
+            NORDVPN_LOGIN: NordVPN username (fallback)
+            NORDVPN_PASSWORD: NordVPN password (fallback)
         """
         # Get credentials
-        username_str = username or os.getenv("NORD_USER")
-        password_str = password or os.getenv("NORD_PASSWORD")
+        username_str = username or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
+        password_str = (
+            password or os.getenv("NORD_PASSWORD") or os.getenv("NORDVPN_PASSWORD")
+        )
         if not username_str or not password_str:
             raise CredentialsError(
                 "NORD_USER and NORD_PASSWORD environment variables must be set"
@@ -194,7 +185,7 @@ class Client:
         # Initialize components
         self.verbose = verbose
         self.api_client = NordVPNAPIClient(username_str, password_str, verbose)
-        self.vpn_manager = VPNConnectionManager(verbose)
+        self.vpn_manager = VPNConnectionManager(verbose=verbose)
         self.server_manager = ServerManager(self.api_client)
         self._failed_servers = set()  # Track failed servers in this session
 
@@ -248,7 +239,7 @@ class Client:
         except Exception as e:
             raise ConnectionError(f"Failed to initialize client environment: {e}")
 
-    def status(self) -> Dict[str, Union[str, bool, None]]:
+    def status(self) -> dict[str, str | bool | None]:
         """Get current VPN connection status."""
         try:
             current_ip = self.vpn_manager.get_current_ip()
@@ -299,140 +290,87 @@ class Client:
         except Exception as e:
             raise ConnectionError(f"Failed to get status: {e}")
 
-    def go(
-        self, country_code: Optional[str] = None, random_select: bool = False
-    ) -> None:
-        """Connect to VPN in specified country.
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country."""
+        max_retries = 3
+        retry_count = 0
 
-        Args:
-            country_code: Optional country code to filter by. If None, a random country is selected.
-            random_select: Whether to select a random server instead of fastest
-        """
-        try:
-            # Get random country if none specified
-            if not country_code:
-                country_code = self.server_manager.get_random_country()
-                if self.verbose:
-                    self.logger.info(f"Selected random country: {country_code}")
-                else:
-                    console.print(
-                        f"[cyan]Selected random country:[/cyan] {country_code}"
-                    )
-
-            # Disconnect any existing connection
+        while retry_count < max_retries:
             try:
+                # Get country info
+                country = self.server_manager.get_country_info(country_code)
+                if not country:
+                    raise ValueError(f"Country code '{country_code}' not found")
+
                 if self.verbose:
-                    self.logger.info("Ensuring no existing VPN connection...")
-                self.disconnect(verbose=self.verbose)
-                time.sleep(2)
+                    self.logger.info(f"Connecting to {country['name']}")
+
+                # Get initial IP
+                self._initial_ip = self.get_current_ip()
+                if self.verbose:
+                    self.logger.info(f"Initial IP: {self._initial_ip}")
+
+                # Select fastest server
+                server = self.server_manager.select_fastest_server(country_code)
+                if not server:
+                    raise VPNError("No server available")
+
+                hostname = (
+                    server.get("hostname") if isinstance(server, dict) else server
+                )
+                if not hostname:
+                    raise VPNError("Invalid server data - missing hostname")
+
+                if self.verbose:
+                    self.logger.info(f"Selected server: {hostname}")
+                else:
+                    console.print(f"[cyan]Server:[/cyan] {hostname}")
+
+                # Set up VPN configuration
+                self.vpn_manager.setup_connection(
+                    hostname, self.api_client.username, self.api_client.password
+                )
+
+                # Establish VPN connection
+                if self.verbose:
+                    self.logger.info("Establishing VPN connection...")
+                self.vpn_manager.connect({"hostname": hostname})
+
+                # Update connection info
+                self._connected_ip = self.get_current_ip()
+                self._server = hostname
+                self._country_name = country["name"]
+
+                if self.verbose:
+                    self.logger.info(f"Connected to {hostname}")
+                    self.logger.info(f"New IP: {self._connected_ip}")
+                else:
+                    console.print(f"[green]Connected to {hostname}[/green]")
+                    console.print(f"[cyan]New IP:[/cyan] {self._connected_ip}")
+
+                # Save state
+                self._save_state()
+                break
+
             except Exception as e:
-                self.logger.warning(f"Error during disconnect: {e}")
+                if self.verbose:
+                    self.logger.warning(f"Connection failed: {e}")
+                else:
+                    console.print(f"[yellow]Connection failed: {e}[/yellow]")
 
-            # Try to connect with retries
-            max_retries = 3
-            retry_count = 0
-
-            while retry_count < max_retries:
-                try:
+                retry_count += 1
+                if retry_count < max_retries:
                     if self.verbose:
-                        self.logger.info("Selecting fastest server...")
-                    server = self.server_manager.select_fastest_server(
-                        country_code, random_select
-                    )
-                    if not server:
-                        raise ConnectionError("Failed to select a server")
-
-                    # Extract server info safely
-                    hostname = None
-                    country_name = None
-
-                    if isinstance(server, dict):
-                        hostname = server.get("hostname")
-                        country_info = server.get("country", {})
-                        country_name = (
-                            country_info.get("name") if country_info else None
+                        self.logger.info("Retrying with different server...")
+                    else:
+                        console.print(
+                            "[yellow]Retrying with different server...[/yellow]"
                         )
-                    else:
-                        hostname = str(server)
-
-                    if not hostname:
-                        raise ConnectionError("Invalid server data received")
-
-                    country_name = country_name or country_code or "Unknown"
-
-                    # Skip if server has already failed
-                    if hostname in self._failed_servers:
-                        if self.verbose:
-                            self.logger.warning(
-                                f"Server {hostname} previously failed, skipping"
-                            )
-                        raise ConnectionError("Server previously failed")
-
-                    if self.verbose:
-                        self.logger.info(f"Selected server: {hostname}")
-                    else:
-                        console.print(f"[cyan]Server:[/cyan] {hostname}")
-
-                    if self.verbose:
-                        self.logger.info("Setting up VPN configuration...")
-                    self.vpn_manager.setup_connection(
-                        hostname, self.api_client.username, self.api_client.password
+                    time.sleep(2)
+                else:
+                    raise VPNError(
+                        f"Failed to connect after {max_retries} attempts: {e}"
                     )
-
-                    if self.verbose:
-                        self.logger.info("Establishing VPN connection...")
-                    self.vpn_manager.start_openvpn()
-
-                    # Wait for connection with timeout
-                    start_time = time.time()
-                    while time.time() - start_time < 10:  # 10 second timeout
-                        if self.vpn_manager.verify_connection():
-                            # Update connection info
-                            self.vpn_manager.update_connection_info(
-                                hostname, country_name
-                            )
-
-                            if self.verbose:
-                                self.logger.info(f"Connected to {country_name}")
-                                self.logger.info(
-                                    f"VPN IP: {self.vpn_manager.get_current_ip()}"
-                                )
-                            else:
-                                console.print(
-                                    f"[green]Connected to {country_name}[/green]"
-                                )
-                                console.print(
-                                    f"[cyan]VPN IP:[/cyan] {self.vpn_manager.get_current_ip()}"
-                                )
-
-                            return
-                        time.sleep(1)
-
-                    # Connection timeout, mark server as failed
-                    self._failed_servers.add(hostname)
-                    raise ConnectionError("Connection timeout")
-
-                except Exception as e:
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        if self.verbose:
-                            self.logger.warning(f"Connection failed: {e}")
-                            self.logger.info("Retrying with different server...")
-                        else:
-                            console.print(f"[yellow]Connection failed: {e}[/yellow]")
-                            console.print(
-                                "[yellow]Retrying with different server...[/yellow]"
-                            )
-                        time.sleep(2)
-                    else:
-                        # Clear failed servers list after max retries
-                        self._failed_servers.clear()
-                        raise ConnectionError(
-                            f"Failed to connect after {max_retries} attempts: {e}"
-                        )
-
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect: {e}")
 
     def disconnect(self, verbose: bool = True) -> None:
         """Disconnect from VPN."""
@@ -447,3 +385,19 @@ class Client:
         """Check if VPN is active."""
         status = self.status().get("status", False)
         return bool(status)
+
+    def get_current_ip(self) -> str | None:
+        """Get current IP address."""
+        return self.vpn_manager.get_current_ip()
+
+    def _save_state(self) -> None:
+        """Save current connection state."""
+        state = {
+            "connected": self.is_protected(),
+            "initial_ip": self._initial_ip,
+            "connected_ip": self._connected_ip,
+            "server": self._server,
+            "country": self._country_name,
+            "timestamp": time.time(),
+        }
+        save_vpn_state(state)

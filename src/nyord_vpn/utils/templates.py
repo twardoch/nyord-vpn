@@ -10,7 +10,7 @@ tun-mtu-extra 32
 mssfix 1450
 persist-key
 persist-tun
-ping 15
+ping 10
 ping-restart 60
 ping-timer-rem
 reneg-sec 0
@@ -23,8 +23,13 @@ auth-user-pass
 verb 3
 pull
 fast-io
-cipher AES-256-GCM
+data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
+data-ciphers-fallback AES-256-GCM
 auth SHA512
+connect-retry 2
+connect-timeout 10
+resolv-retry infinite
+
 <ca>
 -----BEGIN CERTIFICATE-----
 MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ
@@ -83,5 +88,4 @@ a196c9de96012090e333519ae18d3509
 redirect-gateway def1
 dhcp-option DNS 103.86.96.100
 dhcp-option DNS 103.86.99.100
-explicit-exit-notify 1
 script-security 2"""
