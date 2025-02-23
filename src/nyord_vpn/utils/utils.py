@@ -1,43 +1,60 @@
 """Utility functions and constants for the NordVPN client.
 
-This module provides core utilities and configuration:
+this_file: src/nyord_vpn/utils/utils.py
+
+This module provides core utilities and configuration management.
+It handles file paths, state persistence, and common functionality.
 
 Directory Structure:
-1. Cache Directory (~/.cache/nyord-vpn/)
+1. Cache Directory (~/.cache/nyord-vpn/):
    - Server information cache
    - Connection state
    - OpenVPN configuration
    - Authentication data
 
-2. Config Directory (~/.config/nyord-vpn/)
+2. Config Directory (~/.config/nyord-vpn/):
    - User configuration
    - Custom settings
    - Persistent data
 
-3. Package Data
+3. Package Data:
    - Country mappings
    - Default configurations
    - Templates
 
+Integration Points:
+- Used throughout codebase for paths
+- Used by Client (core/client.py) for state
+- Used by VPNConnectionManager for config
+- Used by API client for caching
+
 Constants and Settings:
-1. File Paths
+1. File Paths:
    - Cache locations
    - Config locations
    - State management
    - Log files
 
-2. API Configuration
+2. API Configuration:
    - Request headers
    - Cache settings
    - Country mappings
 
-3. OpenVPN Settings
+3. OpenVPN Settings:
    - Configuration paths
    - Authentication paths
    - Log paths
 
+State Management:
+- Implements atomic file operations
+- Handles concurrent access
+- Provides fallback data
+- Manages cache lifecycle
+
 The module ensures proper directory structure exists
-and provides fallback data when needed.
+and provides fallback data when needed, serving as
+the foundation for the client's file operations and
+state management.
 """
 
 import json

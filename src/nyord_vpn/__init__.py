@@ -1,7 +1,29 @@
 """Modern Python client for NordVPN with automatic API fallback.
 
-This package provides both a command-line interface and a Python
-library for managing NordVPN connections:
+this_file: src/nyord_vpn/__init__.py
+
+This package provides a comprehensive VPN client for NordVPN,
+offering both a command-line interface and a Python library.
+
+Package Structure:
+1. Core Components (core/):
+   - client.py: Main client implementation
+   - api.py: NordVPN API client
+   - base.py: Base classes and interfaces
+
+2. Network Components (network/):
+   - vpn.py: OpenVPN connection management
+   - server.py: Server selection and management
+   - country.py: Country information handling
+
+3. Storage Components (storage/):
+   - models.py: Data models and exceptions
+   - state.py: State management
+
+4. Utilities (utils/):
+   - connection.py: Connection verification
+   - templates.py: OpenVPN templates
+   - utils.py: Common utilities
 
 Command-Line Interface:
     nyord-vpn go <country>     Connect to VPN in specified country
