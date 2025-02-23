@@ -10,7 +10,7 @@ from typing import Any
 
 from loguru import logger
 
-from .client import Client
+from nyord_vpn.api.njord.client import Client
 from nyord_vpn.core.base import BaseVPNClient, VPNStatus
 from nyord_vpn.core.exceptions import VPNConnectionError, VPNServerError
 

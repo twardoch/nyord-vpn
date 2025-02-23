@@ -3,7 +3,6 @@ import random
 import subprocess
 import tempfile
 from time import sleep
-from typing import Dict, List, Optional, Tuple, Union
 
 import psutil
 import requests
@@ -11,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from ._templates import OPENVPN_TEMPLATE
+from nyord_vpn.api.njord._templates import OPENVPN_TEMPLATE
 
 
 class Client:
@@ -28,14 +27,14 @@ class Client:
         :param user: looks for NORD_USER in env
         :param password: looks for NORD_PASSWORD in env
         """
-        self.OPENVPN_PID: Optional[int] = None
+        self.OPENVPN_PID: int | None = None
         self.auth_user: str = user or os.getenv("NORD_USER", "")
         self.auth_password: str = password or os.getenv("NORD_PASSWORD", "")
-        self.config_file: Optional[str] = None
-        self.auth_file: Optional[str] = None
+        self.config_file: str | None = None
+        self.auth_file: str | None = None
         self.connection_retries: int = 0
 
-    def fetch_server_info(self) -> Optional[Tuple[str, str]]:
+    def fetch_server_info(self) -> tuple[str, str] | None:
         """
         Fetch information about a randomly recommended server that supports OpenVPN.
         """
@@ -54,7 +53,7 @@ class Client:
             else None
         )
 
-    def list_countries(self) -> List[Dict[str, Union[str, int]]]:
+    def list_countries(self) -> list[dict[str, str | int]]:
         """
         Fetch a list of all available server countries from the NordVPN API.
         """
@@ -76,7 +75,7 @@ class Client:
 
         :param max_retries: int - the number of times the client will attempt to connect before returning an error
         """
-        subprocess.run(["sudo", "-v"])
+        subprocess.run(["sudo", "-v"], check=False)
         self.disconnect()
 
         server_info = self.fetch_server_info()
@@ -111,15 +110,15 @@ class Client:
 
         sleep(5)
         if self.is_protected():
-            print(f"Connected to {hostname}")
             self.connection_retries = 0
             return True
         elif self.connection_retries < max_retries:
-            print(f"Connection failed - retrying")
             self.connection_retries += 1
             self.connect()
+            return None
         else:
-            raise Exception("Couldn't connect, check credentials.")
+            msg = "Couldn't connect, check credentials."
+            raise Exception(msg)
 
     def flush(self) -> None:
         """

@@ -2,9 +2,7 @@
 
 import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
-from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 
 

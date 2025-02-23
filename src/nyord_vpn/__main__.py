@@ -2,7 +2,7 @@
 
 Usage:
     nyord-vpn [--api=<api>] [--verbose] <command> [<args>...]
-    
+
 Commands:
     connect [<country>]    Connect to VPN in specified country (optional). Requires administrator password.
     disconnect            Disconnect from VPN. Requires administrator password.
@@ -27,7 +27,6 @@ from typing import Literal, cast
 
 import fire
 from loguru import logger
-from rich.prompt import Prompt
 
 from nyord_vpn.core.exceptions import VPNError, VPNConfigError
 from nyord_vpn.core.factory import create_client

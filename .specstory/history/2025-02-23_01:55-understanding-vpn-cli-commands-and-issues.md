@@ -1297,6 +1297,132 @@ and react to the results.
 
 _**Assistant**_
 
+<aside>
+Let me analyze what we've accomplished and what should be prioritized next:
+
+1. COMPLETED:
+- Basic CLI structure with API selection
+- Added clear administrator password messages
+- Improved error messages for common failures
+- Added country list management structure
+- Added stored vs live country list design
+
+2. IMMEDIATE PRIORITIES:
+- Security fixes (timeouts, subprocess validation)
+- JSON parsing errors in Njord API
+- Country list implementation (both stored and live)
+- Test improvements and security fixes
+
+3. NORMAL TODO:
+- Enhanced verbose mode
+- Country code handling with pycountry
+- Random country selection
+- User preferences
+
+The key is to focus on security and stability first, then improve the user experience.
+</aside>
+
+<output>
+Let me update the TODO.md with new priorities:
+
+1. In "Immediate Priorities":
+```markdown
+- [!] **Security Fixes**
+  - [!] Add timeouts to all requests calls (S113)
+  - [!] Use full paths for subprocess calls (S607)
+  - [!] Validate subprocess inputs (S603)
+```
+
+2. In "Core Implementation":
+```markdown
+- [x] **Legacy API (Shell Script Port)**
+  - [x] Port server selection
+  - [x] Add OpenVPN config handling
+  - [x] Add process management
+  - [x] Add status check
+  - [!] Fix incomplete country list
+  - [!] Add stored country list
+
+- [x] **Njord API Integration**
+  - [x] Clean up implementation
+  - [x] Add error handling
+  - [!] Fix JSON parsing errors
+  - [!] Add stored country list
+```
+
+3. In "CLI Implementation":
+```markdown
+- [x] Basic command structure
+- [x] API selection
+- [x] Verbose logging
+- [!] Add `--countries` command
+- [!] Add `--countries-live` command
+```
+</output>
+
+Wait, but... we should also prioritize the test improvements since they're critical for stability:
+
+<output>
+In "Testing & Documentation":
+```markdown
+- [!] **Core Tests**
+  - [!] Fix duplicate test functions (F811)
+  - [!] Add match parameter to pytest.raises()
+  - [!] Fix private member access (SLF001)
+  - [!] Add country code handling tests
+  - [!] Add API selection tests
+```
+
+In "Code Quality":
+```markdown
+- [!] **Error Handling**
+  - [!] Fix blind exception catches (BLE001)
+  - [!] Move cleanup to else blocks (TRY300)
+  - [!] Abstract raise statements (TRY301)
+```
+</output>
+
+Wait, but... we should also mark some tasks as completed in the country handling section:
+
+<output>
+In "Country Handling":
+```markdown
+- [x] Design stored vs live country list structure
+- [x] Plan CLI command interface
+- [!] Implement stored country list
+- [!] Add pycountry integration
+- [ ] Add country selection logic
+```
+</output>
+
+---
+
+_**User**_
+
+Actually EDIT @TODO.md 
+
+---
+
+_**Assistant**_
+
+<aside>
+I'll edit the TODO.md file directly to update the completion status and priorities. I'll focus on:
+1. Marking completed items with [x]
+2. Setting high-priority items with [!]
+3. Keeping remaining items as [ ]
+4. Ensuring the changes reflect our recent work on country handling
+</aside>
+
+---
+
+_****_
+
+
+
+---
+
+_****_
+
 
 
 ---

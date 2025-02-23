@@ -1,15 +1,12 @@
 """Main VPN client implementation."""
 
-from pathlib import Path
-from types import TracebackType
 from typing import Any, NoReturn
 
 from loguru import logger
 
 from nyord_vpn.api.njord import NjordVPNClient
 from nyord_vpn.api.legacy import LegacyVPNClient
-from nyord_vpn.core.base import BaseVPNClient
-from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
+from nyord_vpn.core.exceptions import VPNConnectionError
 
 
 def _raise_connection_error(error: Exception, country: str) -> NoReturn:
@@ -90,10 +87,10 @@ class VPNClient:
         def wrapper(*args, **kwargs):
             try:
                 return primary_func(*args, **kwargs)
-            except Exception as e:
+            except Exception:
                 if self.fallback_api:
                     return fallback_func(*args, **kwargs)
-                raise e
+                raise
 
         return wrapper
 
