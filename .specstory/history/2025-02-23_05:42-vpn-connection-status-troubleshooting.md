@@ -1166,13 +1166,208 @@ I'll improve the messaging to be more user-friendly and consistent. Let me updat
 
 _****_
 
-
+```diff
+          _check_root()
+          try:
++             # First check if we're already connected
++             status = self.client.status()
++             if status and status.get("status", False):
++                 console.print("[yellow]Already connected to VPN.[/yellow]")
++                 console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
++                 console.print(
++                     f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
++                 )
++                 console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
++                 console.print("\n[yellow]Please disconnect first with:[/yellow]")
++                 console.print("[blue]sudo nyord-vpn bye[/blue]")
++                 sys.exit(1)
++ 
++             # Connect to VPN
+              self.client.go(country_code)
+          except VPNError as e:
+          _check_root()
+          try:
++             # First check if we're actually connected
++             status = self.client.status()
++             if not status or not status.get("status", False):
++                 console.print("[yellow]Not connected to VPN[/yellow]")
++                 console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
++                 return
++ 
++             # Store the private IP for display
++             private_ip = status.get("ip", "Unknown")
++ 
++             # Disconnect
+              self.client.disconnect()
++ 
++             # Get new status for normal IP
++             status = self.client.status()
+              console.print("[green]Successfully disconnected from VPN[/green]")
++             console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
++             console.print(f"Previous Private IP: [yellow]{private_ip}[/yellow]")
+          except VPNError as e:
+              console.print(f"[red]Error:[/red] {e}")
+                  if connected:
+                      console.print("[green]VPN Status: Connected[/green]")
+-                     console.print(f"Current IP: [cyan]{ip}[/cyan]")
++                     console.print(f"Private IP: [cyan]{ip}[/cyan]")
+                      console.print(f"Country: [cyan]{country}[/cyan]")
+                      console.print(f"Server: [cyan]{server}[/cyan]")
+                  else:
+                      console.print("[yellow]VPN Status: Not Connected[/yellow]")
+-                     console.print(f"Current IP: [cyan]{ip}[/cyan]")
++                     console.print(f"Normal IP: [cyan]{ip}[/cyan]")
+              else:
+-                 console.print("[yellow]Not connected to VPN[/yellow]")
++                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
++                 console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+          except VPNError as e:
+              console.print(f"[red]Error:[/red] {e}")
+```
 
 ---
 
 _****_
 
 
+
+Now let me also update the client to use consistent terminology in its output:
+
+---
+
+_****_
+
+```diff
+                  save_vpn_state(state)
+                  if self.verbose:
+-                     self.logger.info(f"Initial IP: {self._initial_ip}")
++                     self.logger.info(f"Normal IP: {self._initial_ip}")
+                  else:
+-                     console.print(f"[cyan]Initial IP:[/cyan] {self._initial_ip}")
++                     console.print(f"[cyan]Normal IP:[/cyan] {self._initial_ip}")
+              except Exception as e:
+-                 self.logger.warning(f"Failed to get initial IP: {e}")
++                 self.logger.warning(f"Failed to get normal IP: {e}")
+  
+              country = self.get_country_by_code(country_code)
+                                      f"Successfully connected to {country['name']}"
+                                  )
+-                                 self.logger.info(f"New IP: {current_ip}")
++                                 self.logger.info(f"Private IP: {current_ip}")
+                              else:
+-                                 console.print(f"[cyan]New IP:[/cyan] {current_ip}")
++                                 console.print(f"[cyan]Private IP:[/cyan] {current_ip}")
+                              return
+  
+```
+
+---
+
+_****_
+
+
+
+I've made several improvements to make the messaging more consistent and user-friendly:
+
+1. In the CLI:
+   - Changed "Current IP" to "Normal IP" when not connected
+   - Changed "Current IP" to "Private IP" when connected
+   - Added better status checks in `bye` command
+   - Added "Previous Private IP" display when disconnecting
+   - Added check for already being connected in `go` command
+
+2. In the client:
+   - Changed "Initial IP" to "Normal IP"
+   - Changed "New IP" to "Private IP"
+   - Improved error messages
+
+Now the output will be more consistent:
+
+```bash
+$ sudo nyord-vpn info
+VPN Status: Not Connected
+Normal IP: 89.64.28.48
+
+$ sudo nyord-vpn go pl
+Normal IP: 89.64.28.48
+Server: pl158.nordvpn.com
+Private IP: 95.214.216.77
+
+$ sudo nyord-vpn info
+VPN Status: Connected
+Private IP: 95.214.216.77
+Country: Poland
+Server: pl158.nordvpn.com
+
+$ sudo nyord-vpn bye
+Successfully disconnected from VPN
+Normal IP: 89.64.28.48
+Previous Private IP: 95.214.216.77
+```
+
+The terminology is now more accurate and consistent:
+- "Normal IP" for your regular internet IP
+- "Private IP" for your VPN-assigned IP
+- Better status messages and error handling
+
+Let me know if you'd like any other improvements to the messaging or behavior!
+
+---
+
+_**User**_
+
+Good
+
+---
+
+_**Assistant**_
+
+Thank you! The improvements we made have addressed the key issues:
+
+1. Consistent terminology:
+   - "Normal IP" for your regular internet IP
+   - "Private IP" for your VPN-assigned IP
+
+2. Better status messages:
+   - No more duplicate "Disconnected" messages
+   - Shows both IPs during transitions
+   - Clearer status indicators
+
+3. Improved error handling:
+   - Checks if already connected before connecting
+   - Checks if actually connected before disconnecting
+   - Better error messages and suggestions
+
+4. Better user experience:
+   - More informative output
+   - Color-coded status messages
+   - Clearer state transitions
+
+The flow is now more intuitive:
+```bash
+# When not connected
+$ sudo nyord-vpn info
+VPN Status: Not Connected
+Normal IP: 89.64.28.48
+
+# When connecting
+$ sudo nyord-vpn go pl
+Normal IP: 89.64.28.48
+Server: pl158.nordvpn.com
+Private IP: 95.214.216.77
+
+# When connected
+$ sudo nyord-vpn info
+VPN Status: Connected
+Private IP: 95.214.216.77
+Country: Poland
+Server: pl158.nordvpn.com
+
+# When disconnecting
+$ sudo nyord-vpn bye
+Successfully disconnected from VPN
+Normal IP: 89.64.28.48
+Previous Private IP: 95.214.216.
 
 ---
 
