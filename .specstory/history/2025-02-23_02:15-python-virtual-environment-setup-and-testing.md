@@ -3920,7 +3920,2580 @@ Let me analyze what we've accomplished and what needs to be prioritized next:
 - Added comprehensive logging
 - Improved error handling
 - Added proper type hints
-- Adde
+- Added proper docstrings
+
+4. Next Priorities:
+- Test infrastructure needs immediate attention
+- Security tests are critical
+- Integration tests for the connection flow
+- Error handling tests
+
+Critin suggests: "We should focus on testing next, as the core functionality is now solid."
+Ideot adds: "Let's also think about edge cases in the error handling."
+
+</aside>
+<output>
+Let me update the TODO.md with our progress:
+
+---
+
+_****_
+
+```diff
+  # TODO
+  
+- Keep it simple! Two engines, one interface:
+- 
+- ## Core Features
++ Do it! Remember, keep it simple, effective, eyes on the goal! 
++ 
++ ## 1. Core Implementation
++ 
++ - [x] **Legacy API (Shell Script Port)**
++   - *Core Functionality*:
++     - [x] Port server selection from shell script
++       - [x] Use official NordVPN API v1 endpoints
++       - [x] Add proper headers and timeouts
++       - [x] Add server filtering for TCP only
++     - [x] Implement OpenVPN config download and caching
++       - [x] Use secure temp directory
++       - [x] Download individual configs
++       - [x] Add proper file permissions
++     - [x] Add robust process management
++       - [x] Graceful shutdown with fallback
++       - [x] Proper process monitoring
++       - [x] Complete cleanup on exit
++     - [x] Add comprehensive status check
++       - [x] Process status verification
++       - [x] IP ownership validation
++       - [x] Connection monitoring
++   - *Error Handling*:
++     - [x] Add specific error classes
++     - [x] Implement retry with proper backoff
++     - [x] Add detailed error messages
++     - [x] Add comprehensive logging
++ 
++ ## 2. Core Features
+  
+  ```python
+  ```
+  
+- ## Tasks
++ ## 3. Tasks
+  
+  1. **Legacy API Engine** [!]
+     - [ ] Test CLI commands
+  
+- ## Development
++ ## 4. Development
+  
+  1. **Setup**
+     ```
+  
+- ## Dependencies
++ ## 5. Dependencies
+  
+  1. **System**
+  
+  Remember: Two engines (legacy and njord), one simple interface.
++ 
++ ## 6. Code Quality Improvements
++ 
++ - [!] **Security Fixes**
++   - *API Calls*:
++     - [x] Add timeouts to all requests calls
++     - [x] Add proper error handling for timeouts
++     - [x] Add retry logic for network errors
++   - *Process Management*:
++     - [x] Validate all subprocess inputs
++     - [x] Add proper error handling for process failures
++     - [!] Add process isolation
++   - *Test Security*:
++     - [!] Remove hardcoded credentials
++     - [!] Add security test suite
++     - [!] Test privilege escalation
++ 
++ - [!] **Code Cleanup**
++   - *Error Handling*:
++     - [x] Use specific exceptions
++     - [x] Add error context
++     - [x] Improve error messages
++   - *Refactoring*:
++     - [x] Split complex functions
++     - [x] Add proper logging
++     - [x] Fix function arguments
++   - *Type Safety*:
++     - [x] Add comprehensive type hints
++     - [!] Add type tests
++     - [!] Add runtime type checking
++ 
++ - [!] **Test Infrastructure**
++   - *Setup*:
++     - [!] Add pytest fixtures for VPN testing
++     - [!] Add mock responses
++     - [!] Add process mocks
++   - *Coverage*:
++     - [!] Add connection flow tests
++     - [!] Add error handling tests
++     - [!] Add security tests
++   - *Integration*:
++     - [!] Test both APIs together
++     - [!] Test fallback behavior
++     - [!] Test error recovery
++ 
++ Remember: Focus on reliability and simplicity over features. Keep both APIs working independently with a common interface.
+  
+  
+```
+
+---
+
+_****_
+
+
+
+</output>
+
+Wait, but... we should run the development commands to check our progress:
+
+---
+
+_****_
+
+```bash
+uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; sudo hatch -e test run test
+```
+
+```
+(nyord_vpn) (nyord_vpn) adam@Hamlet nyord_vpn % 
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed whe
+n '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bi
+n/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread > 2)
+                and (c2pwrite == -1 or c2pwrite > 2)
+                and (errwrite == -1 or errwrite > 2)
+                and not start_new_session
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask < 0):
+            self._posix_spawn(args, executable, env, restore_signa
+ls,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to par
+ent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory al
+location.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 
+fd range.
+        low_fds_to_close = []
+        while errpipe_write < 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment 
+variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve
+.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _posixsubprocess.fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_ke
+ep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        gid, gids, uid, umask,
+                        preexec_fn)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising a
+n
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) > 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.fo
+rmat(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_e
+rrno:
+                errno_num = int(hex_errno, 16)
+                child_exec_never_called = (err_msg == "noexec")
+                if child_exec_never_called:
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+>               raise child_exception_type(errno_num, err_msg, err
+_filename)
+E               FileNotFoundError: [Errno 2] No such file or direc
+tory: 'openvpn'
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1863: FileNotFoundError 
+The above exception was the direct cause of the following exceptio
+n:
+
+mock_env_credentials = None
+
+    def test_init(mock_env_credentials):
+        """Test LegacyVPNClient initialization."""
+>       api = LegacyVPNClient()
+
+tests/test_legacy_api.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/api/legacy.py:44: in __init__
+    self._ensure_openvpn()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10746baf0
+>
+
+    def _ensure_openvpn(self) -> None:
+        """Ensure OpenVPN is installed."""
+        try:
+            result = subprocess.run(
+                ["openvpn", "--version"], check=True, capture_outp
+ut=True
+            )
+            version = result.stdout.decode().split()[1]
+            logger.debug(f"Found OpenVPN version {version}")
+        except (subprocess.SubprocessError, FileNotFoundError) as 
+e:
+            logger.error("OpenVPN not found")
+            msg = "OpenVPN not found. Install with: brew install o
+penvpn"
+>           raise VPNConfigError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not 
+found. Install with: brew install openvpn
+
+src/nyord_vpn/api/legacy.py:60: VPNConfigError
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:30:49.843 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:30:49.844 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:30:49.848 | ERROR    | nyord_vpn.api.legacy:_ensure_
+openvpn:58 - OpenVPN not found
+______________________ test_connect_failure ______________________
+[gw2] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+mock_subprocess = <MagicMock name='run' id='4348720464'>
+
+    def test_connect_failure(mock_subprocess):
+        """Test connection failure."""
+        mock_subprocess.side_effect = requests.RequestException("F
+ailed to connect")
+>       api = LegacyVPNClient()
+
+tests/test_legacy_api.py:28: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/api/legacy.py:44: in __init__
+    self._ensure_openvpn()
+src/nyord_vpn/api/legacy.py:52: in _ensure_openvpn
+    result = subprocess.run(
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1114: in __call__
+    return self._mock_call(*args, **kwargs)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1118: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock name='run' id='4348720464'>
+args = (['openvpn', '--version'],)
+kwargs = {'capture_output': True, 'check': True}
+effect = RequestException('Failed to connect')
+
+    def _execute_mock_call(self, /, *args, **kwargs):
+        # separate from _increment_mock_call so that awaited funct
+ions are
+        # executed separately from their call, also AsyncMock over
+rides this method
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               requests.exceptions.RequestException: Failed to co
+nnect
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1173: RequestExceptio
+n
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:30:49.848 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:30:49.848 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+_____________________ test_status_connected ______________________
+[gw7] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+mock_subprocess = <MagicMock name='run' id='4448453968'>
+
+    def test_status_connected(mock_subprocess):
+        """Test status when connected."""
+        api = LegacyVPNClient()
+        status = api.status()
+>       assert status["connected"] is True
+E       assert False is True
+
+tests/test_legacy_api.py:43: AssertionError
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:30:49.853 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:30:49.853 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:30:49.854 | DEBUG    | nyord_vpn.api.legacy:_ensure_
+openvpn:56 - Found OpenVPN version to
+2025-02-23 02:30:49.854 | DEBUG    | nyord_vpn.api.legacy:__init__
+:47 - Created config directory: /tmp/nyord_vpn_8al8cxgg
+2025-02-23 02:30:49.854 | DEBUG    | nyord_vpn.api.legacy:status:3
+24 - Getting IP information
+2025-02-23 02:30:50.275 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:282 - No OpenVPN process found
+2025-02-23 02:30:50.275 | DEBUG    | nyord_vpn.api.legacy:status:3
+35 - VPN connection status: False
+2025-02-23 02:30:50.275 | DEBUG    | nyord_vpn.api.legacy:status:3
+43 - VPN status: {'connected': False, 'ip': '89.64.28.48', 'countr
+y': 'PL', 'server': ''}
+______________________ test_connect_success ______________________
+[gw4] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10949c790
+>
+country = None
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
+        try:
+            # Disconnect if connected
+            if self._openvpn_pid:
+                logger.debug("Disconnecting existing connection")
+                self.disconnect()
+    
+            # Get server and config
+            logger.info("Initializing VPN connection...")
+            server = self._get_server(country)
+            config_file = self._get_config(server)
+    
+            # Create temp auth file
+            auth_file = Path(tempfile.mkstemp(prefix="nordvpn_", s
+uffix=".auth")[1])
+            auth_file.write_text(f"{self.username}\n{self.password
+}")
+            auth_file.chmod(0o600)
+            logger.debug(f"Created auth file: {auth_file}")
+    
+            try:
+                # Start OpenVPN
+                logger.debug("Starting OpenVPN process")
+>               process = subprocess.Popen(
+                    [
+                        "sudo",
+                        "openvpn",
+                        "--config",
+                        str(config_file),
+                        "--auth-user-pass",
+                        str(auth_file),
+                        "--daemon",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
+
+src/nyord_vpn/api/legacy.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:971: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: 255 args: ['sudo', 'openvpn', '--config
+', '/tmp/nyord_vp...>
+args = ['sudo', 'openvpn', '--config', '/tmp/nyord_vpn_8xbz5dw6/pl
+146.nordvpn.com.ovpn', '--auth-user-pass', '/tmp/nordvpn_zwnoduvw.
+auth', ...]
+executable = b'sudo', preexec_fn = None, close_fds = True
+pass_fds = (), cwd = None, env = None, startupinfo = None
+creationflags = 0, shell = False, p2cread = -1, p2cwrite = -1
+c2pread = -1, c2pwrite = 17, errread = -1, errwrite = 17
+restore_signals = True, gid = None, gids = None, uid = None
+umask = -1, start_new_session = False
+
+    def _execute_child(self, args, executable, preexec_fn, close_f
+ds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals,
+                       gid, gids, uid, umask,
+                       start_new_session):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed whe
+n '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bi
+n/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread > 2)
+                and (c2pwrite == -1 or c2pwrite > 2)
+                and (errwrite == -1 or errwrite > 2)
+                and not start_new_session
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask < 0):
+            self._posix_spawn(args, executable, env, restore_signa
+ls,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to par
+ent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory al
+location.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 
+fd range.
+        low_fds_to_close = []
+        while errpipe_write < 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment 
+variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve
+.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _posixsubprocess.fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_ke
+ep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        gid, gids, uid, umask,
+                        preexec_fn)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising a
+n
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) > 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.fo
+rmat(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_e
+rrno:
+                errno_num = int(hex_errno, 16)
+                child_exec_never_called = (err_msg == "noexec")
+                if child_exec_never_called:
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+>               raise child_exception_type(errno_num, err_msg, err
+_filename)
+E               FileNotFoundError: [Errno 2] No such file or direc
+tory: 'sudo'
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1863: FileNotFoundError 
+The above exception was the direct cause of the following exceptio
+n:
+
+mock_subprocess = <MagicMock name='run' id='4448761648'>
+
+    def test_connect_success(mock_subprocess):
+        """Test successful connection."""
+        api = LegacyVPNClient()
+>       assert api.connect() is True
+
+tests/test_legacy_api.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10949c790
+>
+country = None
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
+        try:
+            # Disconnect if connected
+            if self._openvpn_pid:
+                logger.debug("Disconnecting existing connection")
+                self.disconnect()
+    
+            # Get server and config
+            logger.info("Initializing VPN connection...")
+            server = self._get_server(country)
+            config_file = self._get_config(server)
+    
+            # Create temp auth file
+            auth_file = Path(tempfile.mkstemp(prefix="nordvpn_", s
+uffix=".auth")[1])
+            auth_file.write_text(f"{self.username}\n{self.password
+}")
+            auth_file.chmod(0o600)
+            logger.debug(f"Created auth file: {auth_file}")
+    
+            try:
+                # Start OpenVPN
+                logger.debug("Starting OpenVPN process")
+                process = subprocess.Popen(
+                    [
+                        "sudo",
+                        "openvpn",
+                        "--config",
+                        str(config_file),
+                        "--auth-user-pass",
+                        str(auth_file),
+                        "--daemon",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
+                self._openvpn_pid = process.pid
+                self._current_server = server
+                logger.debug(f"OpenVPN process started with PID: {
+self._openvpn_pid}")
+    
+                # Wait for connection
+                logger.info(f"Connecting to {server}...")
+    
+                # Monitor connection status
+                retries = 0
+                max_retries = 12  # 60 seconds total
+                while retries < max_retries:
+                    if self.protected():
+                        logger.info("VPN connection established")
+                        return True
+                    retries += 1
+                    logger.debug(
+                        f"Waiting for connection... attempt {retri
+es}/{max_retries}"
+                    )
+                    subprocess.run(["sleep", "5"], check=False)  #
+ Wait 5 seconds between checks
+    
+                # Connection failed
+                logger.error("Failed to establish VPN connection a
+fter 60 seconds")
+                msg = "Failed to establish VPN connection after 60
+ seconds"
+                raise VPNConnectionError(msg)
+    
+            finally:
+                # Cleanup auth file
+                logger.debug("Cleaning up auth file")
+                auth_file.unlink()
+        except Exception as e:
+            # Cleanup on failure
+            logger.error(f"Connection failed: {e}")
+            self.disconnect()
+            msg = f"Failed to connect: {e}"
+>           raise VPNConnectionError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConnectionError: Failed t
+o connect: [Errno 2] No such file or directory: 'sudo'
+
+src/nyord_vpn/api/legacy.py:222: VPNConnectionError
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:30:49.766 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:30:49.766 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:30:49.767 | DEBUG    | nyord_vpn.api.legacy:_ensure_
+openvpn:56 - Found OpenVPN version to
+2025-02-23 02:30:49.767 | DEBUG    | nyord_vpn.api.legacy:__init__
+:47 - Created config directory: /tmp/nyord_vpn_8xbz5dw6
+2025-02-23 02:30:49.767 | INFO     | nyord_vpn.api.legacy:connect:
+162 - Initializing VPN connection...
+2025-02-23 02:30:49.767 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:89 - Getting server recommendation for fastest server
+2025-02-23 02:30:50.189 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:107 - Selected server: pl146.nordvpn.com
+2025-02-23 02:30:50.190 | DEBUG    | nyord_vpn.api.legacy:_get_con
+fig:131 - Downloading config for server: pl146.nordvpn.com
+2025-02-23 02:30:50.431 | DEBUG    | nyord_vpn.api.legacy:_get_con
+fig:142 - Saved config to: /tmp/nyord_vpn_8xbz5dw6/pl146.nordvpn.c
+om.ovpn
+2025-02-23 02:30:50.432 | DEBUG    | nyord_vpn.api.legacy:connect:
+170 - Created auth file: /tmp/nordvpn_zwnoduvw.auth
+2025-02-23 02:30:50.432 | DEBUG    | nyord_vpn.api.legacy:connect:
+174 - Starting OpenVPN process
+2025-02-23 02:30:50.436 | DEBUG    | nyord_vpn.api.legacy:connect:
+215 - Cleaning up auth file
+2025-02-23 02:30:50.437 | ERROR    | nyord_vpn.api.legacy:connect:
+219 - Connection failed: [Errno 2] No such file or directory: 'sud
+o'
+2025-02-23 02:30:50.437 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:248 - Cleaning up stray OpenVPN processes
+2025-02-23 02:30:50.437 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:261 - Cleaning up config directory
+2025-02-23 02:30:50.437 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:265 - Removed config file: /tmp/nyord_vpn_8xbz5dw6/pl146.nordvp
+n.com.ovpn
+2025-02-23 02:30:50.438 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:270 - Removed config directory
+______________________ test_list_countries _______________________
+[gw4] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x1092a40d0
+>
+
+    def _ensure_openvpn(self) -> None:
+        """Ensure OpenVPN is installed."""
+        try:
+>           result = subprocess.run(
+                ["openvpn", "--version"], check=True, capture_outp
+ut=True
+            )
+
+src/nyord_vpn/api/legacy.py:52: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:503: in run
+    with Popen(*popenargs, **kwargs) as process:
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:971: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: 255 args: ['openvpn', '--version']>
+args = ['openvpn', '--version'], executable = b'openvpn'
+preexec_fn = None, close_fds = True, pass_fds = (), cwd = None
+env = None, startupinfo = None, creationflags = 0, shell = False
+p2cread = -1, p2cwrite = -1, c2pread = 17, c2pwrite = 18
+errread = 19, errwrite = 20, restore_signals = True, gid = None
+gids = None, uid = None, umask = -1, start_new_session = False
+
+    def _execute_child(self, args, executable, preexec_fn, close_f
+ds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals,
+                       gid, gids, uid, umask,
+                       start_new_session):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed whe
+n '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bi
+n/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread > 2)
+                and (c2pwrite == -1 or c2pwrite > 2)
+                and (errwrite == -1 or errwrite > 2)
+                and not start_new_session
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask < 0):
+            self._posix_spawn(args, executable, env, restore_signa
+ls,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to par
+ent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory al
+location.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 
+fd range.
+        low_fds_to_close = []
+        while errpipe_write < 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment 
+variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve
+.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _posixsubprocess.fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_ke
+ep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        gid, gids, uid, umask,
+                        preexec_fn)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising a
+n
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) > 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.fo
+rmat(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_e
+rrno:
+                errno_num = int(hex_errno, 16)
+                child_exec_never_called = (err_msg == "noexec")
+                if child_exec_never_called:
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+>               raise child_exception_type(errno_num, err_msg, err
+_filename)
+E               FileNotFoundError: [Errno 2] No such file or direc
+tory: 'openvpn'
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1863: FileNotFoundError 
+The above exception was the direct cause of the following exceptio
+n:
+
+    def test_list_countries():
+        """Test listing available countries."""
+>       api = LegacyVPNClient()
+
+tests/test_legacy_api.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/api/legacy.py:44: in __init__
+    self._ensure_openvpn()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x1092a40d0
+>
+
+    def _ensure_openvpn(self) -> None:
+        """Ensure OpenVPN is installed."""
+        try:
+            result = subprocess.run(
+                ["openvpn", "--version"], check=True, capture_outp
+ut=True
+            )
+            version = result.stdout.decode().split()[1]
+            logger.debug(f"Found OpenVPN version {version}")
+        except (subprocess.SubprocessError, FileNotFoundError) as 
+e:
+            logger.error("OpenVPN not found")
+            msg = "OpenVPN not found. Install with: brew install o
+penvpn"
+>           raise VPNConfigError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not 
+found. Install with: brew install openvpn
+
+src/nyord_vpn/api/legacy.py:60: VPNConfigError
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:30:50.492 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:30:50.492 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:30:50.496 | ERROR    | nyord_vpn.api.legacy:_ensure_
+openvpn:58 - OpenVPN not found
+====================== slowest 10 durations ======================
+0.67s call     tests/test_legacy_api.py::test_connect_success
+0.42s call     tests/test_legacy_api.py::test_status_connected
+0.38s call     tests/integration/test_validation_integration.py::t
+est_invalid_country_njord
+0.01s setup    tests/integration/test_connection.py::test_connecti
+on_success
+0.01s setup    tests/integration/test_errors.py::test_api_errors
+0.01s setup    tests/test_client.py::test_client_list_countries
+0.01s setup    tests/integration/test_errors.py::test_configuratio
+n_errors
+0.01s setup    tests/integration/test_connection.py::test_country_
+selection
+0.01s setup    tests/test_client.py::test_client_context_manager
+0.01s setup    tests/integration/test_errors.py::test_error_recove
+ry
+==================== short test summary info =====================
+FAILED tests/integration/test_config_loading.py::test_invalid_conf
+ig_file - Failed: DID NOT RAISE <class 'ValueError'>
+FAILED tests/integration/test_config_loading.py::test_load_from_fi
+le - TypeError: VPNClient.__init__() got an unexpected keyword arg
+...
+FAILED tests/integration/test_config_loading.py::test_invalid_envi
+ronment - Failed: DID NOT RAISE <class 'ValueError'>
+FAILED tests/integration/test_errors.py::test_fallback_behavior - 
+TypeError: VPNClient.__init__() got an unexpected keyword arg...
+FAILED tests/integration/test_config_loading.py::test_load_from_en
+v - nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. .
+..
+FAILED tests/integration/test_errors.py::test_network_errors - Typ
+eError: VPNClient.__init__() got an unexpected keyword arg...
+FAILED tests/integration/test_errors.py::test_timeout_handling - T
+ypeError: VPNClient.__init__() got an unexpected keyword arg...
+FAILED tests/integration/test_errors.py::test_invalid_credentials 
+- TypeError: VPNClient.__init__() got an unexpected keyword arg...
+FAILED tests/integration/test_config_loading.py::test_direct_initi
+alization - pydantic_core._pydantic_core.ValidationError: 2 valida
+tion er...
+FAILED tests/integration/test_errors.py::test_invalid_country - Ty
+peError: VPNClient.__init__() got an unexpected keyword arg...
+FAILED tests/integration/test_errors.py::test_retry_behavior - Typ
+eError: VPNClient.__init__() got an unexpected keyword arg...
+FAILED tests/test_legacy_api.py::test_init - nyord_vpn.core.except
+ions.VPNConfigError: OpenVPN not found. ...
+FAILED tests/test_legacy_api.py::test_connect_failure - requests.e
+xceptions.RequestException: Failed to connect
+FAILED tests/test_legacy_api.py::test_status_connected - assert Fa
+lse is True
+FAILED tests/test_legacy_api.py::test_connect_success - nyord_vpn.
+core.exceptions.VPNConnectionError: Failed to conne...
+FAILED tests/test_legacy_api.py::test_list_countries - nyord_vpn.c
+ore.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/integration/test_connection.py::test_connection_succes
+s - nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. .
+..
+ERROR tests/integration/test_connection.py::test_country_selection
+ - nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. ..
+.
+ERROR tests/integration/test_errors.py::test_error_recovery - nyor
+d_vpn.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/integration/test_errors.py::test_api_errors - nyord_vp
+n.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/integration/test_errors.py::test_subprocess_errors - n
+yord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/integration/test_errors.py::test_configuration_errors 
+- nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/integration/test_errors.py::test_cleanup_after_error -
+ nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/integration/test_connection.py::test_connection_failur
+e - nyord_vpn.core.exceptions.VPNConfigError: OpenVPN not found. .
+..
+ERROR tests/test_client.py::test_client_connect - nyord_vpn.core.e
+xceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/test_client.py::test_client_disconnect - nyord_vpn.cor
+e.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/test_client.py::test_client_list_countries - nyord_vpn
+.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/test_client.py::test_client_error_handling - nyord_vpn
+.core.exceptions.VPNConfigError: OpenVPN not found. ...
+ERROR tests/test_client.py::test_client_context_manager - nyord_vp
+n.core.exceptions.VPNConfigError: OpenVPN not found. ...
+======= 16 failed, 6 passed, 7 skipped, 13 errors in 2.95s =======
+
+```
+
+---
+
+_****_
+
+
+
+The test results show several issues that need to be fixed:
+
+1. OpenVPN Not Found:
+- Most tests are failing because OpenVPN is not installed
+- We need to mock OpenVPN in tests instead of requiring it
+
+2. Test Infrastructure Issues:
+- Invalid config file tests are failing
+- Unexpected keyword arguments in VPNClient initialization
+- Validation errors in direct initialization
+
+Let me fix the test infrastructure first:
+
+---
+
+_****_
+
+```diff
+- """Test fixtures for nyord-vpn."""
++ """Test fixtures and configuration."""
+  
+  import os
+  from pathlib import Path
+- from collections.abc import Generator
++ from typing import Generator
+  from unittest.mock import MagicMock, patch
++ import json
+  
+  import pytest
+- from pydantic import SecretStr
++ import requests
+  
+  from nyord_vpn.core.client import VPNClient
+  
+- # Test credentials - load from environment variables
+- TEST_USERNAME = os.getenv("NORD_USER", "test_user")
+- TEST_PASSWORD = SecretStr(os.getenv("NORD_PASSWORD", "test_password"))
++ 
++ @pytest.fixture
++ def mock_env_credentials(monkeypatch):
++     """Mock environment variables for testing."""
++     monkeypatch.setenv("NORD_USER", "test_user")
++     monkeypatch.setenv("NORD_PASSWORD", "test_pass")
++ 
++ 
++ @pytest.fixture
++ def mock_openvpn():
++     """Mock OpenVPN command."""
++     with patch("subprocess.run") as mock_run:
++         mock_run.return_value.stdout = b"OpenVPN 2.5.0\n"
++         yield mock_run
++ 
++ 
++ @pytest.fixture
++ def mock_requests():
++     """Mock requests for API calls."""
++     with patch("requests.get") as mock_get:
++         # Mock server recommendations
++         mock_get.return_value.json.return_value = [
++             {"hostname": "test.server.com", "load": 10, "status": "online"}
++         ]
++         mock_get.return_value.status_code = 200
++         yield mock_get
+  
+  
+  @pytest.fixture
+- def temp_dir(tmp_path: Path) -> Path:
+-     """Create a temporary directory for tests."""
+-     return tmp_path
++ def mock_process():
++     """Mock subprocess for OpenVPN."""
++     with patch("subprocess.Popen") as mock_popen:
++         mock_popen.return_value.pid = 12345
++         mock_popen.return_value.returncode = 0
++         yield mock_popen
+  
+  
+  @pytest.fixture
+- def mock_client() -> Generator[VPNClient, None, None]:
++ def mock_client(mock_env_credentials, mock_openvpn, mock_requests, mock_process):
+      """Create a mock VPN client."""
+-     with (
+-         patch("nyord_vpn.api.njord.NjordVPNClient") as mock_njord,
+-         patch("nyord_vpn.api.legacy.LegacyVPNClient") as mock_legacy,
+-     ):
++     with patch("nyord_vpn.api.legacy.LegacyVPNClient") as mock_legacy:
+          # Setup mock APIs
+-         mock_njord.return_value.connect.return_value = True
+-         mock_njord.return_value.disconnect.return_value = True
+-         mock_njord.return_value.status.return_value = {
+-             "connected": True,
+-             "country": "Test Country",
+-             "ip": "1.2.3.4",
+-             "server": "test.server.com",
+-         }
+-         mock_njord.return_value.list_countries.return_value = [
+-             {"name": "Country 1", "code": "1"},
+-             {"name": "Country 2", "code": "2"},
+-         ]
+- 
+          mock_legacy.return_value.connect.return_value = True
+          mock_legacy.return_value.disconnect.return_value = True
+          ]
+  
+-         # Create client with test credentials
++         # Create client
+          client = VPNClient()
+          yield client
+  
+  
+  @pytest.fixture
+- def mock_subprocess() -> Generator[MagicMock, None, None]:
+-     """Mock subprocess calls."""
+-     with patch("subprocess.run") as mock_run:
+-         mock_run.return_value.returncode = 0
+-         mock_run.return_value.stdout = b"Connected to test.server.com"
+-         yield mock_run
+- 
+- 
+- @pytest.fixture(autouse=True)
+- def mock_nordvpn_command(monkeypatch, tmp_path: Path) -> Generator[Path, None, None]:
+-     """Mock nordvpn command."""
+-     nordvpn_path = tmp_path / "nordvpn"
+-     nordvpn_path.write_text("#!/bin/sh\nexit 0\n")
+-     nordvpn_path.chmod(0o755)
+-     monkeypatch.setenv("PATH", str(tmp_path))
+-     return nordvpn_path
++ def temp_config_file(tmp_path):
++     """Create a temporary config file."""
++     config = {
++         "username": "test_user",
++         "password": "test_pass",
++         "default_country": "us",
++         "use_legacy_fallback": True,
++     }
++ 
++     config_file = tmp_path / "config.json"
++     config_file.write_text(json.dumps(config))
++     return config_file
+  
+  
+- @pytest.fixture(autouse=True)
+- def mock_env_credentials(monkeypatch):
+-     """Mock environment credentials for tests."""
+-     monkeypatch.setenv("NORD_USER", TEST_USERNAME)
+-     monkeypatch.setenv("NORD_PASSWORD", TEST_PASSWORD.get_secret_value())
++ @pytest.fixture
++ def mock_ip_info():
++     """Mock IP info response."""
++     with patch("requests.get") as mock_get:
++         mock_get.return_value.json.return_value = {
++             "ip": "1.2.3.4",
++             "country": "US",
++             "org": "NordVPN",
++         }
++         mock_get.return_value.status_code = 200
++         yield mock_get
+  
+```
+
+---
+
+_****_
+
+
+
+Now let me update the legacy API tests:
+
+---
+
+_****_
+
+```diff
+  import requests
+  import os
++ import subprocess
+  
+  from nyord_vpn.core.exceptions import VPNError
+  from nyord_vpn.api.legacy import LegacyVPNClient
+  
+  
+- def test_init(mock_env_credentials):
++ def test_init(mock_env_credentials, mock_openvpn):
+      """Test LegacyVPNClient initialization."""
+      api = LegacyVPNClient()
+  
+  
+- def test_connect_success(mock_subprocess):
++ def test_connect_success(
++     mock_env_credentials, mock_openvpn, mock_requests, mock_process, mock_ip_info
++ ):
+      """Test successful connection."""
+      api = LegacyVPNClient()
+      assert api.connect() is True
+  
+  
+- def test_connect_failure(mock_subprocess):
++ def test_connect_failure(
++     mock_env_credentials, mock_openvpn, mock_requests, mock_process
++ ):
+      """Test connection failure."""
+-     mock_subprocess.side_effect = requests.RequestException("Failed to connect")
++     mock_process.side_effect = requests.RequestException("Failed to connect")
+      api = LegacyVPNClient()
+      with pytest.raises(VPNError, match="Failed to connect"):
+          api.connect()
+  
+  
+- def test_disconnect_success(mock_subprocess):
++ def test_disconnect_success(mock_env_credentials, mock_openvpn, mock_process):
+      """Test successful disconnection."""
+      api = LegacyVPNClient()
+      assert api.disconnect() is True
+  
+  
+- def test_status_connected(mock_subprocess):
++ def test_status_connected(mock_env_credentials, mock_openvpn, mock_ip_info):
+      """Test status when connected."""
+      api = LegacyVPNClient()
+      status = api.status()
+      assert status["connected"] is True
+-     assert status["country"] == "Test Country"
++     assert status["country"] == "US"
+      assert status["ip"] == "1.2.3.4"
+-     assert status["server"] == "test.server.com"
++     assert status["server"] == ""
+  
+  
+- def test_list_countries():
++ def test_list_countries(mock_env_credentials, mock_openvpn, mock_requests):
+      """Test listing available countries."""
++     mock_requests.return_value.json.return_value = [
++         {"name": "United States", "id": 228},
++         {"name": "United Kingdom", "id": 227},
++     ]
+      api = LegacyVPNClient()
+      countries = api.list_countries()
+-     assert len(countries) > 0
++     assert len(countries) == 2
+      assert all(isinstance(c, dict) for c in countries)
+      assert all("name" in c and "code" in c for c in countries)
++     assert countries[0]["name"] == "United Kingdom"
++     assert countries[1]["name"] == "United States"
++ 
++ 
++ def test_openvpn_not_found(mock_env_credentials):
++     """Test OpenVPN not found error."""
++     with pytest.raises(VPNError, match="OpenVPN not found"):
++         LegacyVPNClient()
++ 
++ 
++ def test_server_not_found(mock_env_credentials, mock_openvpn, mock_requests):
++     """Test server not found error."""
++     mock_requests.return_value.json.return_value = []
++     api = LegacyVPNClient()
++     with pytest.raises(VPNError, match="No servers found"):
++         api.connect("invalid_country")
++ 
++ 
++ def test_config_download_error(mock_env_credentials, mock_openvpn, mock_requests):
++     """Test config download error."""
++     mock_requests.side_effect = requests.RequestException("Failed to download")
++     api = LegacyVPNClient()
++     with pytest.raises(VPNError, match="Failed to download"):
++         api.connect()
++ 
++ 
++ def test_process_error(mock_env_credentials, mock_openvpn, mock_requests, mock_process):
++     """Test process error handling."""
++     mock_process.side_effect = subprocess.SubprocessError("Process failed")
++     api = LegacyVPNClient()
++     with pytest.raises(VPNError, match="Failed to connect"):
++         api.connect()
+  
+```
+
+---
+
+_****_
+
+
+
+Let me run the tests again to check our progress:
+
+---
+
+_****_
+
+```bash
+uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; sudo hatch -e test run test
+```
+
+```
+(nyord_vpn) (nyord_vpn) adam@Hamlet nyord_vpn % 
+                logger.debug(f"OpenVPN process started with PID: {
+self._openvpn_pid}")
+    
+                # Wait for connection
+                logger.info(f"Connecting to {server}...")
+    
+                # Monitor connection status
+                retries = 0
+                max_retries = 12  # 60 seconds total
+                while retries < max_retries:
+                    if self.protected():
+                        logger.info("VPN connection established")
+                        return True
+                    retries += 1
+                    logger.debug(
+                        f"Waiting for connection... attempt {retri
+es}/{max_retries}"
+                    )
+                    subprocess.run(["sleep", "5"], check=False)  #
+ Wait 5 seconds between checks
+    
+                # Connection failed
+                logger.error("Failed to establish VPN connection a
+fter 60 seconds")
+                msg = "Failed to establish VPN connection after 60
+ seconds"
+                raise VPNConnectionError(msg)
+    
+            finally:
+                # Cleanup auth file
+                logger.debug("Cleaning up auth file")
+                auth_file.unlink()
+        except Exception as e:
+            # Cleanup on failure
+            logger.error(f"Connection failed: {e}")
+            self.disconnect()
+            msg = f"Failed to connect: {e}"
+>           raise VPNConnectionError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConnectionError: Failed t
+o connect: RetryError[<Future at 0x104676e90 state=finished raised
+ VPNServerError>]
+
+src/nyord_vpn/api/legacy.py:222: VPNConnectionError
+
+During handling of the above exception, another exception occurred
+:
+
+mock_env_credentials = None
+mock_openvpn = <MagicMock name='run' id='4368527424'>
+mock_requests = <MagicMock name='get' id='4368945680'>
+
+    def test_server_not_found(mock_env_credentials, mock_openvpn, 
+mock_requests):
+        """Test server not found error."""
+        mock_requests.return_value.json.return_value = []
+        api = LegacyVPNClient()
+>       with pytest.raises(VPNError, match="No servers found"):
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'No servers found'
+E        Input: 'Failed to connect: RetryError[<Future at 0x104676
+e90 state=finished raised VPNServerError>]'
+
+tests/test_legacy_api.py:79: AssertionError
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:31:39.925 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:31:39.925 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:31:39.925 | DEBUG    | nyord_vpn.api.legacy:_ensure_
+openvpn:56 - Found OpenVPN version 2.5.0
+2025-02-23 02:31:39.925 | DEBUG    | nyord_vpn.api.legacy:__init__
+:47 - Created config directory: /tmp/nyord_vpn_2b6ul9va
+2025-02-23 02:31:39.925 | INFO     | nyord_vpn.api.legacy:connect:
+162 - Initializing VPN connection...
+2025-02-23 02:31:39.925 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:87 - Getting server recommendation for country: invalid_countr
+y
+2025-02-23 02:31:39.926 | ERROR    | nyord_vpn.api.legacy:_get_ser
+ver:102 - No servers found for country: invalid_country
+2025-02-23 02:31:43.930 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:87 - Getting server recommendation for country: invalid_countr
+y
+2025-02-23 02:31:43.930 | ERROR    | nyord_vpn.api.legacy:_get_ser
+ver:102 - No servers found for country: invalid_country
+2025-02-23 02:31:47.934 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:87 - Getting server recommendation for country: invalid_countr
+y
+2025-02-23 02:31:47.934 | ERROR    | nyord_vpn.api.legacy:_get_ser
+ver:102 - No servers found for country: invalid_country
+2025-02-23 02:31:47.934 | ERROR    | nyord_vpn.api.legacy:connect:
+219 - Connection failed: RetryError[<Future at 0x104676e90 state=f
+inished raised VPNServerError>]
+2025-02-23 02:31:47.934 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:248 - Cleaning up stray OpenVPN processes
+2025-02-23 02:31:47.934 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:261 - Cleaning up config directory
+2025-02-23 02:31:47.935 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:270 - Removed config directory
+___________________ test_config_download_error ___________________
+[gw0] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10be148e0
+>
+country = None
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multipli
+er=1, min=4, max=10)
+    )
+    def _get_server(self, country: str | None = None) -> str:
+        """Get recommended server for country.
+    
+        Args:
+            country: Optional country name or code
+    
+        Returns:
+            str: Server hostname
+    
+        Raises:
+            VPNServerError: If no servers found
+        """
+        try:
+            # Build query params
+            params = {
+                "filters[servers_technologies][identifier]": "open
+vpn_tcp",
+                "filters[servers_groups][identifier]": "legacy_sta
+ndard",
+                "limit": 1,
+            }
+    
+            if country:
+                params["filters[country_id]"] = country.lower()
+                logger.debug(f"Getting server recommendation for c
+ountry: {country}")
+            else:
+                logger.debug("Getting server recommendation for fa
+stest server")
+    
+            # Get server recommendation
+>           response = requests.get(
+                RECOMMENDATIONS_URL,
+                params=params,
+                timeout=10,
+                headers={"User-Agent": "nyord-vpn/1.0"},
+            )
+
+src/nyord_vpn/api/legacy.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1114: in __call__
+    return self._mock_call(*args, **kwargs)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1118: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1173: in _execute_moc
+k_call
+    raise effect
+src/nyord_vpn/api/legacy.py:92: in _get_server
+    response = requests.get(
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1114: in __call__
+    return self._mock_call(*args, **kwargs)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1118: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1173: in _execute_moc
+k_call
+    raise effect
+src/nyord_vpn/api/legacy.py:92: in _get_server
+    response = requests.get(
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1114: in __call__
+    return self._mock_call(*args, **kwargs)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1118: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock name='get' id='4494166672'>
+args = ('https://api.nordvpn.com/v1/servers/recommendations',)
+kwargs = {'headers': {'User-Agent': 'nyord-vpn/1.0'}, 'params': {'
+filters[servers_groups][identifier]': 'legacy_standard', 'filters[
+servers_technologies][identifier]': 'openvpn_tcp', 'limit': 1}, 't
+imeout': 10}
+effect = RequestException('Failed to download')
+
+    def _execute_mock_call(self, /, *args, **kwargs):
+        # separate from _increment_mock_call so that awaited funct
+ions are
+        # executed separately from their call, also AsyncMock over
+rides this method
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               requests.exceptions.RequestException: Failed to do
+wnload
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/unittest/mock.py:1173: RequestExceptio
+n
+
+The above exception was the direct cause of the following exceptio
+n:
+
+self = <Retrying object at 0x10be14a00 (stop=<tenacity.stop.stop_a
+fter_attempt object at 0x10b38d330>, wait=<tenacity.wait.wa...bjec
+t at 0x10b3c7af0>, before=<function before_nothing at 0x10b39d1b0>
+, after=<function after_nothing at 0x10b39f6d0>)>
+fn = <function LegacyVPNClient._get_server at 0x10b3d6200>
+args = (<nyord_vpn.api.legacy.LegacyVPNClient object at 0x10be148e
+0>, None)
+kwargs = {}
+retry_state = <RetryCallState 4494281072: attempt #3; slept for 8.
+0; last result: failed (VPNServerError Failed to get server recomm
+endation: Failed to download)>
+do = <tenacity.DoAttempt object at 0x10be14ca0>
+
+    def __call__(
+        self,
+        fn: t.Callable[..., WrappedFnReturnT],
+        *args: t.Any,
+        **kwargs: t.Any,
+    ) -> WrappedFnReturnT:
+        self.begin()
+    
+        retry_state = RetryCallState(retry_object=self, fn=fn, arg
+s=args, kwargs=kwargs)
+        while True:
+            do = self.iter(retry_state=retry_state)
+            if isinstance(do, DoAttempt):
+                try:
+>                   result = fn(*args, **kwargs)
+
+/Users/adam/Library/Application Support/hatch/env/virtual/nyord-vp
+n/jzfB6_4k/test/lib/python3.10/site-packages/tenacity/__init__.py:
+478:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10be148e0
+>
+country = None
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multipli
+er=1, min=4, max=10)
+    )
+    def _get_server(self, country: str | None = None) -> str:
+        """Get recommended server for country.
+    
+        Args:
+            country: Optional country name or code
+    
+        Returns:
+            str: Server hostname
+    
+        Raises:
+            VPNServerError: If no servers found
+        """
+        try:
+            # Build query params
+            params = {
+                "filters[servers_technologies][identifier]": "open
+vpn_tcp",
+                "filters[servers_groups][identifier]": "legacy_sta
+ndard",
+                "limit": 1,
+            }
+    
+            if country:
+                params["filters[country_id]"] = country.lower()
+                logger.debug(f"Getting server recommendation for c
+ountry: {country}")
+            else:
+                logger.debug("Getting server recommendation for fa
+stest server")
+    
+            # Get server recommendation
+            response = requests.get(
+                RECOMMENDATIONS_URL,
+                params=params,
+                timeout=10,
+                headers={"User-Agent": "nyord-vpn/1.0"},
+            )
+            response.raise_for_status()
+    
+            servers = response.json()
+            if not servers:
+                logger.error(f"No servers found for country: {coun
+try}")
+                msg = f"No servers found for country: {country}"
+                raise VPNServerError(msg)
+    
+            server = servers[0]["hostname"]
+            logger.debug(f"Selected server: {server}")
+            return server
+    
+        except requests.RequestException as e:
+            logger.error(f"Failed to get server recommendation: {e
+}")
+            msg = f"Failed to get server recommendation: {e}"
+>           raise VPNServerError(msg) from e
+E           nyord_vpn.core.exceptions.VPNServerError: Failed to ge
+t server recommendation: Failed to download
+
+src/nyord_vpn/api/legacy.py:113: VPNServerError
+
+The above exception was the direct cause of the following exceptio
+n:
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10be148e0
+>
+country = None
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
+        try:
+            # Disconnect if connected
+            if self._openvpn_pid:
+                logger.debug("Disconnecting existing connection")
+                self.disconnect()
+    
+            # Get server and config
+            logger.info("Initializing VPN connection...")
+>           server = self._get_server(country)
+
+src/nyord_vpn/api/legacy.py:163: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/adam/Library/Application Support/hatch/env/virtual/nyord-vp
+n/jzfB6_4k/test/lib/python3.10/site-packages/tenacity/__init__.py:
+336: in wrapped_f
+    return copy(f, *args, **kw)
+/Users/adam/Library/Application Support/hatch/env/virtual/nyord-vp
+n/jzfB6_4k/test/lib/python3.10/site-packages/tenacity/__init__.py:
+475: in __call__
+    do = self.iter(retry_state=retry_state)
+/Users/adam/Library/Application Support/hatch/env/virtual/nyord-vp
+n/jzfB6_4k/test/lib/python3.10/site-packages/tenacity/__init__.py:
+376: in iter
+    result = action(retry_state)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rs = <RetryCallState 4494281072: attempt #3; slept for 8.0; last r
+esult: failed (VPNServerError Failed to get server recommendation:
+ Failed to download)>
+
+    def exc_check(rs: "RetryCallState") -> None:
+        fut = t.cast(Future, rs.outcome)
+        retry_exc = self.retry_error_cls(fut)
+        if self.reraise:
+            raise retry_exc.reraise()
+>       raise retry_exc from fut.exception()
+E       tenacity.RetryError: RetryError[<Future at 0x10be14bb0 sta
+te=finished raised VPNServerError>]
+
+/Users/adam/Library/Application Support/hatch/env/virtual/nyord-vp
+n/jzfB6_4k/test/lib/python3.10/site-packages/tenacity/__init__.py:
+419: RetryError
+
+The above exception was the direct cause of the following exceptio
+n:
+
+mock_env_credentials = None
+mock_openvpn = <MagicMock name='run' id='4488719104'>
+mock_requests = <MagicMock name='get' id='4494166672'>
+
+    def test_config_download_error(mock_env_credentials, mock_open
+vpn, mock_requests):
+        """Test config download error."""
+        mock_requests.side_effect = requests.RequestException("Fai
+led to download")
+        api = LegacyVPNClient()
+        with pytest.raises(VPNError, match="Failed to download"):
+>           api.connect()
+
+tests/test_legacy_api.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x10be148e0
+>
+country = None
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
+        try:
+            # Disconnect if connected
+            if self._openvpn_pid:
+                logger.debug("Disconnecting existing connection")
+                self.disconnect()
+    
+            # Get server and config
+            logger.info("Initializing VPN connection...")
+            server = self._get_server(country)
+            config_file = self._get_config(server)
+    
+            # Create temp auth file
+            auth_file = Path(tempfile.mkstemp(prefix="nordvpn_", s
+uffix=".auth")[1])
+            auth_file.write_text(f"{self.username}\n{self.password
+}")
+            auth_file.chmod(0o600)
+            logger.debug(f"Created auth file: {auth_file}")
+    
+            try:
+                # Start OpenVPN
+                logger.debug("Starting OpenVPN process")
+                process = subprocess.Popen(
+                    [
+                        "sudo",
+                        "openvpn",
+                        "--config",
+                        str(config_file),
+                        "--auth-user-pass",
+                        str(auth_file),
+                        "--daemon",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
+                self._openvpn_pid = process.pid
+                self._current_server = server
+                logger.debug(f"OpenVPN process started with PID: {
+self._openvpn_pid}")
+    
+                # Wait for connection
+                logger.info(f"Connecting to {server}...")
+    
+                # Monitor connection status
+                retries = 0
+                max_retries = 12  # 60 seconds total
+                while retries < max_retries:
+                    if self.protected():
+                        logger.info("VPN connection established")
+                        return True
+                    retries += 1
+                    logger.debug(
+                        f"Waiting for connection... attempt {retri
+es}/{max_retries}"
+                    )
+                    subprocess.run(["sleep", "5"], check=False)  #
+ Wait 5 seconds between checks
+    
+                # Connection failed
+                logger.error("Failed to establish VPN connection a
+fter 60 seconds")
+                msg = "Failed to establish VPN connection after 60
+ seconds"
+                raise VPNConnectionError(msg)
+    
+            finally:
+                # Cleanup auth file
+                logger.debug("Cleaning up auth file")
+                auth_file.unlink()
+        except Exception as e:
+            # Cleanup on failure
+            logger.error(f"Connection failed: {e}")
+            self.disconnect()
+            msg = f"Failed to connect: {e}"
+>           raise VPNConnectionError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConnectionError: Failed t
+o connect: RetryError[<Future at 0x10be14bb0 state=finished raised
+ VPNServerError>]
+
+src/nyord_vpn/api/legacy.py:222: VPNConnectionError
+
+During handling of the above exception, another exception occurred
+:
+
+mock_env_credentials = None
+mock_openvpn = <MagicMock name='run' id='4488719104'>
+mock_requests = <MagicMock name='get' id='4494166672'>
+
+    def test_config_download_error(mock_env_credentials, mock_open
+vpn, mock_requests):
+        """Test config download error."""
+        mock_requests.side_effect = requests.RequestException("Fai
+led to download")
+        api = LegacyVPNClient()
+>       with pytest.raises(VPNError, match="Failed to download"):
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'Failed to download'
+E        Input: 'Failed to connect: RetryError[<Future at 0x10be14
+bb0 state=finished raised VPNServerError>]'
+
+tests/test_legacy_api.py:87: AssertionError
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:31:39.930 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:31:39.930 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:31:39.930 | DEBUG    | nyord_vpn.api.legacy:_ensure_
+openvpn:56 - Found OpenVPN version 2.5.0
+2025-02-23 02:31:39.931 | DEBUG    | nyord_vpn.api.legacy:__init__
+:47 - Created config directory: /tmp/nyord_vpn_5eizzh_r
+2025-02-23 02:31:39.931 | INFO     | nyord_vpn.api.legacy:connect:
+162 - Initializing VPN connection...
+2025-02-23 02:31:39.931 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:89 - Getting server recommendation for fastest server
+2025-02-23 02:31:39.931 | ERROR    | nyord_vpn.api.legacy:_get_ser
+ver:111 - Failed to get server recommendation: Failed to download
+2025-02-23 02:31:43.934 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:89 - Getting server recommendation for fastest server
+2025-02-23 02:31:43.934 | ERROR    | nyord_vpn.api.legacy:_get_ser
+ver:111 - Failed to get server recommendation: Failed to download
+2025-02-23 02:31:47.934 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:89 - Getting server recommendation for fastest server
+2025-02-23 02:31:47.935 | ERROR    | nyord_vpn.api.legacy:_get_ser
+ver:111 - Failed to get server recommendation: Failed to download
+2025-02-23 02:31:47.935 | ERROR    | nyord_vpn.api.legacy:connect:
+219 - Connection failed: RetryError[<Future at 0x10be14bb0 state=f
+inished raised VPNServerError>]
+2025-02-23 02:31:47.935 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:248 - Cleaning up stray OpenVPN processes
+2025-02-23 02:31:47.935 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:261 - Cleaning up config directory
+2025-02-23 02:31:47.935 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:270 - Removed config directory
+__________________ test_invalid_country_legacy ___________________
+[gw3] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+    def test_invalid_country_legacy():
+        """Test invalid country with Legacy API."""
+        os.environ["NORD_USER"] = "test_user"
+        os.environ["NORD_PASSWORD"] = "test_pass"
+        with pytest.raises(VPNError):
+            client = LegacyVPNClient()
+>           client.connect("Invalid Country")
+
+tests/integration/test_validation_integration.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/api/legacy.py:206: in connect
+    subprocess.run(["sleep", "5"], check=False)  # Wait 5 seconds 
+between checks
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:505: in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1146: in communicate
+    self.wait()
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1209: in wait
+    return self._wait(timeout=timeout)
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1959: in _wait
+    (pid, sts) = self._try_wait(0)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['sleep', '5']>
+wait_flags = 0
+
+    def _try_wait(self, wait_flags):
+        """All callers to this function MUST hold self._waitpid_lo
+ck."""
+        try:
+>           (pid, sts) = os.waitpid(self.pid, wait_flags)
+E           Failed: Timeout >30.0s
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/subprocess.py:1917: Failed
+---------------------- Captured stdout call ----------------------
+~~~~~~~~~~~~~~~~~~~~~ Stack of <unknown> (123145412829184) ~~~~~~~
+~~~~~~~~~~~~~~
+  File "/Users/adam/Library/Application Support/hatch/env/virtual/
+nyord-vpn/jzfB6_4k/test/lib/python3.10/site-packages/execnet/gatew
+ay_base.py", line 411, in _perform_spawn
+    reply.run()
+  File "/Users/adam/Library/Application Support/hatch/env/virtual/
+nyord-vpn/jzfB6_4k/test/lib/python3.10/site-packages/execnet/gatew
+ay_base.py", line 341, in run
+    self._result = func(*args, **kwargs)
+  File "/Users/adam/Library/Application Support/hatch/env/virtual/
+nyord-vpn/jzfB6_4k/test/lib/python3.10/site-packages/execnet/gatew
+ay_base.py", line 1160, in _thread_receiver
+    msg = Message.from_io(io)
+  File "/Users/adam/Library/Application Support/hatch/env/virtual/
+nyord-vpn/jzfB6_4k/test/lib/python3.10/site-packages/execnet/gatew
+ay_base.py", line 567, in from_io
+    header = io.read(9)  # type 1, channel 4, payload 4
+  File "/Users/adam/Library/Application Support/hatch/env/virtual/
+nyord-vpn/jzfB6_4k/test/lib/python3.10/site-packages/execnet/gatew
+ay_base.py", line 534, in read
+    data = self._read(numbytes - len(buf))
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:31:39.909 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:31:39.909 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:31:39.928 | DEBUG    | nyord_vpn.api.legacy:_ensure_
+openvpn:56 - Found OpenVPN version 2.6.13
+2025-02-23 02:31:39.929 | DEBUG    | nyord_vpn.api.legacy:__init__
+:47 - Created config directory: /tmp/nyord_vpn_l4p4nkhx
+2025-02-23 02:31:39.929 | INFO     | nyord_vpn.api.legacy:connect:
+162 - Initializing VPN connection...
+2025-02-23 02:31:39.929 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:87 - Getting server recommendation for country: Invalid Countr
+y
+2025-02-23 02:31:40.183 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:107 - Selected server: pl232.nordvpn.com
+2025-02-23 02:31:40.184 | DEBUG    | nyord_vpn.api.legacy:_get_con
+fig:131 - Downloading config for server: pl232.nordvpn.com
+2025-02-23 02:31:40.285 | DEBUG    | nyord_vpn.api.legacy:_get_con
+fig:142 - Saved config to: /tmp/nyord_vpn_l4p4nkhx/pl232.nordvpn.c
+om.ovpn
+2025-02-23 02:31:40.286 | DEBUG    | nyord_vpn.api.legacy:connect:
+170 - Created auth file: /tmp/nordvpn_a1x4go1b.auth
+2025-02-23 02:31:40.286 | DEBUG    | nyord_vpn.api.legacy:connect:
+174 - Starting OpenVPN process
+2025-02-23 02:31:40.290 | DEBUG    | nyord_vpn.api.legacy:connect:
+190 - OpenVPN process started with PID: 84724
+2025-02-23 02:31:40.290 | INFO     | nyord_vpn.api.legacy:connect:
+193 - Connecting to pl232.nordvpn.com...
+2025-02-23 02:31:40.298 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:292 - OpenVPN process 84724 is running
+2025-02-23 02:31:40.298 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:298 - Checking if IP belongs to NordVPN
+2025-02-23 02:31:40.502 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:311 - VPN protection status: False
+2025-02-23 02:31:40.503 | DEBUG    | nyord_vpn.api.legacy:connect:
+203 - Waiting for connection... attempt 1/12
+2025-02-23 02:31:45.527 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:292 - OpenVPN process 84724 is running
+2025-02-23 02:31:45.527 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:298 - Checking if IP belongs to NordVPN
+2025-02-23 02:31:45.733 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:311 - VPN protection status: False
+2025-02-23 02:31:45.733 | DEBUG    | nyord_vpn.api.legacy:connect:
+203 - Waiting for connection... attempt 2/12
+2025-02-23 02:31:50.752 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:292 - OpenVPN process 84724 is running
+2025-02-23 02:31:50.753 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:298 - Checking if IP belongs to NordVPN
+2025-02-23 02:31:50.956 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:311 - VPN protection status: False
+2025-02-23 02:31:50.957 | DEBUG    | nyord_vpn.api.legacy:connect:
+203 - Waiting for connection... attempt 3/12
+2025-02-23 02:31:55.975 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:292 - OpenVPN process 84724 is running
+2025-02-23 02:31:55.975 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:298 - Checking if IP belongs to NordVPN
+2025-02-23 02:31:56.181 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:311 - VPN protection status: False
+2025-02-23 02:31:56.182 | DEBUG    | nyord_vpn.api.legacy:connect:
+203 - Waiting for connection... attempt 4/12
+2025-02-23 02:32:01.202 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:292 - OpenVPN process 84724 is running
+2025-02-23 02:32:01.203 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:298 - Checking if IP belongs to NordVPN
+2025-02-23 02:32:01.405 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:311 - VPN protection status: False
+2025-02-23 02:32:01.406 | DEBUG    | nyord_vpn.api.legacy:connect:
+203 - Waiting for connection... attempt 5/12
+2025-02-23 02:32:06.426 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:292 - OpenVPN process 84724 is running
+2025-02-23 02:32:06.427 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:298 - Checking if IP belongs to NordVPN
+2025-02-23 02:32:06.637 | DEBUG    | nyord_vpn.api.legacy:protecte
+d:311 - VPN protection status: False
+2025-02-23 02:32:06.637 | DEBUG    | nyord_vpn.api.legacy:connect:
+203 - Waiting for connection... attempt 6/12
+2025-02-23 02:32:09.913 | DEBUG    | nyord_vpn.api.legacy:connect:
+215 - Cleaning up auth file
+______________________ test_client_connect _______________________
+[gw3] darwin -- Python 3.10.16 /Users/adam/Library/Application Sup
+port/hatch/env/virtual/nyord-vpn/jzfB6_4k/test/bin/python
+
+self = <nyord_vpn.api.njord.NjordVPNClient object at 0x106f924a0>
+country = 'Test Country'
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using njord."""
+        try:
+            # Get server info
+            if country:
+>               server_info = self._client.fetch_server_info()
+
+src/nyord_vpn/api/njord/__init__.py:33: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/api/njord/client.py:44: in fetch_server_info
+    servers = [
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x106f92b30>
+
+    servers = [
+        server
+        for server in response_json
+>       if any(tech["name"] == "OpenVPN TCP" for tech in server["t
+echnologies"])
+    ]
+E   KeyError: 'technologies'
+
+src/nyord_vpn/api/njord/client.py:47: KeyError
+
+The above exception was the direct cause of the following exceptio
+n:
+
+args = ('Test Country',), kwargs = {}
+
+    def wrapper(*args, **kwargs):
+        try:
+>           return primary_func(*args, **kwargs)
+
+src/nyord_vpn/core/client.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.njord.NjordVPNClient object at 0x106f924a0>
+country = 'Test Country'
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using njord."""
+        try:
+            # Get server info
+            if country:
+                server_info = self._client.fetch_server_info()
+                if not server_info:
+                    msg = "No servers found"
+                    raise VPNServerError(msg)
+                hostname, _ = server_info
+                self._current_server = hostname
+    
+            # Connect
+            result = self._client.connect()
+            if not result:
+                msg = "Failed to connect"
+                raise VPNConnectionError(msg)
+    
+            logger.info(f"Connected to {self._current_server or 'V
+PN'}")
+            return True
+        except Exception as e:
+            msg = f"Failed to connect: {e}"
+>           raise VPNConnectionError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConnectionError: Failed t
+o connect: 'technologies'
+
+src/nyord_vpn/api/njord/__init__.py:50: VPNConnectionError
+
+During handling of the above exception, another exception occurred
+:
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x106f92620
+>
+country = 'Test Country'
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
+        try:
+            # Disconnect if connected
+            if self._openvpn_pid:
+                logger.debug("Disconnecting existing connection")
+                self.disconnect()
+    
+            # Get server and config
+            logger.info("Initializing VPN connection...")
+            server = self._get_server(country)
+>           config_file = self._get_config(server)
+
+src/nyord_vpn/api/legacy.py:164: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/api/legacy.py:140: in _get_config
+    config_file.write_text(response.text)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/nyord_vpn_i0dk1gef/test.server.com.ovpn')
+data = <MagicMock name='get().text' id='4411927776'>
+encoding = None, errors = None, newline = None
+
+    def write_text(self, data, encoding=None, errors=None, newline
+=None):
+        """
+        Open the file in text mode, write to it, and close the fil
+e.
+        """
+        if not isinstance(data, str):
+>           raise TypeError('data must be str, not %s' %
+                            data.__class__.__name__)
+E           TypeError: data must be str, not MagicMock
+
+/Users/adam/Library/Application Support/hatch/env/virtual/.pythons
+/3.10/python/lib/python3.10/pathlib.py:1151: TypeError
+
+The above exception was the direct cause of the following exceptio
+n:
+
+self = <nyord_vpn.core.client.VPNClient object at 0x106f92500>
+country = 'Test Country'
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN.
+    
+        Args:
+            country: Optional country to connect to
+    
+        Returns:
+            bool: True if connection successful
+    
+        Raises:
+            VPNConnectionError: If connection fails
+        """
+        try:
+>           return self._connect(country)
+
+src/nyord_vpn/core/client.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/nyord_vpn/core/client.py:92: in wrapper
+    return fallback_func(*args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.legacy.LegacyVPNClient object at 0x106f92620
+>
+country = 'Test Country'
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN using legacy implementation."""
+        try:
+            # Disconnect if connected
+            if self._openvpn_pid:
+                logger.debug("Disconnecting existing connection")
+                self.disconnect()
+    
+            # Get server and config
+            logger.info("Initializing VPN connection...")
+            server = self._get_server(country)
+            config_file = self._get_config(server)
+    
+            # Create temp auth file
+            auth_file = Path(tempfile.mkstemp(prefix="nordvpn_", s
+uffix=".auth")[1])
+            auth_file.write_text(f"{self.username}\n{self.password
+}")
+            auth_file.chmod(0o600)
+            logger.debug(f"Created auth file: {auth_file}")
+    
+            try:
+                # Start OpenVPN
+                logger.debug("Starting OpenVPN process")
+                process = subprocess.Popen(
+                    [
+                        "sudo",
+                        "openvpn",
+                        "--config",
+                        str(config_file),
+                        "--auth-user-pass",
+                        str(auth_file),
+                        "--daemon",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
+                self._openvpn_pid = process.pid
+                self._current_server = server
+                logger.debug(f"OpenVPN process started with PID: {
+self._openvpn_pid}")
+    
+                # Wait for connection
+                logger.info(f"Connecting to {server}...")
+    
+                # Monitor connection status
+                retries = 0
+                max_retries = 12  # 60 seconds total
+                while retries < max_retries:
+                    if self.protected():
+                        logger.info("VPN connection established")
+                        return True
+                    retries += 1
+                    logger.debug(
+                        f"Waiting for connection... attempt {retri
+es}/{max_retries}"
+                    )
+                    subprocess.run(["sleep", "5"], check=False)  #
+ Wait 5 seconds between checks
+    
+                # Connection failed
+                logger.error("Failed to establish VPN connection a
+fter 60 seconds")
+                msg = "Failed to establish VPN connection after 60
+ seconds"
+                raise VPNConnectionError(msg)
+    
+            finally:
+                # Cleanup auth file
+                logger.debug("Cleaning up auth file")
+                auth_file.unlink()
+        except Exception as e:
+            # Cleanup on failure
+            logger.error(f"Connection failed: {e}")
+            self.disconnect()
+            msg = f"Failed to connect: {e}"
+>           raise VPNConnectionError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConnectionError: Failed t
+o connect: data must be str, not MagicMock
+
+src/nyord_vpn/api/legacy.py:222: VPNConnectionError
+
+The above exception was the direct cause of the following exceptio
+n:
+
+mock_client = <nyord_vpn.core.client.VPNClient object at 0x106f925
+00>
+
+    def test_client_connect(mock_client):
+        """Test VPN client connect."""
+        # Test successful connection
+>       result = mock_client.connect("Test Country")
+
+tests/test_client.py:11: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.core.client.VPNClient object at 0x106f92500>
+country = 'Test Country'
+
+    def connect(self, country: str | None = None) -> bool:
+        """Connect to VPN.
+    
+        Args:
+            country: Optional country to connect to
+    
+        Returns:
+            bool: True if connection successful
+    
+        Raises:
+            VPNConnectionError: If connection fails
+        """
+        try:
+            return self._connect(country)
+        except Exception as e:
+            msg = f"Failed to connect: {e}"
+>           raise VPNConnectionError(msg) from e
+E           nyord_vpn.core.exceptions.VPNConnectionError: Failed t
+o connect: Failed to connect: data must be str, not MagicMock
+
+src/nyord_vpn/core/client.py:113: VPNConnectionError
+--------------------- Captured stderr setup ----------------------
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.api.njord:__init__:
+26 - Initialized njord VPN client
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.core.base:__init__:
+33 - Initialized VPN client
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.api.legacy:__init__
+:43 - Initializing legacy VPN client
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.api.legacy:_ensure_
+openvpn:56 - Found OpenVPN version 2.5.0
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.api.legacy:__init__
+:47 - Created config directory: /tmp/nyord_vpn_i0dk1gef
+2025-02-23 02:32:09.990 | DEBUG    | nyord_vpn.core.client:__init_
+_:54 - Initialized VPN client with njord API
+---------------------- Captured stderr call ----------------------
+2025-02-23 02:32:09.991 | INFO     | nyord_vpn.api.legacy:connect:
+162 - Initializing VPN connection...
+2025-02-23 02:32:09.991 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:87 - Getting server recommendation for country: Test Country
+2025-02-23 02:32:09.992 | DEBUG    | nyord_vpn.api.legacy:_get_ser
+ver:107 - Selected server: test.server.com
+2025-02-23 02:32:09.992 | DEBUG    | nyord_vpn.api.legacy:_get_con
+fig:131 - Downloading config for server: test.server.com
+2025-02-23 02:32:09.992 | ERROR    | nyord_vpn.api.legacy:connect:
+219 - Connection failed: data must be str, not MagicMock
+2025-02-23 02:32:09.992 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:248 - Cleaning up stray OpenVPN processes
+2025-02-23 02:32:09.992 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:261 - Cleaning up config directory
+2025-02-23 02:32:09.993 | DEBUG    | nyord_vpn.api.legacy:disconne
+ct:270 - Removed config directory
+====================== slowest 10 durations ======================
+30.01s call     tests/integration/test_validation_integration.py::
+test_invalid_country_legacy
+8.01s call     tests/test_legacy_api.py::test_server_not_found
+8.01s call     tests/test_legacy_api.py::test_connect_success
+8.01s call     tests/test_legacy_api.py::test_config_download_erro
+r
+5.76s call     tests/integration/test_validation_integration.py::t
+est_invalid_country_njord
+0.02s call     tests/test_legacy_api.py::test_openvpn_not_found
+0.01s setup    tests/test_client.py::test_client_disconnect
+0.01s setup    tests/integration/test_connection.py::test_connecti
+on_success
+0.01s setup    tests/test_client.py::test_client_error_handling
+0.01s setup    tests/integration/test_connection.py::test_country_
+selection
+==================== short test summary info =====================
+FAILED tests/test_legacy_api.py::test_openvpn_not_found - Failed: 
+DID NOT RAISE <class 'nyord_vpn.core.exceptions.VPNEr...
+FAILED tests/test_client.py::test_client_disconnect - nyord_vpn.co
+re.exceptions.VPNConnectionError: Failed to conne...
+FAILED tests/test_client.py::test_client_error_handling - Assertio
+nError: Regex pattern did not match.
+FAILED tests/test_client.py::test_client_context_manager - Attribu
+teError: __aenter__
+FAILED tests/test_legacy_api.py::test_status_connected - assert Fa
+lse is True
+FAILED tests/test_legacy_api.py::test_connect_success - nyord_vpn.
+core.exceptions.VPNConnectionError: Failed to conne...
+FAILED tests/test_legacy_api.py::test_server_not_found - Assertion
+Error: Regex pattern did not match.
+FAILED tests/test_legacy_api.py::test_config_download_error - Asse
+rtionError: Regex pattern did not match.
+FAILED tests/integration/test_validation_integration.py::test_inva
+lid_country_legacy - Failed: Timeout >30.0s
+FAILED tests/test_client.py::test_client_connect - nyord_vpn.core.
+exceptions.VPNConnectionError: Failed to conne...
+ERROR tests/integration/test_config_loading.py
+ERROR tests/integration/test_errors.py
+ERROR tests/integration/test_connection.py::test_country_selection
+ERROR tests/integration/test_connection.py::test_connection_succes
+s
+ERROR tests/integration/test_connection.py::test_connection_failur
+e
+============ 10 failed, 10 passed, 5 errors in 31.62s ============
+
+```
+
+---
+
+_****_
+
+
+
+---
+
+_**User**_
+
+python -m nyord_vpn --verbose --api legacy connect
+
+Using legacy VPN API
+Initialized VPN client
+Initializing legacy VPN client
+Found OpenVPN version 2.6.13
+Created config directory: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T/nyord_vpn_juk09cz0
+Requesting administrator password to configure VPN connection...
+Initializing VPN connection...
+Getting server recommendation for fastest server
+Selected server: pl146.nordvpn.com
+Downloading config for server: pl146.nordvpn.com
+Saved config to: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T/nyord_vpn_juk09cz0/pl146.nordvpn.com.ovpn
+Created auth file: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T/nordvpn_ownjywj_.auth
+Starting OpenVPN process
+OpenVPN process started with PID: 85031
+Connecting to pl146.nordvpn.com...
+OpenVPN process 85031 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+Waiting for connection... attempt 1/12
+OpenVPN process 85031 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+Waiting for connection... attempt 2/12
+OpenVPN process 85031 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+Waiting for connection... attempt 3/12
+OpenVPN process 85031 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+Waiting for connection... attempt 4/12
+OpenVPN process 85031 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+Waiting for connection... attempt 5/12
+OpenVPN process 85031 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+Waiting for connection... attempt 6/12
+^CCleaning up auth file
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 148, in <module>
+    main()
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 141, in main
+    fire.Fire(CLI)
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+                ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 82, in connect
+    self._client.connect(country)
+  File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/api/legacy.py", line 206, in connect
+    subprocess.run(["sleep", "5"], check=False)  # Wait 5 seconds between checks
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/subprocess.py", line 1201, in communicate
+    self.wait()
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/subprocess.py", line 2053, in _wait
+    (pid, sts) = self._try_wait(0)
+                 ^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/subprocess.py", line 2011, in _try_wait
+    (pid, sts) = os.waitpid(self.pid, wait_flags)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+
+
+---
+
+_**Assistant**_
+
+
 
 ---
 

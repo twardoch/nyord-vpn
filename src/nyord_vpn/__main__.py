@@ -1,146 +1,139 @@
-"""CLI interface for VPN operations.
+"""Command line interface for nyord-vpn."""
 
-Usage:
-    nyord-vpn [--api=<api>] [--verbose] <command> [<args>...]
-
-Commands:
-    connect [<country>]    Connect to VPN in specified country (optional). Requires administrator password.
-    disconnect            Disconnect from VPN. Requires administrator password.
-    status               Show current VPN connection status
-    list-countries       List available countries
-
-Options:
-    --api=<api>         API to use: 'legacy' or 'njord' [default: legacy]
-    --verbose           Enable debug logging [default: False]
-
-Environment Variables:
-    NORD_USER          NordVPN username (required)
-    NORD_PASSWORD      NordVPN password (required)
-
-Note:
-    The connect and disconnect commands require administrator/sudo access to configure
-    system networking. You will be prompted for your administrator password.
-"""
-
+import os
 import sys
-from typing import Literal, cast
+from typing import List, Optional
+import json
+from datetime import datetime
+import subprocess
 
 import fire
-from loguru import logger
+from rich.console import Console
+from rich.table import Table
 
-from nyord_vpn.core.exceptions import VPNError, VPNConfigError
-from nyord_vpn.core.factory import create_client
+from .client import Client, VPNError
+from .scripts.update_countries import fetch_countries
+
+console = Console()
 
 
-def setup_logging(verbose: bool = False) -> None:
-    """Set up logging configuration.
-
-    Args:
-        verbose: Whether to enable debug logging
-    """
-    logger.remove()
-    logger.add(
-        sys.stderr,
-        format="<level>{message}</level>",
-        level="DEBUG" if verbose else "INFO",
-    )
+def _check_root() -> None:
+    """Request root privileges using sudo."""
+    if os.geteuid() != 0:
+        try:
+            # Re-run the script with sudo
+            args = ["sudo", sys.executable] + sys.argv
+            subprocess.run(args, check=True)
+            sys.exit(0)
+        except subprocess.CalledProcessError:
+            console.print("[red]Error: This command requires root privileges.[/red]")
+            console.print("[yellow]Please run the command again with sudo:[/yellow]")
+            console.print(f"[blue]sudo {' '.join(sys.argv)}[/blue]")
+            sys.exit(1)
 
 
 class CLI:
-    """VPN CLI interface."""
+    """NordVPN CLI interface."""
 
-    def __init__(self, api: str = "legacy", verbose: bool = False) -> None:
-        """Initialize CLI.
-
-        Args:
-            api: API to use (legacy or njord)
-            verbose: Enable verbose logging
-
-        Raises:
-            VPNConfigError: If API type is invalid
-        """
-        setup_logging(verbose)
-        if api not in ("legacy", "njord"):
-            msg = "API must be 'legacy' or 'njord'"
-            raise VPNConfigError(msg)
+    def __init__(self, verbose: bool = False):
+        """Initialize CLI."""
         try:
-            self._client = create_client(cast(Literal["legacy", "njord"], api))
+            self.client = Client(verbose=verbose)
         except VPNError as e:
-            logger.error(f"Failed to initialize client: {e}")
+            console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    def connect(self, country: str | None = None) -> None:
-        """Connect to VPN.
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country.
 
         Args:
-            country: Optional country to connect to
+            country_code: Two-letter country code (e.g. 'us', 'uk')
         """
+        _check_root()
         try:
-            logger.info(
-                "Requesting administrator password to configure VPN connection..."
-            )
-            self._client.connect(country)
-            status = self._client.status()
-            logger.info(
-                f"Connected to {status['server']} ({status['ip']}, {status['country']})"
-            )
+            self.client.go(country_code)
         except VPNError as e:
-            if "RetryError" in str(e):
-                logger.error(
-                    "Failed to connect: VPN server is not responding. Please try again later or try a different server."
-                )
-            else:
-                logger.error(f"Failed to connect: {e}")
+            console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    def disconnect(self) -> None:
+    def bye(self) -> None:
         """Disconnect from VPN."""
+        _check_root()
         try:
-            logger.info("Requesting administrator password to disconnect VPN...")
-            self._client.disconnect()
-            logger.info("Disconnected from VPN")
+            self.client.disconnect()
+            console.print("[green]Successfully disconnected from VPN[/green]")
         except VPNError as e:
-            logger.error(f"Failed to disconnect: {e}")
+            console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    def status(self) -> None:
-        """Show VPN status."""
+    def info(self) -> None:
+        """Show current connection info."""
         try:
-            status = self._client.status()
-            if status["connected"]:
-                logger.info(
-                    f"Connected to {status['server']} "
-                    f"({status['ip']}, {status['country']})"
-                )
+            status = self.client.status()
+            if status:
+                console.print(f"[green]Connected to:[/green] {status}")
             else:
-                logger.info("Not connected to VPN")
+                console.print("[yellow]Not connected to VPN[/yellow]")
         except VPNError as e:
-            logger.error(f"Failed to get status: {e}")
+            console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    def list_countries(self) -> None:
-        """List available countries."""
+    def where(self, live: bool = False) -> None:
+        """List available countries.
+
+        Args:
+            live: If True, fetch fresh data from API instead of using cache
+        """
         try:
-            countries = self._client.list_countries()
-            for country in countries:
-                logger.info(f"{country['name']} ({country['code']})")
+            if live:
+                countries = fetch_countries()
+            else:
+                countries = self.client.countries
+
+            table = Table(title="Available Countries")
+            table.add_column("Country", style="cyan")
+            table.add_column("Code", style="yellow")
+            table.add_column("Servers", justify="right", style="green")
+
+            for country in sorted(countries, key=lambda x: x["name"]):
+                table.add_row(
+                    country["name"],
+                    country["code"].lower(),
+                    str(country["serverCount"]),
+                )
+
+            console.print(table)
+            total_servers = sum(country["serverCount"] for country in countries)
+            console.print(
+                f"\nTotal: [cyan]{len(countries)}[/cyan] countries, [green]{total_servers}[/green] servers"
+            )
+
         except VPNError as e:
-            logger.error(f"Failed to list countries: {e}")
+            console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    # Hide client attribute from Fire's command discovery
-    @property
-    def client(self) -> None:
-        """Hide client attribute from Fire's command discovery."""
-        return None
+    def update(self) -> None:
+        """Update country list from NordVPN API."""
+        try:
+            countries = fetch_countries()
+            with open(self.client.cache_file, "w") as f:
+                json.dump(
+                    {"countries": countries, "last_updated": str(datetime.now())},
+                    f,
+                    indent=2,
+                )
+            console.print("[green]Successfully updated country list[/green]")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
 
 
 def main() -> None:
-    """CLI entry point."""
+    """Main entry point."""
     try:
         fire.Fire(CLI)
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
 
 

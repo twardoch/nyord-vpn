@@ -11,7 +11,7 @@ mssfix 1450
 persist-key
 persist-tun
 ping 15
-ping-restart 0
+ping-restart 60
 ping-timer-rem
 reneg-sec 0
 comp-lzo no
@@ -23,7 +23,7 @@ auth-user-pass
 verb 3
 pull
 fast-io
-cipher AES-256-CBC
+cipher AES-256-GCM
 auth SHA512
 <ca>
 -----BEGIN CERTIFICATE-----
@@ -80,7 +80,8 @@ a196c9de96012090e333519ae18d3509
 3f8a56ddb2e64eb67adfc9b337157ff4
 -----END OpenVPN Static key V1-----
 </tls-auth>
-ifconfig-ipv6 fd15:53b6:dead::2/64 fd15:53b6:dead::1
-redirect-gateway ipv6
-block-ipv6
+redirect-gateway def1
+dhcp-option DNS 103.86.96.100
+dhcp-option DNS 103.86.99.100
+explicit-exit-notify 1
 script-security 2"""

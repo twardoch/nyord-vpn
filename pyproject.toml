@@ -92,6 +92,7 @@ nyord-vpn = "nyord_vpn.__main__:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["nyord_vpn"]
+package-data = {"nyord_vpn" = ["data/*.json"]}
 
 [[project.authors]]
 name = "Adam Twardoch"
