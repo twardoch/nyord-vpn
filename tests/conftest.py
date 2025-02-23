@@ -2,19 +2,19 @@
 
 import os
 from pathlib import Path
-from collections.abc import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from collections.abc import Generator
+from unittest.mock import MagicMock, patch
 
 import pytest
-import pytest_asyncio
 from pydantic import SecretStr
 
+from nyord_vpn.api.njord import NjordVPNClient
+from nyord_vpn.api.legacy import LegacyVPNClient
 from nyord_vpn.core.client import VPNClient
-from nyord_vpn.core.config import VPNConfig
 
 # Test credentials - load from environment variables
-TEST_USERNAME = os.getenv("TEST_NORD_USER", "test_user")
-TEST_PASSWORD = SecretStr(os.getenv("TEST_NORD_PASSWORD", "test_password"))
+TEST_USERNAME = os.getenv("NORD_USER", "test_user")
+TEST_PASSWORD = SecretStr(os.getenv("NORD_PASSWORD", "test_password"))
 
 
 @pytest.fixture
@@ -24,124 +24,61 @@ def temp_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def test_credentials() -> tuple[str, SecretStr]:
-    """Get test credentials."""
-    return TEST_USERNAME, TEST_PASSWORD
-
-
-@pytest.fixture
-def test_config(test_credentials: tuple[str, SecretStr]) -> VPNConfig:
-    """Create a test configuration."""
-    username, password = test_credentials
-    return VPNConfig(
-        username=username,
-        password=password.get_secret_value(),
-        default_country="Test Country",
-        retry_attempts=3,
-        use_legacy_fallback=True,
-        api_timeout=10,
-    )
-
-
-@pytest_asyncio.fixture
-async def mock_client(test_config: VPNConfig) -> AsyncGenerator[VPNClient, None]:
+def mock_client() -> Generator[VPNClient, None, None]:
     """Create a mock VPN client."""
     with (
-        patch("nyord_vpn.api.njord.NjordAPI") as mock_njord,
-        patch("nyord_vpn.api.legacy.LegacyAPI") as mock_legacy,
+        patch("nyord_vpn.api.njord.NjordVPNClient") as mock_njord,
+        patch("nyord_vpn.api.legacy.LegacyVPNClient") as mock_legacy,
     ):
         # Setup mock APIs
-        mock_njord.return_value.connect = AsyncMock(return_value=True)
-        mock_njord.return_value.disconnect = AsyncMock(return_value=True)
-        mock_njord.return_value.status = AsyncMock(
-            return_value={
-                "connected": True,
-                "country": "Test Country",
-                "ip": "1.2.3.4",
-                "server": "test.server.com",
-            }
-        )
-        mock_njord.return_value.list_countries = AsyncMock(
-            return_value=["Country 1", "Country 2"]
-        )
+        mock_njord.return_value.connect.return_value = True
+        mock_njord.return_value.disconnect.return_value = True
+        mock_njord.return_value.status.return_value = {
+            "connected": True,
+            "country": "Test Country",
+            "ip": "1.2.3.4",
+            "server": "test.server.com",
+        }
+        mock_njord.return_value.list_countries.return_value = [
+            {"name": "Country 1", "code": "1"},
+            {"name": "Country 2", "code": "2"},
+        ]
 
-        # Setup legacy API similarly
-        mock_legacy.return_value.connect = AsyncMock(return_value=True)
-        mock_legacy.return_value.disconnect = AsyncMock(return_value=True)
-        mock_legacy.return_value.status = AsyncMock(
-            return_value={
-                "connected": True,
-                "country": "Test Country",
-                "ip": "1.2.3.4",
-                "server": "test.server.com",
-            }
-        )
-        mock_legacy.return_value.list_countries = AsyncMock(
-            return_value=["Country 1", "Country 2"]
-        )
+        mock_legacy.return_value.connect.return_value = True
+        mock_legacy.return_value.disconnect.return_value = True
+        mock_legacy.return_value.status.return_value = {
+            "connected": True,
+            "country": "Test Country",
+            "ip": "1.2.3.4",
+            "server": "test.server.com",
+        }
+        mock_legacy.return_value.list_countries.return_value = [
+            {"name": "Country 1", "code": "1"},
+            {"name": "Country 2", "code": "2"},
+        ]
 
-        # Create client with test config
-        client = VPNClient(
-            username=test_config.username,
-            password=test_config.password.get_secret_value(),
-        )
+        # Create client with test credentials
+        client = VPNClient()
         yield client
 
 
 @pytest.fixture
-def mock_aiohttp_session() -> Generator[MagicMock, None, None]:
-    """Mock aiohttp ClientSession."""
-    with patch("aiohttp.ClientSession") as mock_session:
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "ip": "1.2.3.4",
-                "country": "Test Country",
-                "hostname": "test.server.com",
-            }
-        )
-        mock_session.return_value.__aenter__.return_value.get.return_value.__aenter__.return_value = mock_response
-        yield mock_session.return_value
-
-
-@pytest.fixture
 def mock_subprocess() -> Generator[MagicMock, None, None]:
-    """Mock subprocess.run."""
+    """Mock subprocess calls."""
     with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="Success output",
-            stderr="Error output",
-        )
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = b"Connected to test.server.com"
         yield mock_run
-
-
-@pytest.fixture
-def mock_pycountry() -> Generator[MagicMock, None, None]:
-    """Mock pycountry module."""
-    with patch("pycountry.countries") as mock_countries:
-        mock_country = MagicMock()
-        mock_country.alpha_2 = "SE"
-        mock_country.name = "Sweden"
-        mock_countries.get.return_value = mock_country
-        mock_countries.search_fuzzy.return_value = [mock_country]
-        yield mock_countries
 
 
 @pytest.fixture(autouse=True)
 def mock_nordvpn_command(monkeypatch, tmp_path: Path) -> Generator[Path, None, None]:
-    """Mock the nordvpn command for tests."""
-    # Create a mock nordvpn command
-    mock_cmd = tmp_path / "nordvpn"
-    mock_cmd.write_text("#!/bin/bash\nexit 0")
-    mock_cmd.chmod(0o755)
-
-    # Add the mock command to PATH
-    new_path = f"{tmp_path}:{os.environ.get('PATH', '')}"
-    monkeypatch.setenv("PATH", new_path)
-
-    return mock_cmd
+    """Mock nordvpn command."""
+    nordvpn_path = tmp_path / "nordvpn"
+    nordvpn_path.write_text("#!/bin/sh\nexit 0\n")
+    nordvpn_path.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    yield nordvpn_path
 
 
 @pytest.fixture(autouse=True)

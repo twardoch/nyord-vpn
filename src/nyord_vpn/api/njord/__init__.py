@@ -1,11 +1,16 @@
-"""Njord VPN API implementation."""
+"""
+njord
+
+"""
+
+__version__ = "0.0.2"
+__author__ = "admjs"
 
 from typing import Any
 
 from loguru import logger
-from njord import Client as NjordClient
-from tenacity import retry, stop_after_attempt, wait_exponential
 
+from .client import Client
 from nyord_vpn.core.base import BaseVPNClient, VPNStatus
 from nyord_vpn.core.exceptions import VPNConnectionError, VPNServerError
 
@@ -16,13 +21,10 @@ class NjordVPNClient(BaseVPNClient):
     def __init__(self) -> None:
         """Initialize njord VPN client."""
         super().__init__()
-        self._client = NjordClient(user=self.username, password=self.password)
+        self._client = Client(user=self.username, password=self.password)
         self._current_server: str | None = None
         logger.debug("Initialized njord VPN client")
 
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
-    )
     def connect(self, country: str | None = None) -> bool:
         """Connect to VPN using njord."""
         try:
@@ -64,9 +66,6 @@ class NjordVPNClient(BaseVPNClient):
         except Exception:
             return False
 
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
-    )
     def status(self) -> VPNStatus:
         """Get VPN status."""
         try:
@@ -92,3 +91,6 @@ class NjordVPNClient(BaseVPNClient):
         except Exception as e:
             msg = "Failed to get country list"
             raise VPNServerError(msg) from e
+
+
+__all__ = ["Client", "NjordVPNClient"]

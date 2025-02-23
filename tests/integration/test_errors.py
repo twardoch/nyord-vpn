@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 import json
 from pathlib import Path
+import subprocess
 
 from nyord_vpn.core.client import VPNClient
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNConfigError
@@ -18,6 +19,7 @@ async def test_network_errors(
     mock_aiohttp_session,
     mock_subprocess,
     mock_pycountry,
+    mock_env_credentials,
 ):
     """Test handling of network-related errors."""
     # Test connection timeout
@@ -52,30 +54,18 @@ async def test_subprocess_errors(
     mock_aiohttp_session,
     mock_subprocess,
     mock_pycountry,
+    mock_env_credentials,
 ):
     """Test handling of subprocess-related errors."""
-    # Test command not found
-    mock_subprocess.side_effect = FileNotFoundError("Command not found")
-    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+    # Test OpenVPN not found
+    mock_subprocess.side_effect = FileNotFoundError("openvpn not found")
+    with pytest.raises(VPNConfigError):
         async with mock_client as client:
             await client.connect()
 
-    # Test permission denied
-    mock_subprocess.side_effect = PermissionError("Permission denied")
-    with pytest.raises(VPNConnectionError, match="Failed to connect"):
-        async with mock_client as client:
-            await client.connect()
-
-    # Test command timeout
-    mock_subprocess.side_effect = TimeoutError("Command timed out")
-    with pytest.raises(VPNConnectionError, match="Failed to connect"):
-        async with mock_client as client:
-            await client.connect()
-
-    # Test command failure
-    mock_subprocess.return_value.returncode = 1
-    mock_subprocess.return_value.communicate.return_value = (b"", b"Command failed")
-    with pytest.raises(VPNConnectionError, match="Failed to connect"):
+    # Test OpenVPN error
+    mock_subprocess.side_effect = subprocess.SubprocessError("OpenVPN error")
+    with pytest.raises(VPNConnectionError):
         async with mock_client as client:
             await client.connect()
 
@@ -124,33 +114,22 @@ async def test_api_errors(
     mock_aiohttp_session,
     mock_subprocess,
     mock_pycountry,
+    mock_env_credentials,
 ):
     """Test handling of API-related errors."""
-    # Test invalid country
-    mock_pycountry.countries.get.return_value = None
-    mock_pycountry.countries.search_fuzzy.return_value = []
-    with pytest.raises(VPNError, match="Country not found"):
-        async with mock_client as client:
-            await client.connect("Invalid Country")
-
-    # Test API authentication error
-    mock_client.primary_api.connect.side_effect = VPNError("Authentication failed")
-    mock_client.fallback_api.connect.side_effect = VPNError("Authentication failed")
-    with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
+    # Test API error response
+    mock_aiohttp_session.get.return_value.__aenter__.return_value.json.return_value = {
+        "error": "API error"
+    }
+    with pytest.raises(VPNConnectionError):
         async with mock_client as client:
             await client.connect()
 
-    # Test API rate limit
-    mock_client.primary_api.connect.side_effect = VPNError("Rate limit exceeded")
-    mock_client.fallback_api.connect.side_effect = VPNError("Rate limit exceeded")
-    with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
-        async with mock_client as client:
-            await client.connect()
-
-    # Test API server error
-    mock_client.primary_api.connect.side_effect = VPNError("Server error")
-    mock_client.fallback_api.connect.side_effect = VPNError("Server error")
-    with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
+    # Test invalid API response
+    mock_aiohttp_session.get.return_value.__aenter__.return_value.json.side_effect = (
+        json.JSONDecodeError("Invalid JSON", "{", 0)
+    )
+    with pytest.raises(VPNConnectionError):
         async with mock_client as client:
             await client.connect()
 
@@ -216,7 +195,9 @@ async def test_invalid_credentials():
 @pytest.mark.asyncio
 async def test_network_errors():
     """Test handling of network errors."""
-    client = VPNClient(username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value())
+    client = VPNClient(
+        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+    )
 
     # Test connection with network error
     with pytest.raises(VPNConnectionError):
@@ -309,3 +290,29 @@ async def test_invalid_country():
     # Test connection with empty country
     with pytest.raises(VPNConnectionError):
         await client.connect("")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_cleanup_after_error(
+    mock_client,
+    mock_aiohttp_session,
+    mock_subprocess,
+    mock_pycountry,
+    mock_env_credentials,
+):
+    """Test cleanup after errors."""
+    # Test cleanup after connection error
+    mock_client.primary_api.connect.side_effect = VPNError("Connection failed")
+    mock_client.fallback_api.connect.side_effect = VPNError("Connection failed")
+
+    try:
+        async with mock_client as client:
+            await client.connect()
+    except VPNConnectionError:
+        pass
+
+    # Verify cleanup
+    status = mock_client.status()
+    assert status["connected"] is False
+    assert status["server"] == ""

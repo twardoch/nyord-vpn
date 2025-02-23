@@ -87,7 +87,7 @@ test = [
 ]
 
 [project.scripts]
-nyord-vpn = "nyord_vpn.cli.commands:main"
+nyord-vpn = "nyord_vpn.__main__:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -4,16 +4,11 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, NoReturn
 
-from pydantic import SecretStr
+from loguru import logger
 
-from nyord_vpn.api.njord import NjordAPI
-from nyord_vpn.api.legacy import LegacyAPI
-from nyord_vpn.utils.retry import with_fallback, with_retry
-from nyord_vpn.utils.log_utils import (
-    LogConfig,
-    setup_logging,
-)
-from nyord_vpn.core.config import VPNConfig
+from nyord_vpn.api.njord import NjordVPNClient
+from nyord_vpn.api.legacy import LegacyVPNClient
+from nyord_vpn.core.base import BaseVPNClient
 from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
 
 
@@ -40,74 +35,45 @@ def _raise_countries_error(error: Exception) -> NoReturn:
 class VPNClient:
     """Main VPN client that manages connection and APIs."""
 
-    def __init__(
-        self,
-        config_file: Path | None = None,
-        username: str | None = None,
-        password: str | None = None,
-        log_file: Path | None = None,
-        use_legacy_api: bool = False,
-    ):
+    def __init__(self, use_legacy_api: bool = False) -> None:
         """Initialize VPN client.
 
         Args:
-            config_file: Optional path to config file
-            username: Optional username (overrides config)
-            password: Optional password (overrides config)
-            log_file: Optional path to log file
             use_legacy_api: Whether to use legacy API only
+
+        Note:
+            Credentials must be provided via NORD_USER and NORD_PASSWORD environment variables.
         """
-        # Setup logging
-        log_config = LogConfig(log_file=log_file) if log_file else None
-        self.logger = setup_logging(log_config)
-
-        # Load config
-        if config_file:
-            self.config = VPNConfig.from_file(config_file)
-        else:
-            self.config = VPNConfig.from_env()
-
-        # Override with explicit credentials if provided
-        if username:
-            self.config.username = username
-        if password:
-            self.config.password = SecretStr(password)
-
         # Initialize APIs
         if use_legacy_api:
             # Use only legacy API
-            self.primary_api = LegacyAPI(
-                username=self.config.username,
-                password=self.config.password.get_secret_value(),
-            )
+            self.primary_api = LegacyVPNClient()
             self.fallback_api = None
         else:
-            # Use njord with legacy fallback
-            self.primary_api = NjordAPI(
-                username=self.config.username,
-                password=self.config.password.get_secret_value(),
-            )
-            self.fallback_api = LegacyAPI(
-                username=self.config.username,
-                password=self.config.password.get_secret_value(),
-            )
+            # Use njord API with legacy fallback
+            self.primary_api = NjordVPNClient()
+            self.fallback_api = LegacyVPNClient()
+
+        logger.debug(
+            f"Initialized VPN client with {'legacy' if use_legacy_api else 'njord'} API"
+        )
 
         # Setup API methods
         if self.fallback_api:
             # Use fallback if available
-            self._connect = with_fallback(
+            self._connect = self._with_fallback(
                 self.primary_api.connect,
                 self.fallback_api.connect,
             )
-            self._disconnect = with_fallback(
+            self._disconnect = self._with_fallback(
                 self.primary_api.disconnect,
                 self.fallback_api.disconnect,
             )
-            self._status = with_fallback(
+            self._status = self._with_fallback(
                 self.primary_api.status,
                 self.fallback_api.status,
             )
-            self._list_countries = with_fallback(
+            self._list_countries = self._with_fallback(
                 self.primary_api.list_countries,
                 self.fallback_api.list_countries,
             )
@@ -118,84 +84,24 @@ class VPNClient:
             self._status = self.primary_api.status
             self._list_countries = self.primary_api.list_countries
 
-    @classmethod
-    def from_file(
-        cls,
-        config_file: Path,
-        username: str | None = None,
-        password: str | None = None,
-        log_file: Path | None = None,
-    ) -> "VPNClient":
-        """Create a VPNClient instance from a configuration file.
+    def _with_fallback(self, primary_func, fallback_func):
+        """Wrap a function with fallback support."""
 
-        Args:
-            config_file: Path to the configuration file
-            username: Optional username (overrides config)
-            password: Optional password (overrides config)
-            log_file: Optional path to log file
+        def wrapper(*args, **kwargs):
+            try:
+                return primary_func(*args, **kwargs)
+            except Exception as e:
+                if self.fallback_api:
+                    return fallback_func(*args, **kwargs)
+                raise e
 
-        Returns:
-            VPNClient: A new VPNClient instance
-        """
-        return cls(
-            config_file=config_file,
-            username=username,
-            password=password,
-            log_file=log_file,
-        )
+        return wrapper
 
-    @classmethod
-    def from_env(
-        cls,
-        username: str | None = None,
-        password: str | None = None,
-        log_file: Path | None = None,
-    ) -> "VPNClient":
-        """Create a VPNClient instance from environment variables.
-
-        Args:
-            username: Optional username (overrides env)
-            password: Optional password (overrides env)
-            log_file: Optional path to log file
-
-        Returns:
-            VPNClient: A new VPNClient instance
-        """
-        return cls(
-            username=username,
-            password=password,
-            log_file=log_file,
-        )
-
-    async def __aenter__(self) -> "VPNClient":
-        """Async context manager entry."""
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Async context manager exit."""
-        if exc_type is None:
-            await self.disconnect()
-
-    def is_connected(self) -> bool:
-        """Check if VPN is connected."""
-        try:
-            status = self._status()
-            if isinstance(status, dict):
-                return bool(status.get("connected", False))
-            return False
-        except VPNError:
-            return False
-
-    async def connect(self, country: str | None = None) -> bool:
+    def connect(self, country: str | None = None) -> bool:
         """Connect to VPN.
 
         Args:
-            country: Optional country to connect to (defaults to config)
+            country: Optional country to connect to
 
         Returns:
             bool: True if connection successful
@@ -203,13 +109,13 @@ class VPNClient:
         Raises:
             VPNConnectionError: If connection fails
         """
-        target_country = country or self.config.default_country
         try:
-            return await self._connect(target_country)
+            return self._connect(country)
         except Exception as e:
-            _raise_connection_error(e, target_country)
+            msg = f"Failed to connect: {e}"
+            raise VPNConnectionError(msg) from e
 
-    async def disconnect(self) -> bool:
+    def disconnect(self) -> bool:
         """Disconnect from VPN.
 
         Returns:
@@ -218,10 +124,13 @@ class VPNClient:
         Raises:
             VPNConnectionError: If disconnection fails
         """
-        return await self._disconnect()
+        try:
+            return self._disconnect()
+        except Exception as e:
+            msg = "Failed to disconnect"
+            raise VPNConnectionError(msg) from e
 
-    @with_retry()
-    async def status(self) -> dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Get current VPN connection status.
 
         Returns:
@@ -232,7 +141,7 @@ class VPNClient:
                 - server (str): Connected server if any
         """
         try:
-            status = await self._status()
+            status = self._status()
             # Ensure consistent status format
             return {
                 "connected": bool(status.get("connected", False)),
@@ -241,13 +150,17 @@ class VPNClient:
                 "server": str(status.get("server", "")) if status.get("server") else "",
             }
         except Exception as e:
-            _raise_status_error(e)
+            msg = "Failed to get status"
+            raise VPNConnectionError(msg) from e
 
-    @with_retry()
-    async def list_countries(self) -> list[str]:
+    def list_countries(self) -> list[dict[str, Any]]:
         """Get list of available countries.
 
         Returns:
-            list[str]: List of country names
+            list: List of countries with name and code
         """
-        return await self._list_countries()
+        try:
+            return self._list_countries()
+        except Exception as e:
+            msg = "Failed to list countries"
+            raise VPNConnectionError(msg) from e
