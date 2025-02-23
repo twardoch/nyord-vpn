@@ -196,6 +196,7 @@ class Client:
         self.api_client = NordVPNAPIClient(username_str, password_str, verbose)
         self.vpn_manager = VPNConnectionManager(verbose)
         self.server_manager = ServerManager(self.api_client)
+        self._failed_servers = set()  # Track failed servers in this session
 
         # Set up logging
         self.logger = logger
@@ -301,7 +302,12 @@ class Client:
     def go(
         self, country_code: Optional[str] = None, random_select: bool = False
     ) -> None:
-        """Connect to VPN in specified country."""
+        """Connect to VPN in specified country.
+
+        Args:
+            country_code: Optional country code to filter by. If None, a random country is selected.
+            random_select: Whether to select a random server instead of fastest
+        """
         try:
             # Get random country if none specified
             if not country_code:
@@ -328,68 +334,83 @@ class Client:
 
             while retry_count < max_retries:
                 try:
-                    # Select server
+                    if self.verbose:
+                        self.logger.info("Selecting fastest server...")
                     server = self.server_manager.select_fastest_server(
                         country_code, random_select
                     )
                     if not server:
                         raise ConnectionError("Failed to select a server")
 
+                    # Extract server info safely
+                    hostname = None
+                    country_name = None
+
                     if isinstance(server, dict):
                         hostname = server.get("hostname")
-                        country_name = server.get("country", {}).get("name", "Unknown")
+                        country_info = server.get("country", {})
+                        country_name = (
+                            country_info.get("name") if country_info else None
+                        )
                     else:
                         hostname = str(server)
-                        country_name = country_code or "Unknown"
 
                     if not hostname:
                         raise ConnectionError("Invalid server data received")
+
+                    country_name = country_name or country_code or "Unknown"
+
+                    # Skip if server has already failed
+                    if hostname in self._failed_servers:
+                        if self.verbose:
+                            self.logger.warning(
+                                f"Server {hostname} previously failed, skipping"
+                            )
+                        raise ConnectionError("Server previously failed")
 
                     if self.verbose:
                         self.logger.info(f"Selected server: {hostname}")
                     else:
                         console.print(f"[cyan]Server:[/cyan] {hostname}")
 
-                    # Set up connection
+                    if self.verbose:
+                        self.logger.info("Setting up VPN configuration...")
                     self.vpn_manager.setup_connection(
                         hostname, self.api_client.username, self.api_client.password
                     )
 
-                    # Start OpenVPN with progress indicator
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[progress.description]{task.description}"),
-                        transient=True,
-                    ) as progress:
-                        progress.add_task(description="Establishing VPN connection...")
-                        self.vpn_manager.start_openvpn()
+                    if self.verbose:
+                        self.logger.info("Establishing VPN connection...")
+                    self.vpn_manager.start_openvpn()
 
-                        # Wait for connection with timeout
-                        start_time = time.time()
-                        while time.time() - start_time < 10:  # 10 second timeout
-                            if self.vpn_manager.verify_connection():
-                                # Update connection info
-                                self.vpn_manager.update_connection_info(
-                                    hostname, country_name
+                    # Wait for connection with timeout
+                    start_time = time.time()
+                    while time.time() - start_time < 10:  # 10 second timeout
+                        if self.vpn_manager.verify_connection():
+                            # Update connection info
+                            self.vpn_manager.update_connection_info(
+                                hostname, country_name
+                            )
+
+                            if self.verbose:
+                                self.logger.info(f"Connected to {country_name}")
+                                self.logger.info(
+                                    f"VPN IP: {self.vpn_manager.get_current_ip()}"
+                                )
+                            else:
+                                console.print(
+                                    f"[green]Connected to {country_name}[/green]"
+                                )
+                                console.print(
+                                    f"[cyan]VPN IP:[/cyan] {self.vpn_manager.get_current_ip()}"
                                 )
 
-                                if self.verbose:
-                                    self.logger.info(f"Connected to {country_name}")
-                                    self.logger.info(
-                                        f"VPN IP: {self.vpn_manager.get_current_ip()}"
-                                    )
-                                else:
-                                    console.print(
-                                        f"[green]Connected to {country_name}[/green]"
-                                    )
-                                    console.print(
-                                        f"[cyan]VPN IP:[/cyan] {self.vpn_manager.get_current_ip()}"
-                                    )
+                            return
+                        time.sleep(1)
 
-                                return
-                            time.sleep(1)
-
-                        raise ConnectionError("Connection timeout")
+                    # Connection timeout, mark server as failed
+                    self._failed_servers.add(hostname)
+                    raise ConnectionError("Connection timeout")
 
                 except Exception as e:
                     retry_count += 1
@@ -404,6 +425,8 @@ class Client:
                             )
                         time.sleep(2)
                     else:
+                        # Clear failed servers list after max retries
+                        self._failed_servers.clear()
                         raise ConnectionError(
                             f"Failed to connect after {max_retries} attempts: {e}"
                         )

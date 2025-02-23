@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List, Dict, Any, TypedDict, cast, Sequence
+from typing import Optional, Tuple, List, Dict, Any, TypedDict, cast, Sequence, Union
 import random
 import subprocess
 import time
@@ -93,7 +93,7 @@ class ServerManager:
         Returns:
             dict: Server cache containing list of servers and metadata
         """
-        cache_file = self.client.cache_file
+        cache_file = CACHE_DIR / "servers.json"
         if cache_file.exists():
             try:
                 cache = json.loads(cache_file.read_text())
@@ -102,11 +102,22 @@ class ServerManager:
                     and isinstance(cache.get("servers", []), list)
                     and time.time() < cache.get("expires_at", 0)
                 ):
-                    if self.client.verbose:
-                        self.client.logger.debug(
-                            f"Using cached server list with {len(cache['servers'])} servers"
-                        )
-                    return cache
+                    # Validate cached servers
+                    valid_servers = [
+                        s for s in cache["servers"] if self._is_valid_server(s)
+                    ]
+                    if valid_servers:
+                        if self.client.verbose:
+                            self.client.logger.debug(
+                                f"Using cached server list with {len(valid_servers)} valid servers"
+                            )
+                        cache["servers"] = valid_servers
+                        return cache
+                    else:
+                        if self.client.verbose:
+                            self.client.logger.warning(
+                                "No valid servers in cache, fetching fresh data"
+                            )
             except Exception as e:
                 if self.client.verbose:
                     self.client.logger.warning(f"Failed to read cache: {e}")
@@ -242,7 +253,12 @@ class ServerManager:
                     "technologies": server.get("technologies", []),
                     "station": server.get("station"),
                 }
-                valid_servers.append(valid_server)
+
+                # Final validation
+                if self._is_valid_server(valid_server):
+                    valid_servers.append(valid_server)
+                else:
+                    invalid_count += 1
 
             if not valid_servers:
                 raise ValueError(
@@ -279,11 +295,17 @@ class ServerManager:
                     if isinstance(cache, dict) and isinstance(
                         cache.get("servers", []), list
                     ):
-                        if self.client.verbose:
-                            self.client.logger.info(
-                                f"Using fallback cache with {len(cache['servers'])} servers"
-                            )
-                        return cache
+                        # Validate cached servers even in fallback
+                        valid_servers = [
+                            s for s in cache["servers"] if self._is_valid_server(s)
+                        ]
+                        if valid_servers:
+                            if self.client.verbose:
+                                self.client.logger.info(
+                                    f"Using fallback cache with {len(valid_servers)} valid servers"
+                                )
+                            cache["servers"] = valid_servers
+                            return cache
                 except Exception:
                     pass
             return {"servers": [], "last_updated": "", "expires_at": 0}
@@ -298,27 +320,88 @@ class ServerManager:
             float: Ping time in milliseconds, or float('inf') if ping failed
         """
         try:
-            # Use subprocess ping with 1 second timeout
+            # Platform-specific ping command
+            import platform
+
+            system = platform.system().lower()
+
+            if system == "windows":
+                cmd = ["ping", "-n", "2", "-w", "1000", hostname]
+            elif system == "darwin":  # macOS
+                cmd = ["ping", "-c", "2", "-W", "1", "-t", "1", hostname]
+            else:  # Linux and others
+                cmd = ["ping", "-c", "2", "-W", "1", hostname]
+
+            if self.client.verbose:
+                self.client.logger.debug(f"Running ping command: {' '.join(cmd)}")
+
             result = subprocess.run(
-                ["ping", "-c", "2", "-W", "1", hostname],  # Try 2 pings instead of 1
+                cmd,
                 capture_output=True,
                 text=True,
-                timeout=3,  # Increased overall timeout
+                timeout=3,  # Overall timeout
             )
 
             if result.returncode == 0:
-                # Extract time from ping output
-                time_str = result.stdout.split("time=")[-1].split()[0]
-                ping_time = float(time_str)
+                # Extract time from ping output more robustly
+                min_time = float("inf")
+                for line in result.stdout.splitlines():
+                    if self.client.verbose:
+                        self.client.logger.debug(f"Ping output line: {line}")
+
+                    # Look for min/avg/max line
+                    if "min/avg/max" in line:
+                        try:
+                            # Format: round-trip min/avg/max/stddev = 18.894/18.894/18.894/0.000 ms
+                            stats = line.split("=")[1].strip().split("/")
+                            min_time = float(stats[0])
+                            if self.client.verbose:
+                                self.client.logger.debug(
+                                    f"Parsed min time from stats: {min_time}ms"
+                                )
+                            return min_time
+                        except (IndexError, ValueError) as e:
+                            if self.client.verbose:
+                                self.client.logger.debug(
+                                    f"Failed to parse min/avg/max line '{line}': {e}"
+                                )
+                            continue
+                    # Look for individual ping responses
+                    elif "time=" in line:
+                        try:
+                            time_str = line.split("time=")[1].split()[0].rstrip("ms")
+                            ping_time = float(time_str)
+                            min_time = min(min_time, ping_time)
+                            if self.client.verbose:
+                                self.client.logger.debug(
+                                    f"Parsed time from response: {ping_time}ms"
+                                )
+                        except (IndexError, ValueError) as e:
+                            if self.client.verbose:
+                                self.client.logger.debug(
+                                    f"Failed to parse time from line '{line}': {e}"
+                                )
+                            continue
+
+                if min_time < float("inf"):
+                    if self.client.verbose:
+                        self.client.logger.debug(
+                            f"Server {hostname} responded in {min_time}ms"
+                        )
+                    return min_time
+
+                # If we couldn't parse any times but ping succeeded
                 if self.client.verbose:
                     self.client.logger.debug(
-                        f"Server {hostname} responded in {ping_time}ms"
+                        f"Server {hostname} responded but couldn't parse time from output:\n{result.stdout}"
                     )
-                return ping_time
+                return float("inf")
             else:
                 if self.client.verbose:
                     self.client.logger.debug(
-                        f"Server {hostname} ping failed: {result.stderr.strip()}"
+                        f"Server {hostname} ping failed with code {result.returncode}:\n"
+                        f"stdout: {result.stdout}\n"
+                        f"stderr: {result.stderr}"
                     )
                 return float("inf")
 
@@ -329,6 +412,9 @@ class ServerManager:
         except Exception as e:
             if self.client.verbose:
                 self.client.logger.debug(f"Server {hostname} ping error: {e}")
+                import traceback
+
+                self.client.logger.debug(f"Traceback: {traceback.format_exc()}")
             return float("inf")
 
     def _is_valid_server(self, server: Any) -> bool:
@@ -343,6 +429,7 @@ class ServerManager:
         if not isinstance(server, dict):
             return False
 
+        # Check required fields
         hostname = server.get("hostname")
         if not isinstance(hostname, str) or not hostname:
             return False
@@ -351,92 +438,169 @@ class ServerManager:
         if not hostname.endswith(".nordvpn.com"):
             return False
 
+        # Check country info
+        country = server.get("country")
+        if not isinstance(country, dict):
+            return False
+
+        country_code = country.get("code")
+        if not isinstance(country_code, str) or len(country_code) != 2:
+            return False
+
+        # Check server status
+        status = server.get("status")
+        if status != "online":
+            return False
+
+        # Check load value
+        load = server.get("load")
+        if not isinstance(load, (int, float)) or load < 0 or load > 100:
+            return False
+
         return True
 
     def select_fastest_server(
-        self, country_code: str | None = None, random_select: bool = False
-    ) -> Optional[dict]:
-        """Select fastest server from a country.
+        self,
+        country_code: Optional[str] = None,
+        random_select: bool = False,
+        _retry_count: int = 0,
+    ) -> Optional[Union[Dict[str, Any], str]]:
+        """Select fastest server from list.
 
         Args:
-            country_code: Optional 2-letter country code
-            random_select: If True, select a random server instead of fastest
+            country_code: Optional country code to filter by
+            random_select: Whether to select a random server instead of fastest
+            _retry_count: Internal retry counter to prevent infinite recursion
 
         Returns:
-            dict: Selected server info or None if no server found
+            Server hostname or dict with server info
         """
+        if _retry_count >= 3:
+            self.client.logger.error(
+                "Maximum retry count reached, clearing failed servers"
+            )
+            self._failed_servers.clear()
+            return None
+
         try:
-            # Get cached servers
             cache = self.get_servers_cache()
-            servers = cache["servers"]
+            servers = cache.get("servers", [])
+            if self.client.verbose:
+                self.client.logger.debug(f"Got {len(servers)} servers from cache")
+            if not servers:
+                return None
 
             # Filter by country if specified
             if country_code:
+                if self.client.verbose:
+                    self.client.logger.debug(
+                        f"Filtering servers for country: {country_code}"
+                    )
                 servers = [
                     s
                     for s in servers
-                    if s.get("country", {}).get("code") == country_code.upper()
+                    if s.get("country", {}).get("code", "").upper()
+                    == country_code.upper()
                 ]
-            elif not random_select:
-                # If no country specified and not random, use servers with best score
-                servers.sort(key=lambda x: x.get("load", 100))
-                servers = servers[:5]
-
-            # Remove previously failed servers
-            servers = [s for s in servers if s["hostname"] not in self._failed_servers]
-
-            if not servers:
-                if self._failed_servers:
-                    # If we've exhausted all servers, clear failed list and try again
-                    self._failed_servers.clear()
-                    return self.select_fastest_server(country_code, random_select)
-                raise ServerError(
-                    f"No servers found{f' for country {country_code}' if country_code else ''}"
-                )
-
-            if random_select:
-                return random.choice(servers)
-
-            # Take top 5 by load and ping them
-            servers = sorted(servers, key=lambda x: x.get("load", 100))[:5]
-
-            # Show progress during ping tests
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True,
-            ) as progress:
-                task = progress.add_task(
-                    description="Testing server speeds...", total=len(servers)
-                )
-
-                # Ping servers and track results
-                server_pings = []
-                for server in servers:
-                    ping_time = self._ping_server(server["hostname"])
-                    if ping_time < float("inf"):  # Only include responsive servers
-                        server_pings.append((server, ping_time))
-                    progress.advance(task)
-
-                if not server_pings:
-                    # If no servers responded, mark them as failed and try again
-                    for server in servers:
-                        self._failed_servers.add(server["hostname"])
-                    return self.select_fastest_server(country_code, random_select)
-
-                # Select fastest responding server
-                fastest_server = min(server_pings, key=lambda x: x[1])[0]
-
                 if self.client.verbose:
-                    self.client.logger.info(
-                        f"Selected fastest server: {fastest_server['hostname']} ({fastest_server.get('load', '?')}% load)"
+                    self.client.logger.debug(
+                        f"Found {len(servers)} servers for {country_code}"
+                    )
+                if not servers:
+                    return None
+
+            # Skip servers that have failed
+            original_count = len(servers)
+            servers = [
+                s for s in servers if s.get("hostname") not in self._failed_servers
+            ]
+            if self.client.verbose:
+                skipped = original_count - len(servers)
+                if skipped > 0:
+                    self.client.logger.debug(
+                        f"Skipped {skipped} previously failed servers"
                     )
 
-                return fastest_server
+            if not servers:
+                self.client.logger.warning(
+                    "All servers have failed, clearing failed servers list"
+                )
+                self._failed_servers.clear()
+                return self.select_fastest_server(
+                    country_code, random_select, _retry_count + 1
+                )
+
+            # Select random server if requested
+            if random_select:
+                server = random.choice(servers)
+                if self.client.verbose:
+                    self.client.logger.debug(
+                        f"Randomly selected server: {server.get('hostname')} "
+                        f"({server.get('load', '?')}% load)"
+                    )
+                return server
+
+            # Sort by load and take top servers
+            servers.sort(key=lambda x: x.get("load", 100))
+            servers = servers[:5]  # Test top 5 servers
+            if self.client.verbose:
+                self.client.logger.debug(
+                    "Top 5 servers by load: "
+                    + ", ".join(
+                        f"{s.get('hostname')}({s.get('load', '?')}%)" for s in servers
+                    )
+                )
+
+            # Test response times
+            server_times = []
+            for server in servers:
+                hostname = server.get("hostname")
+                if not hostname:
+                    if self.client.verbose:
+                        self.client.logger.warning(f"Server missing hostname: {server}")
+                    continue
+
+                if self.client.verbose:
+                    self.client.logger.debug(f"Testing server {hostname}...")
+
+                response_time = self._ping_server(hostname)
+                if response_time is not None and response_time < float("inf"):
+                    server_times.append((server, response_time))
+                    if self.client.verbose:
+                        self.client.logger.debug(
+                            f"Server {hostname} responded in {response_time}ms"
+                        )
+                else:
+                    if self.client.verbose:
+                        self.client.logger.warning(
+                            f"Server {hostname} failed ping test"
+                        )
+
+            if not server_times:
+                if self.client.verbose:
+                    self.client.logger.warning(
+                        "No servers responded to ping test, falling back to load-based selection"
+                    )
+                # If no servers respond to ping, just use the one with lowest load
+                return servers[0]
+
+            # Select fastest server
+            fastest_server = min(server_times, key=lambda x: x[1])[0]
+            if self.client.verbose:
+                self.client.logger.info(
+                    f"Selected fastest server: {fastest_server.get('hostname')} "
+                    f"({fastest_server.get('load', '?')}% load, "
+                    f"{min(t for _, t in server_times)}ms)"
+                )
+
+            return fastest_server
 
         except Exception as e:
+            self.client.logger.error(f"Error selecting fastest server: {e}")
             if self.client.verbose:
-                self.client.logger.error(f"Error selecting server: {e}")
+                import traceback
+
+                self.client.logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
 
     def get_random_country(self) -> str:
