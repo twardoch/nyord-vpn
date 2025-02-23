@@ -10,16 +10,16 @@ This class is extended by the main Client class to add connection functionality.
 """
 
 import json
-import time
+import time, sys
 from typing import List, Optional
 import requests
+from loguru import logger
 
 from .models import City, Country, CountryCache
 from .utils import (
     CACHE_FILE,
     COUNTRIES_CACHE,
     CACHE_EXPIRY,
-    get_logger,
     API_HEADERS,
 )
 
@@ -83,18 +83,25 @@ FALLBACK_DATA: CountryCache = {
 
 
 class NordVPNClient:
-    """NordVPN client for managing VPN connections."""
+    """Base NordVPN client for managing country data and API interactions."""
 
     BASE_API_URL: str = "https://api.nordvpn.com/v1"
 
     def __init__(self, username: str, password: str, verbose: bool = False):
-        """Initialize NordVPN client."""
+        """Initialize NordVPN client.
+
+        Args:
+            username: NordVPN username
+            password: NordVPN password
+            verbose: Whether to enable verbose logging
+        """
         self.username = username
         self.password = password
         self.verbose = verbose
-        self.logger = get_logger(verbose)
+        self.logger = logger
         self.cache_file = CACHE_FILE
         self.countries = self._load_countries()
+        self.logger.add(sys.stdout, level="DEBUG" if self.verbose else "INFO")
 
     def _load_countries(self) -> List[Country]:
         """Load countries from cache or fallback data."""
@@ -107,7 +114,11 @@ class NordVPNClient:
             return FALLBACK_DATA["countries"]
 
     def get_country_by_code(self, code: str) -> Optional[Country]:
-        """Get country by its code."""
+        """Get country by its code.
+
+        Args:
+            code: Two-letter country code (e.g. 'us', 'uk')
+        """
         code = code.upper()
         for country in self.countries:
             if country["code"] == code:
@@ -115,7 +126,11 @@ class NordVPNClient:
         return None
 
     def get_country_by_name(self, name: str) -> Optional[Country]:
-        """Get country by its name."""
+        """Get country by its name.
+
+        Args:
+            name: Country name (case-insensitive)
+        """
         name = name.lower()
         for country in self.countries:
             if country["name"].lower() == name:
@@ -123,7 +138,7 @@ class NordVPNClient:
         return None
 
     def get_available_locations(self) -> List[str]:
-        """Get list of available locations."""
+        """Get list of available locations with server counts."""
         locations = []
         for country in sorted(self.countries, key=lambda x: x["name"]):
             total_servers = country["serverCount"]
@@ -135,7 +150,11 @@ class NordVPNClient:
         return locations
 
     def get_best_city(self, country_code: str) -> Optional[City]:
-        """Get the best city in a country based on hub score and server count."""
+        """Get the best city in a country based on hub score and server count.
+
+        Args:
+            country_code: Two-letter country code
+        """
         country = self.get_country_by_code(country_code)
         if not country:
             return None
@@ -159,8 +178,13 @@ class NordVPNClient:
             List of dictionaries containing country information
         """
         try:
+            if use_cache:
+                cached = self._get_cached_countries()
+                if cached:
+                    return cached["countries"]
+
             url = f"{self.BASE_API_URL}/servers/countries"
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, headers=API_HEADERS, timeout=10)
             response.raise_for_status()
             countries: List[Country] = response.json()
 
@@ -195,7 +219,8 @@ class NordVPNClient:
             with COUNTRIES_CACHE.open("r") as f:
                 return json.load(f)
 
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as e:
+            self.logger.warning(f"Failed to load country cache: {e}")
             return None
 
     def _cache_countries(self, data: CountryCache) -> None:
@@ -209,5 +234,5 @@ class NordVPNClient:
             with COUNTRIES_CACHE.open("w") as f:
                 json.dump(data, f, indent=2, sort_keys=True)
             COUNTRIES_CACHE.chmod(0o644)  # Make readable for all users
-        except OSError:
-            pass  # Silently fail if caching isn't possible
+        except OSError as e:
+            self.logger.warning(f"Failed to cache countries: {e}")

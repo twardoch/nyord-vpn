@@ -9,10 +9,10 @@ This module contains:
 """
 
 import json
-import logging
+from loguru import logger
 from pathlib import Path
 from platformdirs import user_cache_dir, user_config_dir
-import time
+import time, sys
 
 # Application directories
 APP_NAME = "nyord-vpn"
@@ -48,17 +48,6 @@ def ensure_data_dir() -> None:
 ensure_data_dir()
 
 
-def get_logger(verbose: bool = False) -> logging.Logger:
-    """Get logger instance."""
-    logger = logging.getLogger("nyord_vpn")
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        logger.addHandler(handler)
-    return logger
-
-
 # Load country IDs from JSON file
 try:
     with open(COUNTRY_IDS_FILE) as f:
@@ -86,29 +75,16 @@ def save_vpn_state(state: dict) -> None:
 
     The state includes:
     - connected: bool - current connection status
-    - non_vpn_ip: str - the IP address when not connected to VPN
+    - initial_ip: str - the original IP before VPN connection
     - connected_ip: str - the IP address when connected to VPN
     - server: str - current VPN server hostname
     - country: str - current VPN server country
     - timestamp: float - when the state was last updated
     """
     try:
-        # If we're saving a disconnected state, preserve the non_vpn_ip
-        if not state.get("connected") and state.get("initial_ip"):
-            state["non_vpn_ip"] = state.pop("initial_ip")
-
-        # Load existing state to preserve non_vpn_ip if not present
-        if STATE_FILE.exists():
-            try:
-                existing = json.loads(STATE_FILE.read_text())
-                if not state.get("non_vpn_ip"):
-                    state["non_vpn_ip"] = existing.get("non_vpn_ip")
-            except json.JSONDecodeError:
-                pass
-
         STATE_FILE.write_text(json.dumps(state, indent=2))
-    except Exception:
-        pass  # Silently fail if saving state fails
+    except Exception as e:
+        logger.warning(f"Failed to save VPN state: {e}")
 
 
 def load_vpn_state() -> dict:
@@ -119,13 +95,14 @@ def load_vpn_state() -> dict:
             # State is valid for 5 minutes
             if time.time() - state.get("timestamp", 0) < 300:
                 return state
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to load VPN state: {e}")
+
     return {
         "connected": False,
-        "non_vpn_ip": None,  # IP address when not connected to VPN
+        "initial_ip": None,  # Original IP before VPN connection
         "connected_ip": None,  # IP address when connected to VPN
         "server": None,
         "country": None,
-        "timestamp": None,
+        "timestamp": time.time(),
     }

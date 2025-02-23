@@ -6,6 +6,7 @@ from typing import List, Optional
 import json
 from datetime import datetime
 import subprocess
+import time
 
 import fire
 from rich.console import Console
@@ -75,14 +76,16 @@ class CLI:
         try:
             status = self.client.status()
             if status:
-                connected = status.get("connected", False)
+                connected = status.get("status", False)
                 ip = status.get("ip", "Unknown")
-                initial_ip = status.get("initial_ip", "Unknown")
+                country = status.get("country", "Unknown")
+                server = status.get("server", "Unknown")
 
                 if connected:
                     console.print("[green]VPN Status: Connected[/green]")
                     console.print(f"Current IP: [cyan]{ip}[/cyan]")
-                    console.print(f"Original IP: [yellow]{initial_ip}[/yellow]")
+                    console.print(f"Country: [cyan]{country}[/cyan]")
+                    console.print(f"Server: [cyan]{server}[/cyan]")
                 else:
                     console.print("[yellow]VPN Status: Not Connected[/yellow]")
                     console.print(f"Current IP: [cyan]{ip}[/cyan]")
@@ -108,18 +111,23 @@ class CLI:
             table.add_column("Country", style="cyan")
             table.add_column("Code", style="yellow")
             table.add_column("Servers", justify="right", style="green")
+            table.add_column("Cities", justify="right", style="blue")
 
             for country in sorted(countries, key=lambda x: x["name"]):
                 table.add_row(
                     country["name"],
                     country["code"].lower(),
                     str(country["serverCount"]),
+                    str(len(country["cities"])),
                 )
 
             console.print(table)
             total_servers = sum(country["serverCount"] for country in countries)
+            total_cities = sum(len(country["cities"]) for country in countries)
             console.print(
-                f"\nTotal: [cyan]{len(countries)}[/cyan] countries, [green]{total_servers}[/green] servers"
+                f"\nTotal: [cyan]{len(countries)}[/cyan] countries, "
+                f"[blue]{total_cities}[/blue] cities, "
+                f"[green]{total_servers}[/green] servers"
             )
 
         except VPNError as e:
@@ -130,13 +138,27 @@ class CLI:
         """Update country list from NordVPN API."""
         try:
             countries = fetch_countries()
+            total_servers = sum(country["serverCount"] for country in countries)
+            total_cities = sum(len(country["cities"]) for country in countries)
+
             with open(self.client.cache_file, "w") as f:
                 json.dump(
-                    {"countries": countries, "last_updated": str(datetime.now())},
+                    {
+                        "countries": countries,
+                        "last_updated": time.strftime(
+                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                        ),
+                    },
                     f,
                     indent=2,
                 )
-            console.print("[green]Successfully updated country list[/green]")
+
+            console.print("[green]✓ Updated country list cache with:[/green]")
+            console.print(f"  • [cyan]{len(countries)}[/cyan] countries")
+            console.print(f"  • [blue]{total_cities}[/blue] cities")
+            console.print(f"  • [green]{total_servers}[/green] servers")
+            console.print(f"[blue]Cache file: {self.client.cache_file}[/blue]")
+
         except Exception as e:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)

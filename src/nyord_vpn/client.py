@@ -8,7 +8,7 @@ This module contains the main Client class that extends the base NordVPNClient t
 """
 
 import json
-import os
+import os, sys
 import random
 import signal
 import subprocess
@@ -18,15 +18,24 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, TypedDict, Union, cast
 
 import psutil
+from loguru import logger
 import requests
 from dotenv import load_dotenv
-import logging
 import shutil
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.logging import RichHandler
 
 load_dotenv()
+logger.configure(
+    handlers=[
+        {
+            "sink": RichHandler(),
+            "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        }
+    ]
+)
 
 from ._templates import OPENVPN_TEMPLATE
 from .base import NordVPNClient
@@ -46,7 +55,6 @@ from .utils import (
     OPENVPN_AUTH,
     OPENVPN_CONFIG,
     OPENVPN_LOG,
-    logger,
     load_vpn_state,
     save_vpn_state,
 )
@@ -57,17 +65,6 @@ CACHE_FILE = DATA_DIR / "countries.json"
 
 # Rich console for pretty output
 console = Console()
-
-
-def get_logger(verbose: bool = False) -> logging.Logger:
-    """Get logger instance."""
-    logger = logging.getLogger("nyord_vpn")
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        logger.addHandler(handler)
-    return logger
 
 
 # Store cache in the package directory
@@ -188,6 +185,8 @@ class Client(NordVPNClient):
         self._connected_ip: Optional[str] = None
         self._server: Optional[str] = None
         self._country_name: Optional[str] = None
+        self.logger = logger
+        self.logger.add(sys.stdout, level="DEBUG" if self.verbose else "INFO")
 
         # Load saved state
         state = load_vpn_state()
@@ -358,6 +357,15 @@ class Client(NordVPNClient):
         except OSError:
             pass  # Silently fail if caching isn't possible
 
+    def connect(self, country: str | None = None, max_retries: int = 5) -> bool:
+        """Connect to a NordVPN server.
+
+        Args:
+            country: Optional 2-letter country code (e.g. 'us', 'uk')
+            max_retries: Number of connection retry attempts
+        """
+        raise NotImplementedError("Use go() method instead")
+
     def status(self) -> dict:
         """Get current VPN status."""
         try:
@@ -365,10 +373,16 @@ class Client(NordVPNClient):
             response = requests.get("https://api.ipify.org?format=json", timeout=5)
             response.raise_for_status()
             current_ip = response.json().get("ip")
+            if self.verbose:
+                self.logger.debug(f"Current IP: {current_ip}")
 
             # Load cached state
             state = load_vpn_state()
-            non_vpn_ip = state.get("non_vpn_ip")
+            initial_ip = state.get("initial_ip")
+            connected_ip = state.get("connected_ip")
+            if self.verbose:
+                self.logger.debug(f"Initial IP: {initial_ip}")
+                self.logger.debug(f"Connected IP: {connected_ip}")
 
             # Check if OpenVPN is running
             openvpn_running = False
@@ -376,6 +390,8 @@ class Client(NordVPNClient):
                 if proc.info["name"] == "openvpn":
                     openvpn_running = True
                     break
+            if self.verbose:
+                self.logger.debug(f"OpenVPN running: {openvpn_running}")
 
             # Then check if it's a NordVPN IP
             try:
@@ -386,32 +402,51 @@ class Client(NordVPNClient):
                 )
                 response.raise_for_status()
                 nord_data = response.json()
+                if self.verbose:
+                    self.logger.debug(f"NordVPN data: {nord_data}")
 
-                # We're definitely not connected if:
-                # 1. Current IP matches known non-VPN IP
-                # 2. OpenVPN is not running
-                # 3. Current IP doesn't match our connected IP
-                # 4. NordVPN doesn't recognize the IP
-                is_not_connected = (
-                    (non_vpn_ip and current_ip == non_vpn_ip)
-                    or not openvpn_running
-                    or current_ip != state.get("connected_ip")
-                    or not nord_data.get("status", False)
+                # We're connected if:
+                # 1. OpenVPN is running AND
+                # 2. Current IP matches our last known VPN IP OR NordVPN recognizes the IP
+                # 3. Current IP is different from our initial non-VPN IP
+                is_connected = (
+                    openvpn_running
+                    and (current_ip == connected_ip or nord_data.get("status", False))
+                    and (not initial_ip or current_ip != initial_ip)
                 )
 
-                is_connected = not is_not_connected
+                # Additional check - if we're not connected but OpenVPN is running and IP matches connected_ip,
+                # we might have stale state
+                if not is_connected and openvpn_running and current_ip == connected_ip:
+                    is_connected = True
+
+                if self.verbose:
+                    self.logger.debug(f"Connection status: {is_connected}")
+                    self.logger.debug(f"Status check conditions:")
+                    self.logger.debug(f"  1. OpenVPN running: {openvpn_running}")
+                    self.logger.debug(
+                        f"  2a. Current IP matches connected IP: {current_ip == connected_ip}"
+                    )
+                    self.logger.debug(
+                        f"  2b. NordVPN recognizes IP: {nord_data.get('status', False)}"
+                    )
+                    self.logger.debug(
+                        f"  3. Current IP differs from initial: {not initial_ip or current_ip != initial_ip}"
+                    )
 
                 if is_connected:
                     # Update state to ensure it's fresh
                     state = {
                         "connected": True,
-                        "initial_ip": self._initial_ip,
+                        "initial_ip": initial_ip or self._initial_ip,
                         "connected_ip": current_ip,
                         "server": self._server or state.get("server"),
                         "country": self._country_name or state.get("country"),
                         "timestamp": time.time(),
                     }
                     save_vpn_state(state)
+                    if self.verbose:
+                        self.logger.debug("Updated state with connected status")
 
                 return {
                     "status": is_connected,
@@ -424,23 +459,26 @@ class Client(NordVPNClient):
                 }
             except requests.RequestException:
                 # If NordVPN API check fails, use process and IP check
-                # We're definitely not connected if:
-                # 1. Current IP matches known non-VPN IP
-                # 2. OpenVPN is not running
-                # 3. Current IP doesn't match our connected IP
-                is_not_connected = (
-                    (non_vpn_ip and current_ip == non_vpn_ip)
-                    or not openvpn_running
-                    or current_ip != state.get("connected_ip")
+                # We're connected if:
+                # 1. OpenVPN is running AND
+                # 2. Current IP matches our last known VPN IP
+                # 3. Current IP is different from our initial non-VPN IP
+                is_connected = (
+                    openvpn_running
+                    and current_ip == connected_ip
+                    and (not initial_ip or current_ip != initial_ip)
                 )
 
-                is_connected = not is_not_connected
+                # Additional check - if we're not connected but OpenVPN is running and IP matches connected_ip,
+                # we might have stale state
+                if not is_connected and openvpn_running and current_ip == connected_ip:
+                    is_connected = True
 
                 if is_connected:
                     # Update state to ensure it's fresh
                     state = {
                         "connected": True,
-                        "initial_ip": self._initial_ip,
+                        "initial_ip": initial_ip or self._initial_ip,
                         "connected_ip": current_ip,
                         "server": self._server or state.get("server"),
                         "country": self._country_name or state.get("country"),
@@ -456,7 +494,7 @@ class Client(NordVPNClient):
                     "server": state.get("server"),
                 }
 
-        except requests.RequestException as e:
+        except Exception as e:
             raise ConnectionError(f"Failed to get status: {e}")
 
     def is_protected(self) -> bool:
@@ -467,14 +505,23 @@ class Client(NordVPNClient):
             response.raise_for_status()
             current_ip = response.json().get("ip")
 
-            # Load state to get non_vpn_ip
+            # Load state to get initial and connected IPs
             state = load_vpn_state()
-            non_vpn_ip = state.get("non_vpn_ip")
+            initial_ip = state.get("initial_ip")
+            connected_ip = state.get("connected_ip")
 
             # If we don't have an initial IP yet, store this one
-            if not self._initial_ip:
+            if not initial_ip and not self._initial_ip:
                 self._initial_ip = current_ip
-                self._save_state()
+                state = {
+                    "connected": False,
+                    "initial_ip": current_ip,
+                    "connected_ip": None,
+                    "server": None,
+                    "country": None,
+                    "timestamp": time.time(),
+                }
+                save_vpn_state(state)
                 return False
 
             # Check if OpenVPN is running
@@ -484,161 +531,25 @@ class Client(NordVPNClient):
                     openvpn_running = True
                     break
 
-            # We're definitely not connected if current IP matches known non-VPN IP
-            if non_vpn_ip and current_ip == non_vpn_ip:
-                return False
-
             # Connection is active if:
-            # 1. OpenVPN is running
+            # 1. OpenVPN is running AND
             # 2. Current IP matches our last known VPN IP
-            # 3. Current IP is different from our non-VPN IP
-            return (
+            # 3. Current IP is different from our initial non-VPN IP
+            is_connected = (
                 openvpn_running
-                and current_ip == self._connected_ip
-                and (not non_vpn_ip or current_ip != non_vpn_ip)
+                and current_ip == connected_ip
+                and (not initial_ip or current_ip != initial_ip)
             )
+
+            # Additional check - if we're not connected but OpenVPN is running and IP matches connected_ip,
+            # we might have stale state
+            if not is_connected and openvpn_running and current_ip == connected_ip:
+                is_connected = True
+
+            return is_connected
+
         except Exception:
             return False
-
-    def connect(self, country: str | None = None, max_retries: int = 5) -> bool:
-        """Connect to a NordVPN server.
-
-        Args:
-            country: Optional 2-letter country code (e.g. 'us', 'uk')
-            max_retries: Number of connection retry attempts
-        """
-        try:
-            # Validate country code if provided
-            if country and not isinstance(country, str):
-                raise ValueError("Country code must be a string")
-            if country:
-                country = country.lower()
-
-            subprocess.run(["sudo", "-v"], check=True)
-            self.disconnect()
-
-            server_info = self.fetch_server_info(country or self.country)
-            if server_info is None:
-                raise ServerError("Failed to fetch server info")
-
-            hostname, ip = server_info
-            print(f"Selected server: {hostname}")
-
-            file_content = OPENVPN_TEMPLATE.format(ip, hostname)
-            self.config_file = os.path.join(tempfile.gettempdir(), os.urandom(24).hex())
-            self.auth_file = self._create_auth_file()
-
-            with open(self.config_file, "w") as file:
-                file.write(file_content)
-            os.chmod(self.config_file, 0o600)
-
-            self.openvpn = subprocess.Popen(
-                [
-                    "sudo",
-                    "openvpn",
-                    "--config",
-                    self.config_file,
-                    "--auth-user-pass",
-                    self.auth_file,
-                    "--daemon",
-                    "--verb",
-                    "3",
-                    "--connect-retry",
-                    "2",
-                    "--connect-timeout",
-                    "10",
-                    "--resolv-retry",
-                    "infinite",
-                    "--ping",
-                    "10",
-                    "--ping-restart",
-                    "60",
-                ],
-                shell=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
-
-            # Wait for connection
-            for _ in range(30):  # 30 seconds timeout
-                time.sleep(1)
-                if self.is_protected():
-                    print(f"Connected to {hostname}")
-                    self.connection_retries = 0
-                    return True
-
-            if self.connection_retries < max_retries:
-                print("Connection failed - retrying")
-                self.connection_retries += 1
-                return self.connect(country, max_retries)
-
-            raise ConnectionError("Failed to connect after retries")
-
-        except Exception as e:
-            if isinstance(e, (ServerError, ConnectionError)):
-                raise
-            raise ConnectionError(f"Connection error: {e}")
-        finally:
-            if not self.is_protected():
-                self.disconnect()
-
-    def flush(self) -> None:
-        """Terminate all running OpenVPN processes."""
-        try:
-            # First try graceful shutdown
-            for proc in psutil.process_iter(attrs=["name", "pid"]):
-                if proc.info["name"] == "openvpn":
-                    try:
-                        # Try SIGTERM first
-                        subprocess.run(
-                            ["sudo", "kill", str(proc.info["pid"])],
-                            check=True,
-                            timeout=5,
-                        )
-                    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                        # If SIGTERM fails, force kill
-                        subprocess.run(
-                            ["sudo", "kill", "-9", str(proc.info["pid"])], check=True
-                        )
-
-            # Double check no processes remain
-            time.sleep(1)
-            for proc in psutil.process_iter(attrs=["name"]):
-                if proc.info["name"] == "openvpn":
-                    raise DisconnectionError(
-                        "Failed to terminate all OpenVPN processes"
-                    )
-
-        except Exception as e:
-            if isinstance(e, DisconnectionError):
-                raise
-            raise DisconnectionError(f"Failed to flush OpenVPN processes: {e}")
-
-    def disconnect(self, verbose: bool = True) -> None:
-        """Disconnect from the current server and clean up."""
-        try:
-            # Kill all OpenVPN processes
-            self.flush()
-
-            # Reset connection state
-            self._initial_ip = None
-            self._connected_ip = None
-            self._server = None
-            self._country_name = None
-            self._save_state()
-
-            # Clean up files
-            for file in [OPENVPN_CONFIG, OPENVPN_AUTH, OPENVPN_LOG]:
-                if file.exists():
-                    file.unlink()
-
-            # Wait briefly for network to stabilize
-            time.sleep(1)
-
-            if verbose:
-                print("Disconnected from VPN")
-        except Exception as e:
-            raise DisconnectionError(f"Error during disconnect: {e}")
 
     def go(self, country_code: str) -> None:
         """Connect to VPN in specified country."""
@@ -657,6 +568,16 @@ class Client(NordVPNClient):
                 response = requests.get("https://api.ipify.org?format=json", timeout=5)
                 response.raise_for_status()
                 self._initial_ip = response.json().get("ip")
+                # Save initial state
+                state = {
+                    "connected": False,
+                    "initial_ip": self._initial_ip,
+                    "connected_ip": None,
+                    "server": None,
+                    "country": None,
+                    "timestamp": time.time(),
+                }
+                save_vpn_state(state)
                 if self.verbose:
                     self.logger.info(f"Initial IP: {self._initial_ip}")
                 else:
@@ -803,3 +724,71 @@ class Client(NordVPNClient):
             self.logger.error(f"Connection failed: {e}")
             self.disconnect(verbose=self.verbose)
             raise
+
+    def flush(self) -> None:
+        """Terminate all running OpenVPN processes."""
+        try:
+            # First try graceful shutdown
+            for proc in psutil.process_iter(attrs=["name", "pid"]):
+                if proc.info["name"] == "openvpn":
+                    try:
+                        # Try SIGTERM first
+                        subprocess.run(
+                            ["sudo", "kill", str(proc.info["pid"])],
+                            check=True,
+                            timeout=5,
+                        )
+                    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                        # If SIGTERM fails, force kill
+                        subprocess.run(
+                            ["sudo", "kill", "-9", str(proc.info["pid"])], check=True
+                        )
+
+            # Double check no processes remain
+            time.sleep(1)
+            for proc in psutil.process_iter(attrs=["name"]):
+                if proc.info["name"] == "openvpn":
+                    raise DisconnectionError(
+                        "Failed to terminate all OpenVPN processes"
+                    )
+
+        except Exception as e:
+            if isinstance(e, DisconnectionError):
+                raise
+            raise DisconnectionError(f"Failed to flush OpenVPN processes: {e}")
+
+    def disconnect(self, verbose: bool = True) -> None:
+        """Disconnect from the current server and clean up."""
+        try:
+            # Kill all OpenVPN processes
+            self.flush()
+
+            # Save disconnected state
+            state = {
+                "connected": False,
+                "initial_ip": None,  # Reset initial IP so we get a fresh one next connect
+                "connected_ip": None,
+                "server": None,
+                "country": None,
+                "timestamp": time.time(),
+            }
+            save_vpn_state(state)
+
+            # Reset instance state
+            self._initial_ip = None
+            self._connected_ip = None
+            self._server = None
+            self._country_name = None
+
+            # Clean up files
+            for file in [OPENVPN_CONFIG, OPENVPN_AUTH, OPENVPN_LOG]:
+                if file.exists():
+                    file.unlink()
+
+            # Wait briefly for network to stabilize
+            time.sleep(1)
+
+            if verbose:
+                print("Disconnected from VPN")
+        except Exception as e:
+            raise DisconnectionError(f"Error during disconnect: {e}")
