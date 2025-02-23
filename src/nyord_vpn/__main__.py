@@ -56,6 +56,20 @@ class CLI:
         """
         _check_root()
         try:
+            # First check if we're already connected
+            status = self.client.status()
+            if status and status.get("status", False):
+                console.print("[yellow]Already connected to VPN.[/yellow]")
+                console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(
+                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
+                )
+                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+                console.print("\n[yellow]Please disconnect first with:[/yellow]")
+                console.print("[blue]sudo nyord-vpn bye[/blue]")
+                sys.exit(1)
+
+            # Connect to VPN
             self.client.go(country_code)
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
@@ -65,8 +79,24 @@ class CLI:
         """Disconnect from VPN."""
         _check_root()
         try:
+            # First check if we're actually connected
+            status = self.client.status()
+            if not status or not status.get("status", False):
+                console.print("[yellow]Not connected to VPN[/yellow]")
+                console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                return
+
+            # Store the private IP for display
+            private_ip = status.get("ip", "Unknown")
+
+            # Disconnect
             self.client.disconnect()
+
+            # Get new status for normal IP
+            status = self.client.status()
             console.print("[green]Successfully disconnected from VPN[/green]")
+            console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+            console.print(f"Previous Private IP: [yellow]{private_ip}[/yellow]")
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
@@ -83,14 +113,15 @@ class CLI:
 
                 if connected:
                     console.print("[green]VPN Status: Connected[/green]")
-                    console.print(f"Current IP: [cyan]{ip}[/cyan]")
+                    console.print(f"Private IP: [cyan]{ip}[/cyan]")
                     console.print(f"Country: [cyan]{country}[/cyan]")
                     console.print(f"Server: [cyan]{server}[/cyan]")
                 else:
                     console.print("[yellow]VPN Status: Not Connected[/yellow]")
-                    console.print(f"Current IP: [cyan]{ip}[/cyan]")
+                    console.print(f"Normal IP: [cyan]{ip}[/cyan]")
             else:
-                console.print("[yellow]Not connected to VPN[/yellow]")
+                console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)

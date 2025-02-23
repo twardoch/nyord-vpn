@@ -579,11 +579,11 @@ class Client(NordVPNClient):
                 }
                 save_vpn_state(state)
                 if self.verbose:
-                    self.logger.info(f"Initial IP: {self._initial_ip}")
+                    self.logger.info(f"Normal IP: {self._initial_ip}")
                 else:
-                    console.print(f"[cyan]Initial IP:[/cyan] {self._initial_ip}")
+                    console.print(f"[cyan]Normal IP:[/cyan] {self._initial_ip}")
             except Exception as e:
-                self.logger.warning(f"Failed to get initial IP: {e}")
+                self.logger.warning(f"Failed to get normal IP: {e}")
 
             country = self.get_country_by_code(country_code)
             if not country:
@@ -701,9 +701,9 @@ class Client(NordVPNClient):
                                 self.logger.info(
                                     f"Successfully connected to {country['name']}"
                                 )
-                                self.logger.info(f"New IP: {current_ip}")
+                                self.logger.info(f"Private IP: {current_ip}")
                             else:
-                                console.print(f"[cyan]New IP:[/cyan] {current_ip}")
+                                console.print(f"[cyan]Private IP:[/cyan] {current_ip}")
                             return
 
                         if self.verbose:
