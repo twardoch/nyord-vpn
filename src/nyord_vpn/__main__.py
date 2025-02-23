@@ -23,10 +23,14 @@ def _check_root() -> None:
         try:
             # Re-run the script with sudo
             args = ["sudo", sys.executable] + sys.argv
+            console.print(
+                "[yellow]This command requires administrator privileges.[/yellow]"
+            )
+            console.print("[cyan]Please enter your password when prompted.[/cyan]")
             subprocess.run(args, check=True)
             sys.exit(0)
         except subprocess.CalledProcessError:
-            console.print("[red]Error: This command requires root privileges.[/red]")
+            console.print("[red]Error: Administrator privileges required.[/red]")
             console.print("[yellow]Please run the command again with sudo:[/yellow]")
             console.print(f"[blue]sudo {' '.join(sys.argv)}[/blue]")
             sys.exit(1)
@@ -71,7 +75,17 @@ class CLI:
         try:
             status = self.client.status()
             if status:
-                console.print(f"[green]Connected to:[/green] {status}")
+                connected = status.get("connected", False)
+                ip = status.get("ip", "Unknown")
+                initial_ip = status.get("initial_ip", "Unknown")
+
+                if connected:
+                    console.print("[green]VPN Status: Connected[/green]")
+                    console.print(f"Current IP: [cyan]{ip}[/cyan]")
+                    console.print(f"Original IP: [yellow]{initial_ip}[/yellow]")
+                else:
+                    console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                    console.print(f"Current IP: [cyan]{ip}[/cyan]")
             else:
                 console.print("[yellow]Not connected to VPN[/yellow]")
         except VPNError as e:
