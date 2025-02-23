@@ -1,3 +1,49 @@
+"""OpenVPN configuration templates and utilities.
+
+this_file: src/nyord_vpn/utils/templates.py
+
+This module provides OpenVPN configuration templates optimized for NordVPN.
+The templates implement security best practices and performance tuning.
+
+Template Components:
+1. Client Configuration:
+   - Network interface setup (tun device)
+   - Protocol selection (TCP)
+   - Connection parameters
+   - Security settings
+   - Performance tuning
+
+2. Security Configuration:
+   - Encryption settings (AES-256-GCM)
+   - Authentication (SHA512)
+   - Certificate verification
+   - TLS settings
+
+3. Network Configuration:
+   - DNS settings (leak prevention)
+   - Gateway configuration
+   - Connection persistence
+   - Timeout handling
+
+Integration Points:
+- Used by VPNConnectionManager (network/vpn.py)
+- Supports Client (core/client.py) operations
+- Works with connection.py for setup
+- Implements security best practices
+
+Security Features:
+- Modern encryption algorithms
+- Perfect forward secrecy
+- DNS leak prevention
+- Certificate pinning
+
+The templates are designed for optimal security and performance
+with NordVPN's infrastructure, incorporating best practices
+for VPN configuration and security hardening.
+"""
+
+# OpenVPN client configuration template with security hardening
+# and performance optimization for NordVPN servers
 OPENVPN_TEMPLATE = """client
 dev tun
 proto tcp
@@ -88,4 +134,12 @@ a196c9de96012090e333519ae18d3509
 redirect-gateway def1
 dhcp-option DNS 103.86.96.100
 dhcp-option DNS 103.86.99.100
-script-security 2"""
+script-security 2"""  # Configuration template for OpenVPN client
+# The template includes:
+# - Modern encryption (AES-256-GCM with ChaCha20 fallback)
+# - Strong authentication (SHA512)
+# - Connection resilience (automatic retry)
+# - DNS leak prevention
+# - NordVPN's root CA certificate
+# - TLS authentication key
+# Format with {server} placeholder for hostname

@@ -94,3 +94,10 @@ def test_process_error(mock_env_credentials, mock_openvpn, mock_requests, mock_p
     api = LegacyVPNClient()
     with pytest.raises(VPNError, match="Failed to connect"):
         api.connect()
+
+
+def test_api_credentials():
+    """Test API credentials are set correctly."""
+    api = LegacyVPNClient()
+    assert api.username == os.getenv("NORD_USER")
+    assert api.password == os.getenv("NORD_PASSWORD")

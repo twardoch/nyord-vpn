@@ -1,7 +1,7 @@
 import json
 import time
 
-from src.nyord_vpn.models import CountryCache
+from src.nyord_vpn.storage.models import CountryCache
 from src.nyord_vpn.utils.utils import COUNTRIES_CACHE, CACHE_EXPIRY
 
 

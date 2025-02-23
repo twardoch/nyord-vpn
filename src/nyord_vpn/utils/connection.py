@@ -1,9 +1,61 @@
+"""Network connection utilities for VPN management.
+
+this_file: src/nyord_vpn/utils/connection.py
+
+This module provides utilities for VPN connection verification and monitoring.
+It implements robust connection checking by combining multiple data sources.
+
+Core Functionality:
+1. Process monitoring for OpenVPN
+2. Connection status verification
+3. IP address change detection
+4. Multi-source status validation
+
+Integration Points:
+- Used by VPNConnectionManager (network/vpn.py)
+- Used by Client (core/client.py) for status
+- Works with utils/utils.py for state
+- Supports error handling in models.py
+
+Connection Verification:
+The module implements a sophisticated verification system:
+1. Process state monitoring
+2. IP address validation
+3. API status integration
+4. State consistency checks
+
+Design Philosophy:
+- Prefers multiple verification sources
+- Implements graceful fallbacks
+- Provides detailed status info
+- Supports debugging and logging
+
+The utilities ensure reliable connection status reporting
+by combining multiple indicators and implementing fallback
+logic when certain checks fail.
+"""
+
 from typing import Optional
 import psutil
 
 
 def is_openvpn_running() -> bool:
-    """Check if any OpenVPN process is running."""
+    """Check if any OpenVPN process is currently running.
+
+    Uses psutil to scan all running processes and identify
+    any OpenVPN instances. This is a key component of
+    connection verification, as a running OpenVPN process
+    is necessary (but not sufficient) for an active VPN.
+
+    Returns:
+        bool: True if an OpenVPN process is found,
+              False if no OpenVPN process is running
+
+    Note:
+        This function only checks for process existence,
+        not whether the process is functioning correctly
+        or if the VPN connection is actually established.
+    """
     for proc in psutil.process_iter(["name"]):
         if proc.info.get("name") == "openvpn":
             return True
@@ -17,18 +69,42 @@ def compute_connection_status(
     openvpn_running: bool,
     nord_status: Optional[bool] = None,
 ) -> bool:
-    """
-    Compute if the VPN connection is active.
+    """Determine VPN connection status through multiple checks.
+
+    This function implements a comprehensive connection verification
+    algorithm that combines multiple data points:
+
+    1. Process Check:
+       - Verifies OpenVPN process is running
+
+    2. IP Address Validation:
+       - Compares current IP against initial (pre-VPN) IP
+       - Verifies current IP matches expected VPN IP
+
+    3. NordVPN API Status (if available):
+       - Incorporates server-side connection status
+
+    The algorithm handles various edge cases:
+    - Initial connection establishment
+    - Connection drops and recoveries
+    - API unavailability
+    - Process state mismatches
 
     Args:
-        current_ip: Current IP address.
-        initial_ip: The initial IP before VPN activation.
-        connected_ip: The recorded VPN IP.
-        openvpn_running: Whether an OpenVPN process is running.
-        nord_status: Optional flag from NordVPN API indicating VPN status.
+        current_ip: Currently detected IP address
+        initial_ip: IP address before VPN connection (may be None)
+        connected_ip: Expected VPN IP address (may be None)
+        openvpn_running: Whether OpenVPN process is active
+        nord_status: Optional NordVPN API connection status
 
     Returns:
-        True if VPN is active, False otherwise.
+        bool: True if VPN connection is verified active,
+              False if any verification step fails
+
+    Note:
+        The function implements fallback logic when the API
+        status is unavailable, relying more heavily on
+        local indicators in such cases.
     """
     if nord_status is not None:
         is_connected = (

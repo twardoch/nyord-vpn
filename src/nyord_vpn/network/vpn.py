@@ -1,4 +1,41 @@
-"""VPN connection manager for NordVPN."""
+"""VPN connection manager for NordVPN.
+
+this_file: src/nyord_vpn/network/vpn.py
+
+This module provides the VPNConnectionManager class for handling OpenVPN connections.
+It is responsible for the low-level VPN connection management and monitoring.
+
+Core Responsibilities:
+1. OpenVPN process management and configuration
+2. Connection establishment and verification
+3. IP address tracking and validation
+4. Connection state management
+5. Config file generation and cleanup
+
+Integration Points:
+- Used by Client (core/client.py) for VPN operations
+- Uses templates from utils/templates.py for config
+- Uses connection utils from utils/connection.py
+- Stores state via utils/utils.py
+
+Security Features:
+- Strong encryption (AES-256-GCM)
+- Certificate validation
+- DNS leak prevention
+- Secure process management
+
+Error Handling:
+- Graceful process termination
+- Connection verification
+- State recovery
+- Detailed error messages
+
+The manager implements robust connection handling with:
+- Automatic retry logic
+- Connection health monitoring
+- Process cleanup on errors
+- State persistence for recovery
+"""
 
 import os
 import subprocess
@@ -10,21 +47,47 @@ import requests
 from loguru import logger
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from src.nyord_vpn.models import VPNError
+from src.nyord_vpn.storage.models import VPNError
 from src.nyord_vpn.utils.utils import API_HEADERS, OPENVPN_AUTH
 
 
 class VPNConnectionManager:
-    """Manages VPN connections using OpenVPN."""
+    """Manages VPN connections using OpenVPN.
+
+    This class is responsible for the low-level VPN connection management:
+    1. OpenVPN process control (start, stop, monitor)
+    2. Configuration file generation and management
+    3. Connection state tracking and verification
+    4. IP address monitoring and validation
+
+    The manager maintains state about the current connection including:
+    - Initial IP before connection
+    - Connected IP after successful connection
+    - Current server hostname
+    - Connected country information
+
+    This class is typically used by the Client class rather than directly,
+    but can be used standalone for lower-level VPN control if needed.
+    """
 
     def __init__(
         self, openvpn_path: str = "/usr/local/sbin/openvpn", verbose: bool = False
     ):
-        """Initialize VPN connection manager.
+        """Initialize VPN connection manager with OpenVPN configuration.
+
+        Sets up the VPN manager with paths and initial state:
+        1. Configures OpenVPN executable path
+        2. Initializes logging based on verbosity
+        3. Sets up config directory structure
+        4. Initializes connection state tracking
 
         Args:
-            openvpn_path: Path to OpenVPN executable
-            verbose: Whether to enable verbose logging
+            openvpn_path: Path to OpenVPN executable (default: /usr/local/sbin/openvpn)
+            verbose: Whether to enable verbose logging for debugging
+
+        Note:
+            The config directory is created at ~/.config/nyord-vpn/configs/
+            and stores individual .ovpn configuration files for each server.
         """
         self.openvpn_path = openvpn_path
         self.logger = logger
@@ -64,13 +127,35 @@ class VPNConnectionManager:
             )
 
     def connect(self, server: dict[str, Any]) -> None:
-        """Connect to a VPN server.
+        """Connect to a VPN server using OpenVPN.
+
+        This method handles the complete connection process:
+        1. Validates server information
+        2. Captures initial IP address
+        3. Generates OpenVPN configuration
+        4. Verifies authentication file
+        5. Launches OpenVPN process
+        6. Monitors connection establishment
+        7. Verifies successful connection
+        8. Updates connection state
 
         Args:
-            server: Server info dictionary
+            server: Server information dictionary containing:
+                - hostname: Server hostname for connection
+                - (optional) additional server metadata
 
         Raises:
-            VPNError: If connection fails
+            VPNError: If connection fails due to:
+                - Invalid server information
+                - Missing authentication
+                - OpenVPN process failure
+                - Connection verification failure
+                - Timeout during connection
+
+        Note:
+            This method requires root/sudo privileges to establish the VPN connection.
+            The authentication file should be at ~/.cache/nyord-vpn/openvpn.auth
+            with username on first line and password on second line.
         """
         try:
             hostname = server.get("hostname")
@@ -167,7 +252,20 @@ class VPNConnectionManager:
             raise VPNError(f"Failed to connect to VPN: {e}")
 
     def disconnect(self) -> None:
-        """Disconnect from VPN."""
+        """Disconnect from VPN and clean up resources.
+
+        Performs a complete cleanup of the VPN connection:
+        1. Attempts graceful termination of OpenVPN process
+        2. Forces process termination if graceful shutdown fails
+        3. Cleans up any lingering OpenVPN processes
+        4. Resets all connection state information
+        5. Removes temporary files if needed
+
+        Note:
+            This method ensures a clean disconnection even if the
+            original connection was established outside this instance.
+            It requires root/sudo privileges to terminate OpenVPN processes.
+        """
         if self.process:
             try:
                 # Try graceful shutdown first
@@ -202,7 +300,22 @@ class VPNConnectionManager:
         self._country_name = None
 
     def verify_connection(self) -> bool:
-        """Verify VPN connection is active."""
+        """Verify VPN connection is active and functioning.
+
+        Performs multiple checks to ensure the VPN connection is working:
+        1. Verifies OpenVPN process is running
+        2. Checks current IP has changed from initial IP
+        3. Validates connection with NordVPN API (if available)
+        4. Ensures IP address is reachable
+
+        Returns:
+            bool: True if connection is verified active, False otherwise
+
+        Note:
+            This method is used both during connection establishment
+            and for periodic connection health checks. It gracefully
+            handles API failures by falling back to IP-based verification.
+        """
         try:
             # Check if process is running
             if not self.is_connected():
@@ -238,13 +351,24 @@ class VPNConnectionManager:
             return False
 
     def _generate_config(self, hostname: str) -> Path:
-        """Generate OpenVPN config file for server.
+        """Generate OpenVPN configuration file for a specific server.
+
+        Creates a customized OpenVPN configuration file that:
+        1. Uses NordVPN's recommended security settings
+        2. Configures DNS to prevent leaks
+        3. Sets up proper certificate verification
+        4. Enables automatic reconnection
+        5. Configures logging and verbosity
 
         Args:
-            hostname: Server hostname
+            hostname: Server hostname to generate config for
 
         Returns:
-            Path: Path to generated config file
+            Path: Path to the generated .ovpn configuration file
+
+        Note:
+            Configurations are stored in ~/.config/nyord-vpn/configs/
+            and are reused for subsequent connections to the same server.
         """
         config_path = self.config_dir / f"{hostname}.ovpn"
 

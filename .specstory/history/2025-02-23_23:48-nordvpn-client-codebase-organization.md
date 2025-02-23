@@ -1,3 +1,48 @@
+## SpecStory
+
+## NordVPN Client Codebase Organization (23/02/2025, 23:48:46)
+
+_**User**_
+
+@__init__.py @__main__.py @_templates.py @_utils.py @api_client.py @base.py @client.py @connection_helpers.py @country_cache.py @exceptions.py @models.py @server_manager.py @state_manager.py @utils.py @vpn_manager.py In @README.mdwrite EXACTLY how the source code is organiized and what each file does.  
+
+---
+
+_**Assistant**_
+
+Here's a detailed breakdown of the NordVPN client codebase organization:
+
+### Core Files
+
+1. `__init__.py`
+- Package entry point
+- Exports main classes and exceptions
+- Defines public API surface
+
+```1:14:src/nyord_vpn/__init__.py
+"""NordVPN client for Python."""
+
+from src.nyord_vpn.client import Client
+from src.nyord_vpn.models import ConnectionError, CredentialsError, ServerError, DisconnectionError, VPNError
+
+__all__ = [
+    "Client",
+    "ConnectionError",
+    "CredentialsError",
+    "DisconnectionError",
+    "ServerError",
+    "VPNError",
+]
+
+```
+
+
+2. `__main__.py`
+- CLI interface implementation
+- Command handling (connect, disconnect, status)
+- Root privilege management
+
+```1:186:src/nyord_vpn/__main__.py
 """Command line interface for nyord-vpn."""
 
 import os
@@ -10,7 +55,7 @@ import fire
 from rich.console import Console
 from rich.table import Table
 
-from src.nyord_vpn.core.client import Client, VPNError
+from src.nyord_vpn.client import Client, VPNError
 from src.nyord_vpn.scripts.update_countries import fetch_countries
 
 console = Console()
@@ -184,15 +229,17 @@ class CLI:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-
-def main() -> None:
-    """Main entry point."""
-    try:
-        fire.Fire(CLI)
-    except Exception as e:
-        console.print(f"[red]Error:[/red] {e}")
-        sys.exit(1)
+```
 
 
-if __name__ == "__main__":
-    main()
+### Client Implementation
+
+3. `client.py`
+- Main `Client
+
+---
+
+
+
+---
+

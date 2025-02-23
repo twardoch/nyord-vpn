@@ -1,9 +1,34 @@
 """Main NordVPN client implementation.
 
-This module contains the main Client class that coordinates:
-- API interactions via NordVPNAPIClient
-- VPN connections via VPNConnectionManager
-- Server selection via ServerManager
+this_file: src/nyord_vpn/core/client.py
+
+This module contains the main Client class that coordinates all VPN operations.
+It serves as the primary entry point for both CLI and library usage, orchestrating:
+
+Components:
+- API interactions via NordVPNAPIClient (core/api.py) for authentication and server info
+- VPN connections via VPNConnectionManager (network/vpn.py) for OpenVPN management
+- Server selection via ServerManager (network/server.py) for optimal server choice
+- State persistence via utils/utils.py for connection recovery
+
+The client implements automatic fallback mechanisms and retry logic to handle:
+1. API failures (falls back to cached data)
+2. Connection failures (retries with different servers)
+3. State management (persists and recovers connection state)
+4. Error handling (provides detailed error messages and recovery steps)
+
+Used by:
+- CLI interface in __main__.py for command-line operations
+- Python applications importing the Client class directly
+- Internal test suite for integration testing
+
+Example usage:
+    from nyord_vpn import Client
+    
+    client = Client(username="user", password="pass")
+    client.go("us")  # Connect to US server
+    client.status()  # Check connection status
+    client.disconnect()  # Disconnect from VPN
 """
 
 import os
@@ -18,17 +43,8 @@ from loguru import logger
 from rich.console import Console
 from rich.logging import RichHandler
 
-load_dotenv()
-logger.configure(
-    handlers=[
-        {
-            "sink": RichHandler(),
-            "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        }
-    ]
-)
 
-from .models import (
+from src.nyord_vpn.storage.models import (
     ConnectionError,
     CredentialsError,
     VPNError,
@@ -40,9 +56,20 @@ from src.nyord_vpn.utils.utils import (
     DATA_DIR,
     save_vpn_state,
 )
-from src.nyord_vpn.network.server_manager import ServerManager
-from .api_client import NordVPNAPIClient
-from src.nyord_vpn.network.vpn_manager import VPNConnectionManager
+from src.nyord_vpn.network.server import ServerManager
+from src.nyord_vpn.core.api import NordVPNAPIClient
+from src.nyord_vpn.network.vpn import VPNConnectionManager
+
+load_dotenv()
+logger.configure(
+    handlers=[
+        {
+            "sink": RichHandler(),
+            "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        }
+    ]
+)
+
 
 # Constants
 PACKAGE_DIR = Path(__file__).parent
@@ -149,7 +176,24 @@ CACHE_EXPIRY = 24 * 60 * 60
 
 
 class Client:
-    """Main NordVPN client that coordinates API, VPN, and server management."""
+    """Main NordVPN client that coordinates API, VPN, and server management.
+
+    This class serves as the primary interface for the nyord-vpn library, orchestrating:
+    1. Authentication and API interactions through NordVPNAPIClient
+    2. VPN connection management through VPNConnectionManager
+    3. Server selection and optimization through ServerManager
+    4. State persistence and cache management
+
+    The client handles automatic fallback mechanisms when API calls fail, maintains
+    a session-based failed servers list to avoid reconnection attempts to problematic
+    servers, and provides both programmatic and CLI interfaces for VPN management.
+
+    Typical usage:
+        client = Client(username="user", password="pass")
+        client.go("us")  # Connect to a US server
+        client.status()  # Check connection status
+        client.disconnect()  # Disconnect from VPN
+    """
 
     def __init__(
         self,
@@ -158,19 +202,31 @@ class Client:
         verbose: bool = False,
         auto_init: bool = True,
     ):
-        """Initialize NordVPN client.
+        """Initialize NordVPN client with credentials and optional configuration.
+
+        This constructor sets up the core components of the VPN client:
+        1. API client for NordVPN API interactions
+        2. VPN manager for OpenVPN connection handling
+        3. Server manager for server selection and optimization
+        4. Logging configuration for debugging
+        5. Environment initialization if auto_init is True
 
         Args:
             username: Optional username (defaults to NORD_USER env var)
             password: Optional password (defaults to NORD_PASSWORD env var)
-            verbose: Enable verbose logging
+            verbose: Enable verbose logging for detailed operation tracking
             auto_init: Whether to automatically initialize the environment
+                      (creates directories, checks OpenVPN, tests API)
 
         Environment variables:
             NORD_USER: NordVPN username (primary)
             NORD_PASSWORD: NordVPN password (primary)
             NORDVPN_LOGIN: NordVPN username (fallback)
             NORDVPN_PASSWORD: NordVPN password (fallback)
+
+        Raises:
+            CredentialsError: If neither direct credentials nor environment variables are provided
+            ConnectionError: If auto_init is True and environment setup fails
         """
         # Get credentials
         username_str = username or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
@@ -203,7 +259,23 @@ class Client:
                     self.logger.warning(f"Failed to initialize environment: {e}")
 
     def init(self) -> None:
-        """Initialize the client environment."""
+        """Initialize the client environment and verify all dependencies.
+
+        This method performs essential setup tasks:
+        1. Verifies OpenVPN installation and accessibility
+        2. Creates necessary directory structure for configs and cache
+        3. Tests API connectivity to ensure account access
+        4. Captures initial IP address for connection verification
+        5. Sets up logging based on verbosity level
+
+        The initialization process ensures all components required for
+        VPN operation are available and properly configured before
+        attempting any connections.
+
+        Raises:
+            ConnectionError: If any initialization step fails (OpenVPN missing,
+                           directory creation fails, API unreachable, etc.)
+        """
         try:
             # Check OpenVPN installation
             openvpn_path = self.vpn_manager.check_openvpn_installation()
@@ -240,7 +312,28 @@ class Client:
             raise ConnectionError(f"Failed to initialize client environment: {e}")
 
     def status(self) -> dict[str, str | bool | None]:
-        """Get current VPN connection status."""
+        """Get current VPN connection status and details.
+
+        Retrieves comprehensive information about the current VPN connection:
+        1. Connection state (connected/disconnected)
+        2. Current IP address (VPN IP if connected, normal IP if not)
+        3. Connected server details (if connected)
+        4. Country information (if connected)
+        5. Connection duration (if connected)
+
+        Returns:
+            dict: Status information with the following keys:
+                - status (bool): True if connected, False if not
+                - ip (str): Current IP address
+                - server (str, optional): Connected server hostname
+                - country (str, optional): Connected server country
+                - connected_since (str, optional): Connection timestamp
+
+        Note:
+            This method performs real-time checks of the connection state
+            and IP address, ensuring accurate status information even if
+            the connection was established outside this client instance.
+        """
         try:
             current_ip = self.vpn_manager.get_current_ip()
             if not current_ip:
