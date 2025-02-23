@@ -18,10 +18,11 @@ from loguru import logger
 from .models import City, Country, CountryCache
 from .utils import (
     CACHE_FILE,
-    COUNTRIES_CACHE,
     CACHE_EXPIRY,
     API_HEADERS,
 )
+from .country_cache import get_cached_countries, cache_countries
+from .utils import COUNTRIES_CACHE
 
 # Fallback data in case API is unreachable
 FALLBACK_DATA: CountryCache = {
@@ -178,11 +179,6 @@ class NordVPNClient:
             List of dictionaries containing country information
         """
         try:
-            if use_cache:
-                cached = self._get_cached_countries()
-                if cached:
-                    return cached["countries"]
-
             url = f"{self.BASE_API_URL}/servers/countries"
             response = requests.get(url, headers=API_HEADERS, timeout=10)
             response.raise_for_status()
@@ -193,46 +189,14 @@ class NordVPNClient:
                 "countries": countries,
                 "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
-            self._cache_countries(cache_data)
+            cache_countries(cache_data)
             return countries
 
         except requests.RequestException as e:
             self.logger.warning(f"Failed to fetch countries: {e}")
-            # Try to use cache regardless of use_cache setting
-            cached = self._get_cached_countries()
+            cached = get_cached_countries()
             if cached:
                 return cached["countries"]
 
             # If no cache available, use fallback list
             return FALLBACK_DATA["countries"]
-
-    def _get_cached_countries(self) -> Optional[CountryCache]:
-        """Get cached country list if available and not expired."""
-        try:
-            if not COUNTRIES_CACHE.exists():
-                return None
-
-            # Check if cache is expired
-            if time.time() - COUNTRIES_CACHE.stat().st_mtime > CACHE_EXPIRY:
-                return None
-
-            with COUNTRIES_CACHE.open("r") as f:
-                return json.load(f)
-
-        except (json.JSONDecodeError, OSError) as e:
-            self.logger.warning(f"Failed to load country cache: {e}")
-            return None
-
-    def _cache_countries(self, data: CountryCache) -> None:
-        """Cache the country list to disk.
-
-        Args:
-            data: Dictionary containing countries list and last_updated timestamp
-        """
-        try:
-            COUNTRIES_CACHE.parent.mkdir(parents=True, exist_ok=True)
-            with COUNTRIES_CACHE.open("w") as f:
-                json.dump(data, f, indent=2, sort_keys=True)
-            COUNTRIES_CACHE.chmod(0o644)  # Make readable for all users
-        except OSError as e:
-            self.logger.warning(f"Failed to cache countries: {e}")
