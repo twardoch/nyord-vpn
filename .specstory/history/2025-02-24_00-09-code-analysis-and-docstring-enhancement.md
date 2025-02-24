@@ -196,7 +196,7 @@ _****_
 + 
 +         Retrieves comprehensive information about the current VPN connection:
 +         1. Connection state (connected/disconnected)
-+         2. Current IP address (VPN IP if connected, normal IP if not)
++         2. Current IP address (VPN IP if connected, Public IP if not)
 +         3. Connected server details (if connected)
 +         4. Country information (if connected)
 +         5. Connection duration (if connected)

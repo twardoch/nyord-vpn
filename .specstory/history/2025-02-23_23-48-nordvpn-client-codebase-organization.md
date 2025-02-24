@@ -118,7 +118,7 @@ class CLI:
             status = self.client.status()
             if not status or not status.get("status", False):
                 console.print("[yellow]Not connected to VPN[/yellow]")
-                console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
                 return
 
             # Store the private IP for display
@@ -127,10 +127,10 @@ class CLI:
             # Disconnect
             self.client.disconnect()
 
-            # Get new status for normal IP
+            # Get new status for Public IP
             status = self.client.status()
             console.print("[green]Successfully disconnected from VPN[/green]")
-            console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+            console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
             console.print(f"Previous Private IP: [yellow]{private_ip}[/yellow]")
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
@@ -153,10 +153,10 @@ class CLI:
                     console.print(f"Server: [cyan]{server}[/cyan]")
                 else:
                     console.print("[yellow]VPN Status: Not Connected[/yellow]")
-                    console.print(f"Normal IP: [cyan]{ip}[/cyan]")
+                    console.print(f"Public IP: [cyan]{ip}[/cyan]")
             else:
                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
-                console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)

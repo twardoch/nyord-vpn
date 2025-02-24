@@ -296,7 +296,7 @@ class Client:
             if not status.get("connected", False):
                 console.print("[yellow]Not connected to VPN[/yellow]")
                 console.print(
-                    f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+                    f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
                 )
                 return
 
@@ -310,7 +310,7 @@ class Client:
             status = self.status()
             console.print("[green]Successfully disconnected from VPN[/green]")
             console.print(
-                f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+                f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
             )
             console.print(f"Previous IP: [yellow]{current_ip}[/yellow]")
 
@@ -331,7 +331,7 @@ class Client:
             else:
                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
                 console.print(
-                    f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+                    f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
                 )
         except Exception as e:
             raise VPNError(f"Failed to get status: {e}")

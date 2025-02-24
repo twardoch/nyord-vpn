@@ -79,7 +79,7 @@ class VPNConnectionManager:
     4. IP address monitoring and validation
 
     The manager maintains state about the current connection including:
-    - Normal IP when not connected to VPN
+    - Public IP when not connected to VPN
     - Connected IP after successful connection
     - Current server hostname
     - Connected country information
@@ -435,7 +435,7 @@ class VPNConnectionManager:
                             "server": None,
                             "country": None,
                             "connected_ip": None,
-                            "normal_ip": self._normal_ip,  # Keep normal IP
+                            "normal_ip": self._normal_ip,  # Keep Public IP
                             "timestamp": time.time(),
                         }
                         save_vpn_state(state)
@@ -631,7 +631,7 @@ class VPNConnectionManager:
         Performs a clean disconnection:
         1. Terminates OpenVPN process
         2. Updates connection state
-        3. Records normal IP if needed
+        3. Records Public IP if needed
         4. Cleans up resources
 
         Note:
@@ -700,7 +700,7 @@ class VPNConnectionManager:
                 elif state.get("normal_ip") != current_ip:
                     if self.verbose:
                         self.logger.debug(
-                            f"Normal IP changed: {state.get('normal_ip')} -> {current_ip}"
+                            f"Public IP changed: {state.get('normal_ip')} -> {current_ip}"
                         )
                     new_state["normal_ip"] = current_ip
 
@@ -715,7 +715,7 @@ class VPNConnectionManager:
             save_vpn_state(state)
 
             if self.verbose:
-                self.logger.info(f"Disconnected from VPN. Normal IP: {current_ip}")
+                self.logger.info(f"Disconnected from VPN. Public IP: {current_ip}")
 
         except Exception as e:
             if self.verbose:
@@ -731,7 +731,7 @@ class VPNConnectionManager:
 
         Performs essential checks to verify the VPN connection:
         1. Verifies OpenVPN process is running
-        2. Checks current IP has changed from normal IP
+        2. Checks current IP has changed from Public IP
         3. Optional: Validates with NordVPN API
 
         Returns:
@@ -756,10 +756,10 @@ class VPNConnectionManager:
                     self.logger.debug("Could not determine current IP")
                 return False
 
-            # Check if IP has changed from normal IP
+            # Check if IP has changed from Public IP
             if current_ip == self._normal_ip:
                 if self.verbose:
-                    self.logger.debug("Current IP matches normal IP")
+                    self.logger.debug("Current IP matches Public IP")
                 return False
 
             # Quick verification is good enough during connection
@@ -824,7 +824,7 @@ class VPNConnectionManager:
             # Quick check if we're definitely not connected
             if self._normal_ip and current_ip == self._normal_ip:
                 if self.verbose:
-                    self.logger.debug("Current IP matches normal IP - not connected")
+                    self.logger.debug("Current IP matches Public IP - not connected")
                 return {
                     "connected": False,
                     "ip": current_ip,
@@ -847,7 +847,7 @@ class VPNConnectionManager:
                 # Check all conditions:
                 # 1. OpenVPN process is running
                 # 2. Current IP matches our last known VPN IP
-                # 3. Current IP is different from our normal IP
+                # 3. Current IP is different from our Public IP
                 # 4. The IP is recognized by NordVPN
                 is_connected = (
                     process_running
@@ -929,7 +929,7 @@ class VPNConnectionManager:
 
         Verifies the VPN connection by:
         1. Checking if OpenVPN process is running (fastest check)
-        2. Validating current IP differs from normal IP
+        2. Validating current IP differs from Public IP
         3. Updating state file if needed
 
         Returns:
@@ -960,19 +960,19 @@ class VPNConnectionManager:
                     self.logger.warning("Could not determine current IP")
                 return False
 
-            # If we're not connected, just update normal IP if needed
+            # If we're not connected, just update Public IP if needed
             if not state.get("connected"):
                 if current_ip != state.get("normal_ip"):
                     state["normal_ip"] = current_ip
                     save_vpn_state(state)
                 return False
 
-            # Compare current IP with normal IP
+            # Compare current IP with Public IP
             normal_ip = state.get("normal_ip")
             if normal_ip == current_ip:
                 if self.verbose:
                     self.logger.debug(
-                        f"Current IP ({current_ip}) matches normal IP ({normal_ip})"
+                        f"Current IP ({current_ip}) matches Public IP ({normal_ip})"
                     )
                 self.disconnect()
                 return False
@@ -986,7 +986,7 @@ class VPNConnectionManager:
 
             if self.verbose:
                 self.logger.debug(
-                    f"Connection verified - Normal IP: {normal_ip}, VPN IP: {current_ip}"
+                    f"Connection verified - Public IP: {normal_ip}, VPN IP: {current_ip}"
                 )
 
             return True

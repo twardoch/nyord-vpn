@@ -435,7 +435,7 @@ _****_
 +         """
           try:
               # Always disconnect any existing connection first
-                  self.logger.warning(f"Failed to get normal IP: {e}")
+                  self.logger.warning(f"Failed to get Public IP: {e}")
   
 -             country = self.get_country_by_code(country_code)
 -             if not country:

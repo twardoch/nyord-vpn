@@ -25,7 +25,7 @@ Country: None
 Server: None
 sudo -E nyord-vpn bye
 Not connected to VPN
-Normal IP: 45.84.137.198
+Public IP: 45.84.137.198
 
 ---
 
@@ -312,13 +312,13 @@ _****_
   
                   nord_data = response.json()
   
--                 # We're definitely not connected if current IP matches normal IP
+-                 # We're definitely not connected if current IP matches Public IP
 +                 # Determine connection status
                   if self._normal_ip and current_ip == self._normal_ip:
                       is_connected = False
 +                     if self.verbose:
 +                         self.logger.debug(
-+                             "Current IP matches normal IP - not connected"
++                             "Current IP matches Public IP - not connected"
 +                         )
                   else:
 -                     # Otherwise check all conditions:
@@ -326,7 +326,7 @@ _****_
 +                     # Check all conditions:
 +                     # 1. OpenVPN process is running
                       # 2. Current IP matches our last known VPN IP
-                      # 3. Current IP is different from our normal IP
+                      # 3. Current IP is different from our Public IP
                       # 4. The IP is recognized by NordVPN
                       is_connected = (
 -                         openvpn_running
@@ -374,7 +374,7 @@ _****_
   
 -             except requests.RequestException:
 -                 # If NordVPN API check fails, use process and IP check
--                 # We're definitely not connected if current IP matches normal IP
+-                 # We're definitely not connected if current IP matches Public IP
 +             except requests.RequestException as e:
 +                 if self.verbose:
 +                     self.logger.debug(f"NordVPN API check failed: {e}")
@@ -1060,7 +1060,7 @@ _****_
 +             # Quick check if we're definitely not connected
 +             if self._normal_ip and current_ip == self._normal_ip:
 +                 if self.verbose:
-+                     self.logger.debug("Current IP matches normal IP - not connected")
++                     self.logger.debug("Current IP matches Public IP - not connected")
 +                 return {
 +                     "connected": False,
 +                     "ip": current_ip,
@@ -1086,7 +1086,7 @@ _****_
 -                     is_connected = False
 -                     if self.verbose:
 -                         self.logger.debug(
--                             "Current IP matches normal IP - not connected"
+-                             "Current IP matches Public IP - not connected"
 -                         )
 -                 else:
                   # Check all conditions:
@@ -1132,7 +1132,7 @@ I've optimized the status method to be more efficient:
 
 1. Reduced redundant IP checks:
    - Get current IP once at the start and reuse it
-   - Added early return if IP matches normal IP
+   - Added early return if IP matches Public IP
    - Moved IP comparison check earlier
 
 2. Improved API handling:
@@ -1181,7 +1181,7 @@ _****_
 -         Performs multiple checks to ensure the VPN connection is working:
 +         Performs essential checks to verify the VPN connection:
           1. Verifies OpenVPN process is running
-          2. Checks current IP has changed from normal IP
+          2. Checks current IP has changed from Public IP
 -         3. Validates connection with NordVPN API (if available)
 -         4. Ensures IP address is reachable
 +         3. Optional: Validates with NordVPN API
@@ -1212,10 +1212,10 @@ _****_
 +                     self.logger.debug("Could not determine current IP")
                   return False
   
-              # Check if IP has changed from normal IP
+              # Check if IP has changed from Public IP
               if current_ip == self._normal_ip:
 +                 if self.verbose:
-+                     self.logger.debug("Current IP matches normal IP")
++                     self.logger.debug("Current IP matches Public IP")
                   return False
   
 -             # Check NordVPN API for connection status
@@ -1305,7 +1305,7 @@ _****_
           Verifies the VPN connection by:
 -         1. Checking if OpenVPN process is running
 +         1. Checking if OpenVPN process is running (fastest check)
-          2. Validating current IP differs from normal IP
+          2. Validating current IP differs from Public IP
 -         3. Ensuring connection is established
 -         4. Updating state file with accurate IPs
 +         3. Updating state file if needed
@@ -1338,8 +1338,8 @@ _****_
                       self.logger.warning("Could not determine current IP")
                   return False
   
--             # If we're not connected, update the normal IP
-+             # If we're not connected, just update normal IP if needed
+-             # If we're not connected, update the Public IP
++             # If we're not connected, just update Public IP if needed
               if not state.get("connected"):
 +                 if current_ip != state.get("normal_ip"):
                       state["normal_ip"] = current_ip
@@ -1354,7 +1354,7 @@ _****_
 -                 self.disconnect()
 -                 return False
 - 
-              # Compare current IP with normal IP
+              # Compare current IP with Public IP
               normal_ip = state.get("normal_ip")
                   return False
   
@@ -1388,7 +1388,7 @@ I've optimized the check_connection_state method to be more efficient:
 
 2. Reduced unnecessary operations:
    - Only disconnect if we think we're connected
-   - Only update normal IP if changed
+   - Only update Public IP if changed
    - Only update connected IP if changed
 
 3. Better state management:
@@ -1436,8 +1436,8 @@ _****_
 ```diff
           1. Terminates OpenVPN process
           2. Updates connection state
--         3. Records normal IP
-+         3. Records normal IP if needed
+-         3. Records Public IP
++         3. Records Public IP if needed
           4. Cleans up resources
 + 
 +         Note:
@@ -1508,7 +1508,7 @@ _****_
 +                 elif state.get("normal_ip") != current_ip:
 +                     if self.verbose:
 +                         self.logger.debug(
-+                             f"Normal IP changed: {state.get('normal_ip')} -> {current_ip}"
++                             f"Public IP changed: {state.get('normal_ip')} -> {current_ip}"
 +                         )
 +                     new_state["normal_ip"] = current_ip
   
@@ -1524,9 +1524,9 @@ _****_
   
               if self.verbose:
 -                 self.logger.info(
--                     f"Disconnected from VPN. Normal IP: {state.get('normal_ip')}"
+-                     f"Disconnected from VPN. Public IP: {state.get('normal_ip')}"
 -                 )
-+                 self.logger.info(f"Disconnected from VPN. Normal IP: {current_ip}")
++                 self.logger.info(f"Disconnected from VPN. Public IP: {current_ip}")
   
           except Exception as e:
 ```
@@ -1658,7 +1658,7 @@ I've made the following improvements:
 
 2. Removed unnecessary IP check:
    - Removed initial IP check before connection
-   - Normal IP will be set during disconnect if needed
+   - Public IP will be set during disconnect if needed
    - More efficient connection flow
 
 3. Updated documentation:
@@ -1668,7 +1668,7 @@ I've made the following improvements:
 
 The connection flow is now:
 1. Check if already connected
-2. Auto-disconnect if needed (which will store normal IP)
+2. Auto-disconnect if needed (which will store Public IP)
 3. Connect to new server
 4. Update state with new connection
 
@@ -1727,7 +1727,7 @@ _****_
 +                             "server": None,
 +                             "country": None,
 +                             "connected_ip": None,
-+                             "normal_ip": self._normal_ip,  # Keep normal IP
++                             "normal_ip": self._normal_ip,  # Keep Public IP
 +                             "timestamp": time.time(),
 +                         }
 +                         save_vpn_state(state)
@@ -1758,7 +1758,7 @@ I've added robust error handling for the auto-disconnect process:
    - Kill any OpenVPN processes
    - Reset instance state
    - Reset state file
-   - Keep normal IP for reference
+   - Keep Public IP for reference
 
 2. Better error handling:
    - Try normal disconnect first
@@ -2048,7 +2048,7 @@ _****_
 +             Validates credentials format before writing.
           """
           try:
--             # Store normal IP before connecting
+-             # Store Public IP before connecting
 -             if not self._normal_ip:
 -                 self._normal_ip = self.get_current_ip()
 -                 self._save_state()

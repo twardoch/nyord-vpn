@@ -4763,7 +4763,7 @@ Current IP: 89.64.28.48
 
 
 
-SOMETHING BROKE because this IP address is my normal IP address, so we're NOT really successfully connected. You broke something, and this used to work 15 minutes ago
+SOMETHING BROKE because this IP address is my Public IP address, so we're NOT really successfully connected. You broke something, and this used to work 15 minutes ago
 
 ---
 

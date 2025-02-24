@@ -1788,11 +1788,11 @@ _****_
 -                 }
 -                 save_vpn_state(state)
 -                 if self.verbose:
--                     self.logger.info(f"Normal IP: {self._initial_ip}")
+-                     self.logger.info(f"Public IP: {self._initial_ip}")
 -                 else:
--                     console.print(f"[cyan]Normal IP:[/cyan] {self._initial_ip}")
+-                     console.print(f"[cyan]Public IP:[/cyan] {self._initial_ip}")
 -             except Exception as e:
--                 self.logger.warning(f"Failed to get normal IP: {e}")
+-                 self.logger.warning(f"Failed to get Public IP: {e}")
 - 
               # Try to connect with retries
               max_retries = 3

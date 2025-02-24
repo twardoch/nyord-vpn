@@ -778,11 +778,11 @@ _**User**_
 sudo nyord-vpn bye
 Client environment initialized successfully
 Not connected to VPN
-Normal IP: 89.64.28.48
+Public IP: 89.64.28.48
 sudo nyord-vpn info
 Client environment initialized successfully
 VPN Status: Not Connected
-Normal IP: 89.64.28.48
+Public IP: 89.64.28.48
 sudo nyord-vpn go pl --verbose
 [02/23/25 07:24:22] INFO     2025-02-23 07:24:22.640 | INFO     | nyord_vpn.client:init:219 - Found OpenVPN at: /usr/local/sbin/openvpn                  client.py:219
 2025-02-23 07:24:22.640 | INFO     | nyord_vpn.client:init:219 - Found OpenVPN at: /usr/local/sbin/openvpn

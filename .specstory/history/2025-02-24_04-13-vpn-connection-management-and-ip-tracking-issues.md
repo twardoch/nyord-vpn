@@ -41,13 +41,13 @@ OK, this works BUT:
 nyord-vpn info
 Client environment initialized successfully
 VPN Status: Not Connected
-Normal IP: 45.84.137.186
+Public IP: 45.84.137.186
 
-THIS IS EXTREMELY DUMB. This is not the "normal IP"
+THIS IS EXTREMELY DUMB. This is not the "Public IP"
 
 1. Whenever we CONNECT, we need to DISCONNECT. 
-2. Whenever we HAVE DISCONNECTED, we write our "normal IP" to some CONFIG in ~/.cache/nyord-vpn
-3. Whenever We check if we're connected or not, we compare our "normal IP" to the current one. 
+2. Whenever we HAVE DISCONNECTED, we write our "Public IP" to some CONFIG in ~/.cache/nyord-vpn
+3. Whenever We check if we're connected or not, we compare our "Public IP" to the current one. 
 
 ---
 
@@ -267,7 +267,7 @@ _****_
 
 
 
-Now let's update the VPN connection manager to properly handle the normal IP:
+Now let's update the VPN connection manager to properly handle the Public IP:
 
 ---
 
@@ -293,7 +293,7 @@ _****_
   
       The manager maintains state about the current connection including:
 -     - Initial IP before connection
-+     - Normal IP when not connected to VPN
++     - Public IP when not connected to VPN
       - Connected IP after successful connection
       - Current server hostname
   
@@ -314,7 +314,7 @@ _****_
           # Ensure cache directory exists
           """
           try:
-+             # Store normal IP before connecting
++             # Store Public IP before connecting
 +             if not self._normal_ip:
 +                 self._normal_ip = self.get_current_ip()
 +                 self._save_state()
@@ -425,7 +425,7 @@ _****_
   
 -             if self.verbose:
 -                 self.logger.info("VPN disconnected")
-+             # Update state with current IP as normal IP
++             # Update state with current IP as Public IP
 +             if current_ip:
 +                 self._normal_ip = current_ip
 +             self._save_state()
@@ -456,7 +456,7 @@ _****_
           Performs multiple checks to ensure the VPN connection is working:
           1. Verifies OpenVPN process is running
 -         2. Checks current IP has changed from initial IP
-+         2. Checks current IP has changed from normal IP
++         2. Checks current IP has changed from Public IP
           3. Validates connection with NordVPN API (if available)
           4. Ensures IP address is reachable
               and for periodic connection health checks. It gracefully
@@ -468,7 +468,7 @@ _****_
   
 -             # Check if IP has changed from initial
 -             if current_ip == self._initial_ip:
-+             # Check if IP has changed from normal IP
++             # Check if IP has changed from Public IP
 +             if current_ip == self._normal_ip:
                   return False
   
@@ -527,14 +527,14 @@ _****_
 +                 response.raise_for_status()
 +                 nord_data = response.json()
 + 
-+                 # We're definitely not connected if current IP matches normal IP
++                 # We're definitely not connected if current IP matches Public IP
 +                 if self._normal_ip and current_ip == self._normal_ip:
 +                     is_connected = False
 +                 else:
 +                     # Otherwise check all conditions:
 +                     # 1. OpenVPN is running
 +                     # 2. Current IP matches our last known VPN IP
-+                     # 3. Current IP is different from our normal IP
++                     # 3. Current IP is different from our Public IP
 +                     # 4. The IP is recognized by NordVPN
 +                     is_connected = (
 +                         openvpn_running
@@ -561,7 +561,7 @@ _****_
 + 
 +             except requests.RequestException:
 +                 # If NordVPN API check fails, use process and IP check
-+                 # We're definitely not connected if current IP matches normal IP
++                 # We're definitely not connected if current IP matches Public IP
 +                 if self._normal_ip and current_ip == self._normal_ip:
 +                     is_connected = False
 +                 else:
@@ -777,7 +777,7 @@ _****_
 +             if not status.get("connected", False):
 +                 console.print("[yellow]Not connected to VPN[/yellow]")
 +                 console.print(
-+                     f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
++                     f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
 +                 )
 +                 return
 + 
@@ -795,7 +795,7 @@ _****_
 +             status = self.status()
 +             console.print("[green]Successfully disconnected from VPN[/green]")
 +             console.print(
-+                 f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
++                 f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
 +             )
 +             console.print(f"Previous IP: [yellow]{current_ip}[/yellow]")
 + 
@@ -816,7 +816,7 @@ _****_
 +             else:
 +                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
 +                 console.print(
-+                     f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
++                     f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
 +                 )
           except Exception as e:
 -                 if verbose:
@@ -831,7 +831,7 @@ _****_
 - 
 -         Retrieves comprehensive information about the current VPN connection:
 -         1. Connection state (connected/disconnected)
--         2. Current IP address (VPN IP if connected, normal IP if not)
+-         2. Current IP address (VPN IP if connected, Public IP if not)
 -         3. Connected server details (if connected)
 -         4. Country information (if connected)
 -         5. Connection duration (if connected)
@@ -1537,7 +1537,7 @@ _****_
 -             status = self.client.status()
 -             if not status or not status.get("status", False):
 -                 console.print("[yellow]Not connected to VPN[/yellow]")
--                 console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+-                 console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
 -                 return
 - 
 -             # Store the private IP for display
@@ -1546,10 +1546,10 @@ _****_
 -             # Disconnect
 -             self.client.disconnect()
 - 
--             # Get new status for normal IP
+-             # Get new status for Public IP
 -             status = self.client.status()
 -             console.print("[green]Successfully disconnected from VPN[/green]")
--             console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+-             console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
 -             console.print(f"Previous Private IP: [yellow]{private_ip}[/yellow]")
 +             self.client.bye()
           except VPNError as e:
@@ -1573,10 +1573,10 @@ _****_
 -                     console.print(f"Server: [cyan]{server}[/cyan]")
 -                 else:
 -                     console.print("[yellow]VPN Status: Not Connected[/yellow]")
--                     console.print(f"Normal IP: [cyan]{ip}[/cyan]")
+-                     console.print(f"Public IP: [cyan]{ip}[/cyan]")
 -             else:
 -                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
--                 console.print(f"Normal IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+-                 console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
 -         except VPNError as e:
 -             console.print(f"[red]Error:[/red] {e}")
 -             sys.exit(1)
@@ -1711,7 +1711,7 @@ The code should now work properly. When you run `nyord-vpn go fr`, it will:
 1. Check for root privileges and request them if needed
 2. Load credentials from environment variables
 3. Connect to a French VPN server
-4. Track both the normal IP and VPN IP properly
+4. Track both the Public IP and VPN IP properly
 5. Show the correct status information
 
 Let me know if you need any clarification or run into any other issues!
@@ -1738,7 +1738,7 @@ _****_
 
 After reviewing the code, I see that the IP tracking is implemented correctly. The VPN manager:
 
-1. Saves the normal IP before connecting
+1. Saves the Public IP before connecting
 2. Updates the connected IP after successful connection
 3. Tracks both IPs in the state
 4. Properly resets the state on disconnect
@@ -3486,7 +3486,7 @@ _**User**_
 
 sudo -E nyord-vpn bye
 Not connected to VPN
-Normal IP: 45.84.137.198
+Public IP: 45.84.137.198
 
 Well, I am not connected to VPN but My Public IPv4 is 89.64.28.48. WTF?
 
@@ -3605,7 +3605,7 @@ _****_
 +         Performs a clean disconnection:
 +         1. Terminates OpenVPN process
 +         2. Updates connection state
-+         3. Records normal IP
++         3. Records Public IP
 +         4. Cleans up resources
 +         """
 +         try:
@@ -3634,7 +3634,7 @@ _****_
 -             self._server = None
 -             self._country_name = None
 - 
--             # Update state with current IP as normal IP
+-             # Update state with current IP as Public IP
 -             if current_ip:
 -                 self._normal_ip = current_ip
 -             self._save_state()
@@ -3666,7 +3666,7 @@ _****_
 + 
 +             if self.verbose:
 +                 self.logger.info(
-+                     f"Disconnected from VPN. Normal IP: {state.get('normal_ip')}"
++                     f"Disconnected from VPN. Public IP: {state.get('normal_ip')}"
 +                 )
   
           except Exception as e:
@@ -3684,7 +3684,7 @@ _****_
 + 
 +         Verifies the VPN connection by:
 +         1. Checking if OpenVPN process is running
-+         2. Validating current IP differs from normal IP
++         2. Validating current IP differs from Public IP
 +         3. Ensuring connection is established
 +         4. Updating state file with accurate IPs
 + 
@@ -3700,7 +3700,7 @@ _****_
 +                     self.logger.warning("Could not determine current IP")
 +                 return False
 + 
-+             # If we're not connected, update the normal IP
++             # If we're not connected, update the Public IP
 +             if not state.get("connected"):
 +                 state["normal_ip"] = current_ip
 +                 save_vpn_state(state)
@@ -3714,12 +3714,12 @@ _****_
 +                 self.disconnect()
 +                 return False
 + 
-+             # Compare current IP with normal IP
++             # Compare current IP with Public IP
 +             normal_ip = state.get("normal_ip")
 +             if normal_ip == current_ip:
 +                 if self.verbose:
 +                     self.logger.debug(
-+                         f"Current IP ({current_ip}) matches normal IP ({normal_ip})"
++                         f"Current IP ({current_ip}) matches Public IP ({normal_ip})"
 +                     )
 +                 self.disconnect()
 +                 return False
@@ -3730,7 +3730,7 @@ _****_
 + 
 +             if self.verbose:
 +                 self.logger.debug(
-+                     f"Connection verified - Normal IP: {normal_ip}, VPN IP: {current_ip}"
++                     f"Connection verified - Public IP: {normal_ip}, VPN IP: {current_ip}"
 +                 )
 + 
 +             return True
@@ -3808,7 +3808,7 @@ I've made several improvements to fix the IP detection and state management:
 
 3. Added connection verification:
    - Checks if OpenVPN process is actually running
-   - Validates that current IP differs from normal IP
+   - Validates that current IP differs from Public IP
    - Updates state file with accurate IPs
    - Better error handling and recovery
 
@@ -3820,7 +3820,7 @@ sudo -E nyord-vpn go fr --verbose
 ```
 
 This should now:
-1. Properly detect and store your normal IP
+1. Properly detect and store your Public IP
 2. Show detailed logs about IP detection
 3. Verify the connection state accurately
 4. Show clear differences between normal and VPN IPs
@@ -3948,7 +3948,7 @@ Country: None
 Server: None
 sudo -E nyord-vpn bye
 Not connected to VPN
-Normal IP: 45.84.137.198
+Public IP: 45.84.137.198
 
 ---
 
@@ -3960,7 +3960,7 @@ _**Assistant**_
 
 _**User**_
 
-The fucking NORMAL IP should be just the LIVE IP CHECK AFTER DISCONNECTING!!! And then you write it into the config. What is so hard? 
+The fucking Public IP should be just the LIVE IP CHECK AFTER DISCONNECTING!!! And then you write it into the config. What is so hard? 
 
 ---
 
