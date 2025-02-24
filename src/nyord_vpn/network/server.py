@@ -776,127 +776,165 @@ class ServerManager:
 
         Returns:
             Selected server info or None if no suitable server found
-        """
-        if _retry_count >= 3:
-            # After 3 retries with our testing method, try the NordVPN recommendations API
-            try:
-                if self.api_client.verbose:
-                    self.logger.info("Falling back to NordVPN recommendations API")
 
-                # Get recommended server
-                url = "https://api.nordvpn.com/v1/servers/recommendations"
-                params = {
-                    "filters[servers_technologies][identifier]": "openvpn_tcp",
-                    "limit": "5",
+        Raises:
+            ServerError: If country code is invalid or no servers are available
+        """
+        try:
+            # Validate country code if provided
+            if country_code:
+                country_code = country_code.upper()
+                if not isinstance(country_code, str) or len(country_code) != 2:
+                    raise ServerError(
+                        f"Invalid country code '{country_code}'. "
+                        "Please use a two-letter country code (e.g. 'US', 'GB', 'DE')"
+                    )
+
+                # Check if country exists in our cache
+                cache = self.get_servers_cache()
+                valid_countries = {
+                    s.get("country", {}).get("code", "").upper()
+                    for s in cache.get("servers", [])
+                    if s.get("country", {}).get("code")
                 }
 
-                if country_code:
-                    params["filters[country_id]"] = self._get_country_id(country_code)
+                if country_code not in valid_countries:
+                    available = ", ".join(sorted(valid_countries))
+                    raise ServerError(
+                        f"Country code '{country_code}' not found. "
+                        f"Available countries: {available}"
+                    )
 
-                response = requests.get(
-                    url, params=params, headers=API_HEADERS, timeout=10
-                )
-                response.raise_for_status()
-                servers = response.json()
-
-                if not servers:
+            if _retry_count >= 3:
+                # After 3 retries with our testing method, try the NordVPN recommendations API
+                try:
                     if self.api_client.verbose:
-                        self.logger.error("No servers returned by recommendations API")
+                        self.logger.info("Falling back to NordVPN recommendations API")
+
+                    # Get recommended server
+                    url = "https://api.nordvpn.com/v1/servers/recommendations"
+                    params = {
+                        "filters[servers_technologies][identifier]": "openvpn_tcp",
+                        "limit": "5",
+                    }
+
+                    if country_code:
+                        params["filters[country_id]"] = self._get_country_id(
+                            country_code
+                        )
+
+                    response = requests.get(
+                        url, params=params, headers=API_HEADERS, timeout=10
+                    )
+                    response.raise_for_status()
+                    servers = response.json()
+
+                    if not servers:
+                        if self.api_client.verbose:
+                            self.logger.error(
+                                "No servers returned by recommendations API"
+                            )
+                        return None
+
+                    # Get server with lowest load
+                    server = min(servers, key=lambda x: x.get("load", 100))
+
+                    # Convert to our format
+                    return {
+                        "hostname": server["hostname"],
+                        "load": server.get("load", 0),
+                        "country": {
+                            "code": server.get("country", {}).get("code", ""),
+                            "name": server.get("country", {}).get("name", "Unknown"),
+                        },
+                    }
+
+                except Exception as e:
+                    if self.api_client.verbose:
+                        self.logger.error(f"Recommendations API fallback failed: {e}")
                     return None
 
-                # Get server with lowest load
-                server = min(servers, key=lambda x: x.get("load", 100))
+            try:
+                # Get cached servers
+                cache = self.get_servers_cache()
+                servers = cache.get("servers", [])
 
-                # Convert to our format
-                return {
-                    "hostname": server["hostname"],
-                    "load": server.get("load", 0),
-                    "country": {
-                        "code": server.get("country", {}).get("code", ""),
-                        "name": server.get("country", {}).get("name", "Unknown"),
-                    },
-                }
+                if not servers:
+                    return None
 
-            except Exception as e:
-                if self.api_client.verbose:
-                    self.logger.error(f"Recommendations API fallback failed: {e}")
-                return None
+                # Filter by country if specified
+                if country_code:
+                    servers = [
+                        s
+                        for s in servers
+                        if s.get("country", {}).get("code", "").upper()
+                        == country_code.upper()
+                    ]
 
-        try:
-            # Get cached servers
-            cache = self.get_servers_cache()
-            servers = cache.get("servers", [])
-
-            if not servers:
-                return None
-
-            # Filter by country if specified
-            if country_code:
+                # Remove failed servers
                 servers = [
-                    s
-                    for s in servers
-                    if s.get("country", {}).get("code", "").upper()
-                    == country_code.upper()
+                    s for s in servers if s.get("hostname") not in self._failed_servers
                 ]
 
-            # Remove failed servers
-            servers = [
-                s for s in servers if s.get("hostname") not in self._failed_servers
-            ]
+                if not servers:
+                    if self._failed_servers:
+                        self._failed_servers.clear()
+                        return self.select_fastest_server(
+                            country_code, random_select, _retry_count + 1
+                        )
+                    return None
 
-            if not servers:
-                if self._failed_servers:
-                    self._failed_servers.clear()
+                # Basic filtering
+                servers = [
+                    s for s in servers if s.get("load", 100) < 90
+                ]  # Skip heavily loaded servers
+
+                if random_select:
+                    return random.choice(servers)
+
+                # Select 4 servers - use geographic distribution if no country specified
+                test_servers = (
+                    self._select_diverse_servers(servers, 4)
+                    if not country_code
+                    else random.sample(servers, min(4, len(servers)))
+                )
+
+                # Test servers in parallel using ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    # Map _test_server over servers in parallel
+                    results = list(
+                        executor.map(lambda s: self._test_server(s), test_servers)
+                    )
+
+                # Filter out failed servers and sort by score
+                valid_results = [
+                    (s, score) for s, score in results if score < float("inf")
+                ]
+
+                if not valid_results:
+                    # If all servers failed, mark them as failed and retry
+                    for server in test_servers:
+                        if hostname := server.get("hostname"):
+                            self._failed_servers.add(hostname)
                     return self.select_fastest_server(
                         country_code, random_select, _retry_count + 1
                     )
+
+                # Return server with best score
+                best_server = min(valid_results, key=lambda x: x[1])[0]
+
+                if self.api_client.verbose:
+                    self.logger.info(
+                        f"Selected server: {best_server.get('hostname')} "
+                        f"(load: {best_server.get('load')}%, "
+                        f"score: {min(s for _, s in valid_results):.1f}ms)"
+                    )
+
+                return best_server
+
+            except Exception as e:
+                self.logger.error(f"Error selecting server: {e}")
                 return None
-
-            # Basic filtering
-            servers = [
-                s for s in servers if s.get("load", 100) < 90
-            ]  # Skip heavily loaded servers
-
-            if random_select:
-                return random.choice(servers)
-
-            # Select 4 servers - use geographic distribution if no country specified
-            test_servers = (
-                self._select_diverse_servers(servers, 4)
-                if not country_code
-                else random.sample(servers, min(4, len(servers)))
-            )
-
-            # Test servers in parallel using ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                # Map _test_server over servers in parallel
-                results = list(
-                    executor.map(lambda s: self._test_server(s), test_servers)
-                )
-
-            # Filter out failed servers and sort by score
-            valid_results = [(s, score) for s, score in results if score < float("inf")]
-
-            if not valid_results:
-                # If all servers failed, mark them as failed and retry
-                for server in test_servers:
-                    if hostname := server.get("hostname"):
-                        self._failed_servers.add(hostname)
-                return self.select_fastest_server(
-                    country_code, random_select, _retry_count + 1
-                )
-
-            # Return server with best score
-            best_server = min(valid_results, key=lambda x: x[1])[0]
-
-            if self.api_client.verbose:
-                self.logger.info(
-                    f"Selected server: {best_server.get('hostname')} "
-                    f"(load: {best_server.get('load')}%, "
-                    f"score: {min(s for _, s in valid_results):.1f}ms)"
-                )
-
-            return best_server
 
         except Exception as e:
             self.logger.error(f"Error selecting server: {e}")

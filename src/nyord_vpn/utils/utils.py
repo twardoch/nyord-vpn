@@ -122,20 +122,46 @@ def ensure_root() -> None:
     """
     if not check_root():
         try:
-            # Re-run the script with sudo
-            args = ["sudo", sys.executable, *sys.argv]
+            # Get the original command without sudo
+            cmd = sys.argv[:]
+            if cmd[0].startswith("sudo"):
+                cmd = cmd[1:]
+
+            # Re-run the script with sudo, preserving environment variables
+            env = os.environ.copy()
+
+            # If in virtualenv, use nyord-vpn from virtualenv bin
+            if os.environ.get("VIRTUAL_ENV"):
+                nyord_vpn_path = os.path.join(
+                    os.environ["VIRTUAL_ENV"], "bin", "nyord-vpn"
+                )
+                if os.path.exists(nyord_vpn_path):
+                    args = ["sudo", "-E", nyord_vpn_path, *cmd[1:]]
+                else:
+                    # Fallback to system nyord-vpn
+                    args = ["sudo", "-E", "nyord-vpn", *cmd[1:]]
+            else:
+                # Not in virtualenv, use system nyord-vpn
+                args = ["sudo", "-E", "nyord-vpn", *cmd[1:]]
+
             console.print(
                 "[yellow]This command requires admin privileges.[/yellow]",
             )
             console.print(
                 "[cyan]Enter your computer admin (sudo) password when asked.[/cyan]"
             )
-            subprocess.run(args, check=True)
+
+            if logger.level("DEBUG").no <= logger.level("INFO").no:
+                logger.debug(f"Running command: {' '.join(args)}")
+
+            subprocess.run(args, env=env, check=True)
             sys.exit(0)
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             console.print("[red]Error: Admin privileges required.[/red]")
             console.print("[yellow]Run the command again with sudo:[/yellow]")
-            console.print(f"[blue]sudo {' '.join(sys.argv)}[/blue]")
+            console.print(f"[blue]sudo -E {' '.join(sys.argv)}[/blue]")
+            if logger.level("DEBUG").no <= logger.level("INFO").no:
+                logger.debug(f"Command failed with error: {e}")
             sys.exit(1)
 
 
