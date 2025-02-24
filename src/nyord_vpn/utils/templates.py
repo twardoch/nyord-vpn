@@ -17,6 +17,8 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 from typing import Optional
+import time
+import random
 
 import requests
 from loguru import logger
@@ -30,6 +32,9 @@ CONFIG_ZIP = CACHE_DIR / "ovpn.zip"
 OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
 ZIP_MAX_AGE_DAYS = 7  # Maximum age of ZIP file before redownload
 MAX_CACHED_CONFIGS = 5  # Maximum number of cached config files
+MAX_RETRIES = 3  # Maximum number of download retries
+INITIAL_RETRY_DELAY = 1  # Initial retry delay in seconds
+MAX_RETRY_DELAY = 30  # Maximum retry delay in seconds
 
 # Browser-like headers to avoid 403
 HEADERS = {
@@ -147,6 +152,67 @@ def cleanup_old_configs() -> None:
         log_debug("Failed to cleanup old configs: {}", e)
 
 
+def download_with_retry(url: str, headers: dict, timeout: int = 30) -> bytes:
+    """Download a file with exponential backoff retry.
+
+    Args:
+        url: URL to download from
+        headers: Request headers
+        timeout: Request timeout in seconds
+
+    Returns:
+        Downloaded file content
+
+    Raises:
+        VPNConfigError: If download fails after all retries
+    """
+    last_error = None
+    delay = INITIAL_RETRY_DELAY
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            if attempt > 0:
+                # Add jitter to avoid thundering herd
+                jitter = random.uniform(0, 0.1) * delay
+                sleep_time = delay + jitter
+                log_debug(
+                    "Retry attempt {} after {:.1f}s delay...", attempt + 1, sleep_time
+                )
+                time.sleep(sleep_time)
+
+            response = requests.get(url, headers=headers, timeout=timeout)
+            response.raise_for_status()
+            return response.content
+
+        except requests.RequestException as e:
+            last_error = e
+            if isinstance(e, requests.HTTPError):
+                # Don't retry on 4xx errors except 429 (Too Many Requests)
+                if (
+                    400 <= e.response.status_code < 500
+                    and e.response.status_code != 429
+                ):
+                    raise VPNConfigError(
+                        f"Failed to download (HTTP {e.response.status_code}): {e}"
+                    ) from e
+
+            # Exponential backoff with max delay
+            delay = min(delay * 2, MAX_RETRY_DELAY)
+            log_debug(
+                "Download failed (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, str(e)
+            )
+
+    # If we get here, all retries failed
+    if isinstance(last_error, requests.HTTPError):
+        raise VPNConfigError(
+            f"Failed to download after {MAX_RETRIES} retries "
+            f"(HTTP {last_error.response.status_code}): {last_error}"
+        ) from last_error
+    raise VPNConfigError(
+        f"Failed to download after {MAX_RETRIES} retries: {last_error}"
+    ) from last_error
+
+
 def extract_config_from_zip(server: str) -> Path:
     """Extract a single OpenVPN configuration file from the ZIP.
 
@@ -245,19 +311,13 @@ def download_config_zip() -> None:
         temp_zip = CACHE_DIR / f".ovpn.{os.getpid()}.zip.tmp"
         try:
             log_debug("Downloading OpenVPN configurations...")
-            try:
-                response = requests.get(OVPN_CONFIG_URL, headers=HEADERS, timeout=30)
-                response.raise_for_status()
-            except requests.RequestException as e:
-                if isinstance(e, requests.HTTPError):
-                    raise VPNConfigError(
-                        f"Failed to download configurations (HTTP {e.response.status_code}): {e}"
-                    ) from e
-                raise VPNConfigError(f"Failed to download configurations: {e}") from e
+
+            # Download with retry
+            content = download_with_retry(OVPN_CONFIG_URL, HEADERS)
 
             # Write to temp file
             try:
-                temp_zip.write_bytes(response.content)
+                temp_zip.write_bytes(content)
                 temp_zip.chmod(0o600)
             except Exception as e:
                 raise VPNConfigError(f"Failed to write temporary ZIP file: {e}") from e
