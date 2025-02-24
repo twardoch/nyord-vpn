@@ -5,7 +5,7 @@ import time
 import socket
 import ssl
 from typing import Any, TypedDict
-
+from loguru import logger
 import requests
 
 from nyord_vpn.core.api import NordVPNAPIClient
@@ -730,9 +730,10 @@ class ServerManager:
                 self._failed_servers.clear()  # Reset failed servers if none left
                 return self.select_fastest_server(country_code)  # Try again
 
-            # Take 5 servers with lowest load
+            # Take 20 servers with highest load
             servers.sort(key=lambda x: x.get("load", 100))
-            servers = servers[:5]
+            logger.debug(servers)
+            #servers = servers[20:]
 
             # Test response times
             results = []
