@@ -119,8 +119,11 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 **Action**: Update to reflect code changes.
 
+- [!] Fix import error in `tests/test_client.py` (change import from nyord_vpn.core.exceptions to nyord_vpn.exceptions)
+- [!] Update test fixtures to include missing fields:
+  - Add `type` field to Group model in test fixtures
+  - Add `server_count` field to Country and City models in test fixtures 
 - [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
-- [ ] Update test fixtures to match model requirements
 - [ ] Fix validation errors in tests
 
 ### Lower Priority Items
