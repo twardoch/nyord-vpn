@@ -51,6 +51,7 @@ from nyord_vpn.utils.utils import (
     CONFIG_DIR,
     DATA_DIR,
     save_vpn_state,
+    OPENVPN_AUTH,
 )
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.core.api import NordVPNAPIClient
@@ -330,7 +331,7 @@ class Client:
                     last_auth_error = e
                     if auth_failures >= 2:  # If we get multiple auth failures, credentials are likely wrong
                         # Check if credentials file exists and is readable
-                        auth_file = Path(self.vpn_manager.OPENVPN_AUTH)
+                        auth_file = Path(OPENVPN_AUTH)
                         auth_error = None
                         if not auth_file.exists():
                             auth_error = "Auth file not found"
