@@ -376,17 +376,22 @@ class ServerManager:
 
                 has_openvpn_tcp = False
                 for tech in server.get("technologies", []):
+                    tech_name = tech.get("name", "")
                     if (
                         isinstance(tech, dict)
-                        and tech.get("name") == "OpenVPN TCP"
+                        and isinstance(tech_name, str)
+                        and "OpenVPN TCP" in tech_name
                     ):
+                        if self.api_client.verbose:
+                            self.logger.debug(f"Found OpenVPN TCP support: {tech_name}")
                         has_openvpn_tcp = True
                         break
 
                 if not has_openvpn_tcp:
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}"
+                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}. "
+                            f"Available technologies: {[t.get('name') for t in server.get('technologies', [])]}"
                         )
                     continue
 

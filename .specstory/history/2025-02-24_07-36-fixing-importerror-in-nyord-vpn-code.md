@@ -12394,6 +12394,3167 @@ delete net 128.0.0.0: gateway 10.100.0.1
 
 _**Assistant**_
 
+I see the issue - we're getting authentication failures with some servers but successful connections with others, which suggests our server testing isn't properly validating authentication before selecting servers.
+
+Let's modify the server testing to include a quick authentication check:
+
+---
+
+_****_
+
+```diff
+          The test performs:
+          1. Quick TCP connection test to port 443 (OpenVPN)
+-         2. Single ping with short timeout
+-         3. Combines both scores with TCP weighted more heavily
++         2. Quick TLS handshake to verify server certificate and auth
++         3. Single ping with short timeout
++         4. Combines scores with TCP weighted more heavily
+          """
+          hostname = server.get("hostname")
+              tcp_time = float("inf")
+              try:
+-                 with socket.create_connection((hostname, 443), timeout=1) as sock:
++                 import ssl
++                 context = ssl.create_default_context()
++                 context.check_hostname = True
++                 context.verify_mode = ssl.CERT_REQUIRED
++                 
+                  start = time.time()
+-                     # Simple handshake
+-                     sock.send(b"\x00")
++                 with socket.create_connection((hostname, 443), timeout=1) as sock:
++                     with context.wrap_socket(sock, server_hostname=hostname) as ssock:
++                         # Try to start TLS handshake
++                         ssock.do_handshake()
+                          tcp_time = (time.time() - start) * 1000  # Convert to ms
+-             except (socket.timeout, socket.error) as e:
++             except (socket.timeout, socket.error, ssl.SSLError) as e:
+                  if self.api_client.verbose:
+-                     self.logger.debug(f"TCP test failed for {hostname}: {e}")
++                     self.logger.debug(f"TCP/TLS test failed for {hostname}: {e}")
+                  return server, float("inf")
+  
+```
+
+---
+
+_****_
+
+```diff
+  import time
+  import socket
++ import ssl
+  from typing import Any, TypedDict
+  
+              tcp_time = float("inf")
+              try:
+-                 import ssl
+                  context = ssl.create_default_context()
+                  context.check_hostname = True
+```
+
+---
+
+_****_
+
+
+
+Now let's also update the client to better handle authentication failures:
+
+---
+
+_****_
+
+```diff
+          auth_failures = 0
+          connection_errors = []
++         last_auth_error = None
+  
+          for server in selected_servers:
+                  if "authentication failed" in error_msg:
+                      auth_failures += 1
++                     last_auth_error = e
+                      if auth_failures >= 2:  # If we get multiple auth failures, credentials are likely wrong
++                         # Check if credentials file exists and is readable
++                         auth_file = Path(self.vpn_manager.OPENVPN_AUTH)
++                         auth_error = None
++                         if not auth_file.exists():
++                             auth_error = "Auth file not found"
++                         elif not os.access(auth_file, os.R_OK):
++                             auth_error = "Auth file not readable"
++                         else:
++                             try:
++                                 lines = auth_file.read_text().strip().split("\n")
++                                 if len(lines) != 2:
++                                     auth_error = "Auth file format invalid"
++                                 elif not lines[0].strip() or not lines[1].strip():
++                                     auth_error = "Empty username or password in auth file"
++                             except Exception:
++                                 auth_error = "Failed to read auth file"
++ 
+                          raise VPNError(
+                              "Authentication failed multiple times. Please check your credentials:\n"
+                              "1. Verify NORD_USER and NORD_PASSWORD environment variables\n"
+                              "2. Ensure your NordVPN subscription is active\n"
+-                             "3. Try logging in at https://nordvpn.com to verify your account"
+-                         ) from e
++                             "3. Try logging in at https://nordvpn.com to verify your account\n"
++                             + (f"\nAdditional info: {auth_error}" if auth_error else "")
++                         ) from last_auth_error
+                  connection_errors.append(f"{hostname}: {str(e)}")
+                  if self.verbose:
+              "2. Try a different country\n"
+              "3. Verify OpenVPN is installed and working\n"
+-             "4. Check system firewall settings"
++             "4. Check system firewall settings\n"
++             "5. Verify VPN credentials are correct"
+          )
+  
+```
+
+---
+
+_****_
+
+Read file: src/nyord_vpn/network/vpn.py
+
+---
+
+_****_
+
+```diff
+      DATA_DIR,
+      save_vpn_state,
++     OPENVPN_AUTH,
+  )
+  from nyord_vpn.network.server import ServerManager
+                      if auth_failures >= 2:  # If we get multiple auth failures, credentials are likely wrong
+                          # Check if credentials file exists and is readable
+-                         auth_file = Path(self.vpn_manager.OPENVPN_AUTH)
++                         auth_file = Path(OPENVPN_AUTH)
+                          auth_error = None
+                          if not auth_file.exists():
+```
+
+---
+
+_****_
+
+
+
+The changes we've made:
+
+1. Server Testing:
+   - Added proper TLS handshake test to verify server certificates
+   - Weighted TCP/TLS test more heavily than ping
+   - Fail fast if TLS handshake fails
+   - Better error handling and logging
+
+2. Authentication Handling:
+   - Check auth file status when auth fails
+   - Provide detailed error messages about auth issues
+   - Stop after 2 auth failures (was 3)
+   - Include auth file status in error messages
+
+3. Error Messages:
+   - More detailed error summaries
+   - Better categorization of errors
+   - Clearer next steps for users
+   - Added credential verification to solutions list
+
+The flow is now:
+
+1. Get up to 10 servers with best load
+2. Test them in parallel:
+   - Quick TCP connection
+   - TLS handshake to verify certificate
+   - Single ping
+   - Weight TCP/TLS more heavily
+3. Take the 5 fastest responding servers
+4. Try connecting to each in sequence
+5. Better handling of auth failures:
+   - Check auth file status
+   - Stop after 2 auth failures
+   - Provide detailed error info
+6. Fall back to next server on other failures
+7. Only raise error if all servers fail
+
+This should provide:
+- Faster server selection
+- Better error messages
+- Quicker detection of auth issues
+- More reliable connections
+
+---
+
+_**User**_
+
+[02/24/25 07:56:29] DEBUG    2025-02-24 07:56:29.674 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:154 - Found OpenVPN at                   vpn.py:154
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-24 07:56:29.678 | DEBUG    | nyord_vpn.network.vpn:setup_connection:232 - Created auth file at                         vpn.py:232
+                             /Users/adam/.cache/nyord-vpn/openvpn.auth                                                                                                
+                    DEBUG    2025-02-24 07:56:29.681 | DEBUG    | nyord_vpn.network.server:get_servers_cache:305 - Fetching server list from API...      server.py:305
+[02/24/25 07:56:30] DEBUG    2025-02-24 07:56:30.001 | DEBUG    | nyord_vpn.network.server:get_servers_cache:317 - Successfully fetched server data from server.py:317
+                             API                                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.003 | DEBUG    | nyord_vpn.network.server:get_servers_cache:325 - Found 100 servers in API response     server.py:325
+                    DEBUG    2025-02-24 07:56:30.239 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for pl128.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.240 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.242 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.244 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.245 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.247 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.248 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.250 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.251 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for hu48.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.252 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.253 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.255 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.256 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.258 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.259 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.260 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.262 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5063.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.263 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.264 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.265 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.267 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.268 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.269 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.271 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.272 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for at86.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.274 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.276 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.277 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.279 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.280 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.282 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.283 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.284 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch217.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.286 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.287 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.289 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.290 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.291 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.293 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.294 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.295 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for dk152.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.297 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.298 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.299 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.301 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.302 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.303 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.305 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.306 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no151.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.307 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.309 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.310 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.311 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.313 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.314 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.315 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.317 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch218.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.318 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.319 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.320 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.321 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.322 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.324 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.325 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.327 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk1784.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.328 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.330 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.331 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.332 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.334 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.335 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.337 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.338 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr555.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.339 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.341 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.342 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.343 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.345 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.346 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.347 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.349 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch219.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.350 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.351 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.353 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.354 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.355 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.357 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.358 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.359 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5064.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.361 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.362 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.363 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.365 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.366 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.367 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.368 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.369 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk765.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.370 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.371 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.373 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.374 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.375 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.376 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.377 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.379 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk812.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.380 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.381 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.382 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.384 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.386 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.387 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.388 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.389 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk813.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.390 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.391 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.392 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.393 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.395 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.397 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.398 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.399 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk814.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.401 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.402 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.403 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.405 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.406 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.408 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.409 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.410 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk871.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.411 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.413 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.414 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.415 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.417 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.418 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.420 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.421 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk873.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.422 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.423 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.425 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.426 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.427 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.428 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.430 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.431 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk875.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.432 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.433 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.434 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.435 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.436 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.437 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.438 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.440 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de507.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.441 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.442 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.444 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.445 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.447 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.448 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de508.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.449 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.451 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.452 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.453 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.455 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.456 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de509.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.457 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.459 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.460 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.461 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.463 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.464 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de510.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.465 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.467 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.468 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.469 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.470 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.472 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk877.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.473 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.474 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.475 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.476 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.477 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.479 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.480 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.481 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2920.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.482 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.483 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.485 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.486 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.487 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.488 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2921.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.489 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.490 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.491 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.492 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.494 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.496 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk879.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.497 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.498 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.500 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.501 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.503 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.504 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.505 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.507 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2924.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.508 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.509 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.511 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.512 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.514 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.515 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2925.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.516 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.518 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.519 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.520 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.521 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.523 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk884.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.524 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.525 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.526 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.527 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.529 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.531 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.532 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.533 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2929.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.534 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.536 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.537 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.538 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.539 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.540 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2930.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.541 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.542 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.544 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.546 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.547 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.549 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk886.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.550 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.551 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.553 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.554 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.556 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.557 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.559 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.560 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for be149.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.561 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.563 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.564 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.565 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.567 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.568 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.569 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.571 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk1806.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.572 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.573 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.575 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.576 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.578 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.579 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.580 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.582 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk888.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.583 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.584 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.586 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.587 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.588 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.590 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.591 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.593 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk890.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.594 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.596 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.597 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.599 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.600 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.602 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.603 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.605 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2939.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.606 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.607 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.609 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.610 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.611 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.613 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2940.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.614 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.615 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.617 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.619 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.620 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.621 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de655.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.623 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.624 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.626 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.627 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.629 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.630 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk892.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.632 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.633 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.634 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.636 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.637 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.638 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.640 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.641 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk894.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.642 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.644 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.645 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.646 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.648 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.649 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.650 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.652 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk896.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.653 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.654 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.656 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.657 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.659 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.660 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.661 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.663 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk898.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.664 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.665 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.666 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.668 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.669 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.671 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.672 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.674 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2943.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.675 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.677 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.678 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.680 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.681 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.683 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2944.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.684 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.685 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.687 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.688 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.689 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.691 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2945.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.692 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.693 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.695 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.696 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.697 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.699 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2946.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.700 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.702 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.704 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.705 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.707 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.709 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for nl408.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.710 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.711 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.713 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.714 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.716 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.717 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for nl409.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.718 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.720 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.721 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.722 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.724 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.725 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de676.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.726 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.728 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.729 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.730 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.732 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.733 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5055.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.734 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.736 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.737 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.738 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.740 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.742 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.743 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.744 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2949.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.746 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.747 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.748 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.750 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.751 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.752 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2950.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.754 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.755 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.757 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.758 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.760 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.761 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr439.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.763 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.764 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.766 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.767 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.768 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.770 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr440.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.771 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.772 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.774 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.775 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.776 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.778 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for jp429.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.779 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.780 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.782 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.783 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.785 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.787 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.788 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.790 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for es114.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.791 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.793 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.794 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.796 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.797 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.799 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.800 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.802 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for it132.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.803 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.804 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.805 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.807 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.808 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.810 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.811 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.812 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4735.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.814 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.815 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.816 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.818 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.819 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.820 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.822 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.823 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for pl122.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.824 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.826 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.827 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.828 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.830 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.831 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.833 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.834 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for cz93.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.835 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.837 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.838 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.839 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.841 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.843 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.844 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.846 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for at80.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.847 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.849 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.850 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.852 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.853 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.854 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.856 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.857 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ro59.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.859 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.860 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.861 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.863 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.864 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.867 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.869 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.870 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch198.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.872 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.874 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.876 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.877 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.879 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.881 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.883 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.884 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for bg38.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.886 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.887 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.889 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.890 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.891 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.893 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.894 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.895 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for hu47.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:30.897 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.898 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.899 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.901 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.902 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.904 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.905 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.907 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr452.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.909 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.910 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.912 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.913 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.914 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.916 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.917 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.919 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for jp454.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.920 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.922 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.923 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.925 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.926 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.928 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.929 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.931 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4951.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.932 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.934 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.935 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.936 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.938 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.939 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for dk150.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.940 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.942 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.943 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.944 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.946 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.947 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.949 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.950 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de750.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.951 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.953 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.954 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.955 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.957 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.958 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.960 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.961 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4953.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.962 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.964 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.965 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.966 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.968 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.969 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4954.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.970 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.972 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.974 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.975 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.977 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:30.978 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for pl125.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:30.980 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.981 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.983 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.984 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.986 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.987 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.988 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.990 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5057.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:30.991 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.992 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.994 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.995 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:30.996 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:30.998 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:30.999 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+[02/24/25 07:56:31] DEBUG    2025-02-24 07:56:31.000 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5058.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.002 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.004 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.005 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.007 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.008 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.010 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.012 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.013 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5059.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.015 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.016 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.017 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.019 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.020 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.022 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.023 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.024 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5060.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.025 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.027 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.028 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.029 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.031 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.032 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.034 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.035 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no141.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.036 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.037 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.039 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.040 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.042 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.043 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.045 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.046 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no142.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.047 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.049 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.050 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.051 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.053 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.054 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.056 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.058 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no143.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.059 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.060 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.062 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.064 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.065 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.067 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.068 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.069 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no144.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.071 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.072 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.073 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.075 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.076 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.077 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.079 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.080 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no145.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.081 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.083 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.084 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.086 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.088 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.089 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.091 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.092 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no146.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.094 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.095 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.097 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.098 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.100 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.101 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.102 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.104 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no147.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.105 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.106 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.108 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.109 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.110 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.112 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.113 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.115 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no148.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.116 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.117 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.118 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.120 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.121 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.123 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.124 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.125 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no149.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.127 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.128 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.129 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.131 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.132 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.134 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.135 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.136 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk1785.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.138 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.139 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.141 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.142 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.144 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.145 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.147 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.149 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for hu49.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:31.150 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.152 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.153 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.154 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.156 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.157 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.159 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.160 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr536.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.161 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.162 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.164 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.165 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.166 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.168 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.169 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.171 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr537.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.172 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.174 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.175 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.177 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.179 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.180 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.182 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.183 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr538.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.184 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.186 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.187 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.188 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.190 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.191 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.193 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.194 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr539.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.195 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.197 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.198 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.199 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.201 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.202 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.204 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.205 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr540.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.206 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.208 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.209 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.210 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.212 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.213 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.215 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.216 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr541.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.217 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.219 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.220 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.221 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.223 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.225 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.226 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.228 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr542.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.229 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.231 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.232 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.234 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.235 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.236 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.238 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.239 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr543.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.241 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.242 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.243 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.245 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.246 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.247 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.249 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.250 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr544.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.251 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.253 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.254 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.256 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.258 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.259 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.261 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.262 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch221.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.264 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.265 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.267 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.268 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.270 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.271 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.273 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.274 | DEBUG    | nyord_vpn.network.server:get_servers_cache:446 - No valid servers found after          server.py:446
+                             filtering 100 total servers                                                                                                              
+                    ERROR    2025-02-24 07:56:31.276 | ERROR    | nyord_vpn.network.server:get_servers_cache:476 - Failed to fetch servers: No valid     server.py:476
+                             servers found in API response. Total servers: 100, Invalid: 100                                                                          
+                             Traceback (most recent call last):                                                                                                       
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/nyord-vpn", line 10, in <module>                               
+                                 sys.exit(main())                                                                                                                     
+                                 |   |    -> <function main at 0x108efb880>                                                                                           
+                                 |   -> <built-in function exit>                                                                                                      
+                                 -> <module 'sys' (built-in)>                                                                                                         
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 81, in main                             
+                                 fire.Fire(CLI)                                                                                                                       
+                                 |    |    -> <class 'nyord_vpn.__main__.CLI'>                                                                                        
+                                 |    -> <function Fire at 0x108fa1260>                                                                                               
+                                 -> <module 'fire' from                                                                                                               
+                             '/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/__init__...                             
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 135,              
+                             in Fire                                                                                                                                  
+                                 component_trace = _Fire(component, args, parsed_flag_args, context, name)                                                            
+                                                   |     |          |     |                 |        -> 'nyord-vpn'                                                   
+                                                   |     |          |     |                 -> {}                                                                     
+                                                   |     |          |     -> Namespace(verbose=False, interactive=False, separator='-', completion=None,              
+                             help=False, trace=False)                                                                                                                 
+                                                   |     |          -> ['go', 'pl', '--verbose']                                                                      
+                                                   |     -> <class 'nyord_vpn.__main__.CLI'>                                                                          
+                                                   -> <function _Fire at 0x108fc2a20>                                                                                 
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 468,              
+                             in _Fire                                                                                                                                 
+                                 component, remaining_args = _CallAndUpdateTrace(                                                                                     
+                                 |                           -> <function _CallAndUpdateTrace at 0x108fc2b60>                                                         
+                                 -> <bound method CLI.go of <nyord_vpn.__main__.CLI object at 0x10915e1e0>>                                                           
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 684,              
+                             in _CallAndUpdateTrace                                                                                                                   
+                                 component = fn(*varargs, **kwargs)                                                                                                   
+                                             |   |          -> {}                                                                                                     
+                                             |   -> ['pl']                                                                                                            
+                                             -> <bound method CLI.go of <nyord_vpn.__main__.CLI object at 0x10915e1e0>>                                               
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 46, in go                               
+                                 self.client.go(country_code)                                                                                                         
+                                 |    |      |  -> 'pl'                                                                                                               
+                                 |    |      -> <function Client.go at 0x108efb2e0>                                                                                   
+                                 |    -> <nyord_vpn.core.client.Client object at 0x10915e240>                                                                         
+                                 -> <nyord_vpn.__main__.CLI object at 0x10915e1e0>                                                                                    
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/core/client.py", line 278, in go                           
+                                 selected_servers = self.server_manager.select_fastest_server(                                                                        
+                                                    |    |              -> <function ServerManager.select_fastest_server at 0x108e83920>                              
+                                                    |    -> <nyord_vpn.network.server.ServerManager object at 0x108d269f0>                                            
+                                                    -> <nyord_vpn.core.client.Client object at 0x10915e240>                                                           
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/network/server.py", line 830, in                           
+                             select_fastest_server                                                                                                                    
+                                 servers = self.get_servers_cache().get("servers", [])                                                                                
+                                           |    -> <function ServerManager.get_servers_cache at 0x108e83600>                                                          
+                                           -> <nyord_vpn.network.server.ServerManager object at 0x108d269f0>                                                          
+                                                                                                                                                                      
+                             > File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/network/server.py", line 449, in                           
+                             get_servers_cache                                                                                                                        
+                                 raise ValueError(                                                                                                                    
+                                                                                                                                                                      
+                             ValueError: No valid servers found in API response. Total servers: 100, Invalid: 100                                                     
+                                                                                                                                                                      
+                                                                                                                                                                      
+                    INFO     2025-02-24 07:56:31.288 | INFO     | nyord_vpn.network.server:get_servers_cache:490 - Using fallback cache with 100 valid   server.py:490
+                             servers                                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.291 | DEBUG    | nyord_vpn.network.server:get_servers_cache:305 - Fetching server list from API...      server.py:305
+                    DEBUG    2025-02-24 07:56:31.411 | DEBUG    | nyord_vpn.network.server:get_servers_cache:317 - Successfully fetched server data from server.py:317
+                             API                                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.413 | DEBUG    | nyord_vpn.network.server:get_servers_cache:325 - Found 100 servers in API response     server.py:325
+                    DEBUG    2025-02-24 07:56:31.542 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for pl128.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.543 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.545 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.547 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.549 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.550 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.552 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.554 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.555 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for hu48.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:31.556 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.558 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.559 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.561 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.562 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.563 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.565 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.566 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5063.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.567 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.569 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.570 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.571 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.573 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.574 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.576 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.577 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for at86.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:31.578 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.580 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.581 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.582 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.584 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.585 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.586 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.588 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch217.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.589 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.591 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.592 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.594 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.595 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.597 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.599 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.600 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for dk152.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.602 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.603 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.604 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.606 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.607 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.608 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.610 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.611 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no151.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.613 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.614 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.616 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.617 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.619 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.620 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.622 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.623 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch218.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.625 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.626 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.627 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.629 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.630 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.631 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.633 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.634 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk1784.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.635 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.637 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.638 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.639 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.641 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.642 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.643 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.645 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr555.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.646 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.647 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.649 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.650 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.651 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.653 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.654 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.655 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch219.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.657 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.658 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.660 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.661 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.662 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.664 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.665 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.666 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5064.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.668 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.669 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.670 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.672 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.673 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.675 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.676 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.678 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk765.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.679 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.681 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.682 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.684 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.685 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.687 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.688 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.689 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk812.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.691 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.692 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.693 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.695 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.697 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.699 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.700 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.702 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk813.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.703 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.705 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.706 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.708 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.709 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.711 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.712 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.713 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk814.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.715 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.716 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.717 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.719 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.720 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.721 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.723 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.724 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk871.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.725 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.727 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.728 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.729 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.731 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.732 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.733 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.735 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk873.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.736 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.737 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.739 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.740 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.742 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.743 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.744 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.746 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk875.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.747 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.748 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.750 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.751 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.752 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.754 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.755 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.757 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de507.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.758 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.760 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.761 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.763 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.765 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.766 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de508.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.767 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.769 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.770 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.771 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.773 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.774 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de509.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.775 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.777 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.778 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.780 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.782 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.783 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de510.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.784 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.786 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.787 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.789 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.791 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.792 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk877.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.794 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.795 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.797 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.798 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.799 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.801 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.802 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.803 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2920.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.805 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.806 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.808 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.809 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.810 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.812 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2921.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.813 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.815 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.816 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.817 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.819 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.820 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk879.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.821 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.822 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.824 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.825 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.827 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.829 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.830 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.832 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2924.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.834 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.835 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.837 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.839 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.840 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.843 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2925.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.844 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.846 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.848 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.850 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.852 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.854 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk884.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.855 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.857 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.858 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.860 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.861 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.863 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.865 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.867 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2929.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.868 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.869 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.871 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.873 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.874 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.876 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2930.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.877 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.878 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.880 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.881 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.883 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.884 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk886.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.885 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.887 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.888 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.889 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.891 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.892 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.893 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.895 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for be149.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.896 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.897 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.899 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.900 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.901 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.903 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.904 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.905 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk1806.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.907 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.908 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.910 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.911 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.912 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.914 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.915 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.916 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk888.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.918 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.919 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.920 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.922 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.923 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.924 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.926 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.927 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk890.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.929 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.931 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.932 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.934 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.935 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.937 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.938 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.940 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2939.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.941 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.943 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.944 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.945 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.947 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.948 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2940.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:31.950 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.952 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.953 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.955 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.956 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.958 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de655.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.959 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.961 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.962 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.964 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.965 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:31.967 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk892.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.968 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.969 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.971 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.972 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.974 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.975 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.976 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.978 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk894.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.979 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.980 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.982 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.983 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.985 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.986 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.988 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.989 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk896.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:31.990 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.992 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.993 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.995 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:31.996 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:31.998 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:31.999 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+[02/24/25 07:56:32] DEBUG    2025-02-24 07:56:32.000 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk898.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.002 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.003 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.004 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.006 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.008 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.009 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.011 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.012 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2943.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.014 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.015 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.017 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.018 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.020 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.021 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2944.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.022 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.023 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.025 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.026 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.027 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.029 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2945.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.030 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.031 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.033 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.034 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.036 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.038 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2946.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.039 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.041 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.042 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.044 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.045 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.047 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for nl408.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.048 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.050 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.051 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.052 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.054 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.055 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for nl409.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.056 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.058 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.059 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.060 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.062 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.063 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de676.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.064 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.066 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.067 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.068 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.070 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.071 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5055.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.072 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.074 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.075 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.077 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.078 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.079 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.081 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.082 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2949.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.083 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.085 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.086 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.087 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.088 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.090 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us2950.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.092 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.093 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.095 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.096 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.098 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.099 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr439.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.101 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.102 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.104 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.105 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.106 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.108 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr440.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.109 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.110 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.111 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.113 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.114 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.116 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for jp429.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.117 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.119 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.120 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.122 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.123 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.125 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.127 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.128 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for es114.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.129 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.131 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.132 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.134 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.135 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.136 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.138 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.139 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for it132.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.140 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.142 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.143 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.144 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.146 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.147 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.149 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.150 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4735.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.151 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.153 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.154 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.155 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.157 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.158 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.160 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.161 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for pl122.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.162 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.164 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.165 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.166 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.168 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.169 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.170 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.172 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for cz93.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:32.173 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.175 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.176 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.177 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.179 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.181 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.182 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.184 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for at80.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:32.185 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.186 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.188 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.189 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.191 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.192 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.193 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.195 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ro59.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:32.196 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.197 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.199 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.200 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.202 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.204 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.205 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.207 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch198.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.208 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.210 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.211 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.213 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.214 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.216 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.217 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.218 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for bg38.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:32.220 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.221 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.222 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.224 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.225 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.227 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.228 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.229 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for hu47.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:32.230 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.232 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.233 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.234 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.236 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.237 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.239 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.240 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr452.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.242 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.243 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.244 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.246 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.247 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.249 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.250 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.251 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for jp454.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.253 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.254 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.256 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.258 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.259 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.261 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.262 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.264 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4951.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.265 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.267 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.268 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.270 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.271 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.272 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for dk150.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.273 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.275 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.276 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.277 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.279 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.280 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.282 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.283 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for de750.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.284 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.286 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.287 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.289 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.291 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.292 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.294 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.296 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4953.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.297 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.299 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.300 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.302 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.303 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.305 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us4954.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.306 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.307 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.309 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.310 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 42, Name: OpenVPN UDP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.311 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 45, Name: OpenVPN TCP         server.py:375
+                             Dedicated, Status: None                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.313 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for pl125.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.314 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.315 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.317 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.318 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.320 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.321 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.322 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.324 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5057.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.325 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.326 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.328 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.329 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.331 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.332 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.333 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.335 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5058.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.336 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.337 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.339 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.341 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.342 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.344 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.345 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.347 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5059.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.349 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.350 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.351 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.353 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.354 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.356 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.357 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.358 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for us5060.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.360 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.361 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.362 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.364 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.365 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.366 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.368 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.369 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no141.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.370 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.372 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.374 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.375 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.377 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.378 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.380 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.381 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no142.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.383 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.384 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.386 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.387 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.388 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.390 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.391 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.393 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no143.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.394 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.395 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.397 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.398 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.399 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.401 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.402 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.403 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no144.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.405 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.406 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.408 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.409 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.411 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.412 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.413 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.415 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no145.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.416 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.417 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.419 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.420 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.421 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.423 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.425 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.426 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no146.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.428 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.429 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.431 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.432 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.434 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.435 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.437 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.438 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no147.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.439 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.441 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.442 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.443 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.445 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.446 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.447 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.449 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no148.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.450 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.451 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.453 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.454 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.456 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.458 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.459 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.460 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for no149.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.462 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.464 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.465 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.467 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.468 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.470 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.471 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.473 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for uk1785.nordvpn.com:  server.py:373
+                    DEBUG    2025-02-24 07:56:32.474 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.475 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.477 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.478 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.480 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.481 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.482 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.484 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for hu49.nordvpn.com:    server.py:373
+                    DEBUG    2025-02-24 07:56:32.485 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.486 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.488 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.489 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.490 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.492 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.493 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.494 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr536.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.496 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.497 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.498 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.500 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.501 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.503 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.504 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.507 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr537.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.508 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.510 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.512 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.513 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.514 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.516 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.518 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.519 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr538.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.521 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.522 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.523 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.525 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.528 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.530 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.531 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.532 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr539.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.534 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.535 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.536 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.538 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.539 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.541 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.542 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.543 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr540.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.544 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.546 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.547 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.548 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.550 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.551 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.553 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.554 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr541.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.555 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.556 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.558 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.560 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.561 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.563 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.564 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.566 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr542.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.567 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.569 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.570 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.572 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.573 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.575 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.576 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.577 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr543.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.578 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.580 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.581 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.582 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.584 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.585 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.587 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.588 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for fr544.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.589 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.591 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.592 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.593 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.594 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.596 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.597 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.598 | DEBUG    | nyord_vpn.network.server:get_servers_cache:373 - Technologies for ch221.nordvpn.com:   server.py:373
+                    DEBUG    2025-02-24 07:56:32.599 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 1, Name: IKEv2/IPSec, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.601 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 3, Name: OpenVPN UDP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.602 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 5, Name: OpenVPN TCP, Status: server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.603 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 21, Name: HTTP Proxy (SSL),   server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.605 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 23, Name: HTTP CyberSec Proxy server.py:375
+                             (SSL), Status: None                                                                                                                      
+                    DEBUG    2025-02-24 07:56:32.606 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 35, Name: Wireguard, Status:  server.py:375
+                             None                                                                                                                                     
+                    DEBUG    2025-02-24 07:56:32.608 | DEBUG    | nyord_vpn.network.server:get_servers_cache:375 -   - ID: 51, Name: NordWhisper,        server.py:375
+                             Status: None                                                                                                                             
+                    DEBUG    2025-02-24 07:56:32.610 | DEBUG    | nyord_vpn.network.server:get_servers_cache:446 - No valid servers found after          server.py:446
+                             filtering 100 total servers                                                                                                              
+                    ERROR    2025-02-24 07:56:32.612 | ERROR    | nyord_vpn.network.server:get_servers_cache:476 - Failed to fetch servers: No valid     server.py:476
+                             servers found in API response. Total servers: 100, Invalid: 100                                                                          
+                             Traceback (most recent call last):                                                                                                       
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/nyord-vpn", line 10, in <module>                               
+                                 sys.exit(main())                                                                                                                     
+                                 |   |    -> <function main at 0x108efb880>                                                                                           
+                                 |   -> <built-in function exit>                                                                                                      
+                                 -> <module 'sys' (built-in)>                                                                                                         
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 81, in main                             
+                                 fire.Fire(CLI)                                                                                                                       
+                                 |    |    -> <class 'nyord_vpn.__main__.CLI'>                                                                                        
+                                 |    -> <function Fire at 0x108fa1260>                                                                                               
+                                 -> <module 'fire' from                                                                                                               
+                             '/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/__init__...                             
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 135,              
+                             in Fire                                                                                                                                  
+                                 component_trace = _Fire(component, args, parsed_flag_args, context, name)                                                            
+                                                   |     |          |     |                 |        -> 'nyord-vpn'                                                   
+                                                   |     |          |     |                 -> {}                                                                     
+                                                   |     |          |     -> Namespace(verbose=False, interactive=False, separator='-', completion=None,              
+                             help=False, trace=False)                                                                                                                 
+                                                   |     |          -> ['go', 'pl', '--verbose']                                                                      
+                                                   |     -> <class 'nyord_vpn.__main__.CLI'>                                                                          
+                                                   -> <function _Fire at 0x108fc2a20>                                                                                 
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 468,              
+                             in _Fire                                                                                                                                 
+                                 component, remaining_args = _CallAndUpdateTrace(                                                                                     
+                                 |                           -> <function _CallAndUpdateTrace at 0x108fc2b60>                                                         
+                                 -> <bound method CLI.go of <nyord_vpn.__main__.CLI object at 0x10915e1e0>>                                                           
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/lib/python3.12/site-packages/fire/core.py", line 684,              
+                             in _CallAndUpdateTrace                                                                                                                   
+                                 component = fn(*varargs, **kwargs)                                                                                                   
+                                             |   |          -> {}                                                                                                     
+                                             |   -> ['pl']                                                                                                            
+                                             -> <bound method CLI.go of <nyord_vpn.__main__.CLI object at 0x10915e1e0>>                                               
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/__main__.py", line 46, in go                               
+                                 self.client.go(country_code)                                                                                                         
+                                 |    |      |  -> 'pl'                                                                                                               
+                                 |    |      -> <function Client.go at 0x108efb2e0>                                                                                   
+                                 |    -> <nyord_vpn.core.client.Client object at 0x10915e240>                                                                         
+                                 -> <nyord_vpn.__main__.CLI object at 0x10915e1e0>                                                                                    
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/core/client.py", line 278, in go                           
+                                 selected_servers = self.server_manager.select_fastest_server(                                                                        
+                                                    |    |              -> <function ServerManager.select_fastest_server at 0x108e83920>                              
+                                                    |    -> <nyord_vpn.network.server.ServerManager object at 0x108d269f0>                                            
+                                                    -> <nyord_vpn.core.client.Client object at 0x10915e240>                                                           
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/network/server.py", line 835, in                           
+                             select_fastest_server                                                                                                                    
+                                 normalized_country = self._validate_country_code(country_code)                                                                       
+                                                      |    |                      -> 'pl'                                                                             
+                                                      |    -> <function ServerManager._validate_country_code at 0x108e834c0>                                          
+                                                      -> <nyord_vpn.network.server.ServerManager object at 0x108d269f0>                                               
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/network/server.py", line 175, in                           
+                             _validate_country_code                                                                                                                   
+                                 country_info = self.get_country_info(normalized)                                                                                     
+                                                |    |                -> 'PL'                                                                                         
+                                                |    -> <function ServerManager.get_country_info at 0x108e83b00>                                                      
+                                                -> <nyord_vpn.network.server.ServerManager object at 0x108d269f0>                                                     
+                                                                                                                                                                      
+                               File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/network/server.py", line 1018, in                          
+                             get_country_info                                                                                                                         
+                                 cache = self.get_servers_cache()                                                                                                     
+                                         |    -> <function ServerManager.get_servers_cache at 0x108e83600>                                                            
+                                         -> <nyord_vpn.network.server.ServerManager object at 0x108d269f0>                                                            
+                                                                                                                                                                      
+                             > File "/Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/src/nyord_vpn/network/server.py", line 449, in                           
+                             get_servers_cache                                                                                                                        
+                                 raise ValueError(                                                                                                                    
+                                                                                                                                                                      
+                             ValueError: No valid servers found in API response. Total servers: 100, Invalid: 100                                                     
+                                                                                                                                                                      
+                                                                                                                                                                      
+                    INFO     2025-02-24 07:56:32.626 | INFO     | nyord_vpn.network.server:get_servers_cache:490 - Using fallback cache with 100 valid   server.py:490
+                             servers                                                                                                                                  
+                    DEBUG    2025-02-24 07:56:32.628 | DEBUG    | nyord_vpn.network.server:select_fastest_server:883 - Testing 3 servers for speed       server.py:883
+                    DEBUG    2025-02-24 07:56:32.845 | DEBUG    | nyord_vpn.network.server:_test_server:683 - TCP/TLS test failed for pl125.nordvpn.com: server.py:683
+                             [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)                                                  
+                    DEBUG    2025-02-24 07:56:32.847 | DEBUG    | nyord_vpn.network.server:_test_server:683 - TCP/TLS test failed for pl128.nordvpn.com: server.py:683
+                             [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)                                                  
+                    DEBUG    2025-02-24 07:56:32.863 | DEBUG    | nyord_vpn.network.server:_test_server:683 - TCP/TLS test failed for pl122.nordvpn.com: server.py:683
+                             [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)                                                  
+                    ERROR    2025-02-24 07:56:32.867 | ERROR    | nyord_vpn.network.server:select_fastest_server:927 - Error selecting server: No        server.py:927
+                             responsive servers found in PL                                                                                                           
+Error: Failed to select servers: No responsive servers found in PL
+
+Bullshit
+
+---
+
+_**Assistant**_
+
 
 
 ---
