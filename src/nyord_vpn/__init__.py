@@ -83,7 +83,7 @@ from nyord_vpn.storage.models import (
     VPNError,
 )
 
-__version__ = "0.1.0"
+__version__ = "1.0.7"
 __all__ = [
     "Client",
     "ConnectionError",
