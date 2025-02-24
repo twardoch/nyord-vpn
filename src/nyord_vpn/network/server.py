@@ -628,35 +628,92 @@ class ServerManager:
             return server, float("inf")
 
         try:
-            # Quick ping test
-            ping_result = subprocess.run(
-                ["ping", "-c", "1", "-W", "1", hostname],
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
+            # Platform-specific ping command
+            import platform
+
+            system = platform.system().lower()
+
+            if system == "darwin":  # macOS
+                cmd = ["ping", "-c", "1", "-W", "1000", "-t", "1", hostname]
+            elif system == "windows":
+                cmd = ["ping", "-n", "1", "-w", "1000", hostname]
+            else:  # Linux and others
+                cmd = ["ping", "-c", "1", "-W", "1", hostname]
+
+            if self.api_client.verbose:
+                self.logger.debug(f"Running ping command: {' '.join(cmd)}")
+
+            # Run ping
+            ping_result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
 
             if ping_result.returncode != 0:
+                if self.api_client.verbose:
+                    self.logger.debug(
+                        f"Ping failed for {hostname}: {ping_result.stderr}"
+                    )
                 return server, float("inf")
 
-            # Extract ping time
-            ping_time = float(ping_result.stdout.split("time=")[-1].split()[0])
+            # Parse ping time based on platform
+            ping_time = float("inf")
+            output = ping_result.stdout
+
+            if system == "darwin":
+                # macOS format: round-trip min/avg/max/stddev = 20.237/20.237/20.237/0.000 ms
+                for line in output.splitlines():
+                    if "round-trip" in line:
+                        try:
+                            stats = line.split("=")[1].strip().split("/")
+                            ping_time = float(stats[0])  # Use min time
+                            break
+                        except (IndexError, ValueError) as e:
+                            if self.api_client.verbose:
+                                self.logger.debug(
+                                    f"Failed to parse macOS ping stats: {e}"
+                                )
+                            continue
+            else:
+                # Linux/Windows format: time=20.2 ms
+                try:
+                    ping_time = float(output.split("time=")[1].split()[0].rstrip("ms"))
+                except (IndexError, ValueError) as e:
+                    if self.api_client.verbose:
+                        self.logger.debug(f"Failed to parse ping time: {e}")
+                    return server, float("inf")
+
+            if ping_time == float("inf"):
+                if self.api_client.verbose:
+                    self.logger.debug(
+                        f"Could not parse ping time from output: {output}"
+                    )
+                return server, float("inf")
 
             # Quick TCP connection test to OpenVPN port
             start = time.time()
             try:
                 with socket.create_connection((hostname, 443), timeout=2):
                     tcp_time = (time.time() - start) * 1000  # Convert to ms
-            except (socket.timeout, socket.error):
+            except (socket.timeout, socket.error) as e:
+                if self.api_client.verbose:
+                    self.logger.debug(f"TCP connection failed for {hostname}: {e}")
                 return server, float("inf")
 
             # Combined score (70% ping, 30% TCP)
             score = (ping_time * 0.7) + (tcp_time * 0.3)
+
+            if self.api_client.verbose:
+                self.logger.debug(
+                    f"Server {hostname} test results: "
+                    f"ping={ping_time:.1f}ms, tcp={tcp_time:.1f}ms, score={score:.1f}ms"
+                )
+
             return server, score
 
         except Exception as e:
             if self.api_client.verbose:
                 self.logger.debug(f"Failed to test server {hostname}: {e}")
+                import traceback
+
+                self.logger.debug(f"Traceback: {traceback.format_exc()}")
             return server, float("inf")
 
     def _select_diverse_servers(
@@ -721,9 +778,49 @@ class ServerManager:
             Selected server info or None if no suitable server found
         """
         if _retry_count >= 3:
-            self.logger.error("Maximum retry count reached")
-            self._failed_servers.clear()
-            return None
+            # After 3 retries with our testing method, try the NordVPN recommendations API
+            try:
+                if self.api_client.verbose:
+                    self.logger.info("Falling back to NordVPN recommendations API")
+
+                # Get recommended server
+                url = "https://api.nordvpn.com/v1/servers/recommendations"
+                params = {
+                    "filters[servers_technologies][identifier]": "openvpn_tcp",
+                    "limit": "5",
+                }
+
+                if country_code:
+                    params["filters[country_id]"] = self._get_country_id(country_code)
+
+                response = requests.get(
+                    url, params=params, headers=API_HEADERS, timeout=10
+                )
+                response.raise_for_status()
+                servers = response.json()
+
+                if not servers:
+                    if self.api_client.verbose:
+                        self.logger.error("No servers returned by recommendations API")
+                    return None
+
+                # Get server with lowest load
+                server = min(servers, key=lambda x: x.get("load", 100))
+
+                # Convert to our format
+                return {
+                    "hostname": server["hostname"],
+                    "load": server.get("load", 0),
+                    "country": {
+                        "code": server.get("country", {}).get("code", ""),
+                        "name": server.get("country", {}).get("name", "Unknown"),
+                    },
+                }
+
+            except Exception as e:
+                if self.api_client.verbose:
+                    self.logger.error(f"Recommendations API fallback failed: {e}")
+                return None
 
         try:
             # Get cached servers
@@ -804,6 +901,44 @@ class ServerManager:
         except Exception as e:
             self.logger.error(f"Error selecting server: {e}")
             return None
+
+    def _get_country_id(self, country_code: str) -> str:
+        """Get NordVPN country ID from country code.
+
+        Args:
+            country_code: Two-letter country code
+
+        Returns:
+            Country ID or empty string if not found
+        """
+        try:
+            # First check our cache
+            cache = self.get_servers_cache()
+            for server in cache.get("servers", []):
+                if (
+                    server.get("country", {}).get("code", "").upper()
+                    == country_code.upper()
+                ):
+                    if country_id := server.get("country", {}).get("id"):
+                        return str(country_id)
+
+            # If not in cache, try API
+            response = requests.get(
+                "https://api.nordvpn.com/v1/servers/countries",
+                headers=API_HEADERS,
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            for country in response.json():
+                if country.get("code", "").upper() == country_code.upper():
+                    return str(country["id"])
+
+        except Exception as e:
+            if self.api_client.verbose:
+                self.logger.warning(f"Failed to get country ID: {e}")
+
+        return ""
 
     def get_random_country(self) -> str:
         try:

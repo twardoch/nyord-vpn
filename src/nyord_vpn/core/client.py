@@ -35,14 +35,13 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, Any, cast
 
 import requests
 from dotenv import load_dotenv
 from loguru import logger
 from rich.console import Console
 from rich.logging import RichHandler
-
 
 from nyord_vpn.storage.models import (
     ConnectionError,
@@ -55,6 +54,8 @@ from nyord_vpn.utils.utils import (
     CONFIG_DIR,
     DATA_DIR,
     save_vpn_state,
+    check_root,
+    ensure_root,
 )
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.core.api import NordVPNAPIClient
@@ -178,86 +179,164 @@ CACHE_EXPIRY = 24 * 60 * 60
 class Client:
     """Main NordVPN client that coordinates API, VPN, and server management.
 
-    This class serves as the primary interface for the nyord-vpn library, orchestrating:
-    1. Authentication and API interactions through NordVPNAPIClient
-    2. VPN connection management through VPNConnectionManager
-    3. Server selection and optimization through ServerManager
-    4. State persistence and cache management
-
-    The client handles automatic fallback mechanisms when API calls fail, maintains
-    a session-based failed servers list to avoid reconnection attempts to problematic
-    servers, and provides both programmatic and CLI interfaces for VPN management.
-
-    Typical usage:
-        client = Client(username="user", password="pass")
-        client.go("us")  # Connect to a US server
-        client.status()  # Check connection status
-        client.disconnect()  # Disconnect from VPN
+    This class provides the high-level interface for:
+    1. Managing VPN connections
+    2. Server selection and optimization
+    3. Connection status monitoring
+    4. User feedback and logging
     """
 
-    def __init__(
-        self,
-        username: str | None = None,
-        password: str | None = None,
-        verbose: bool = False,
-        auto_init: bool = True,
-    ) -> None:
-        """Initialize NordVPN client with credentials and optional configuration.
-
-        This constructor sets up the core components of the VPN client:
-        1. API client for NordVPN API interactions
-        2. VPN manager for OpenVPN connection handling
-        3. Server manager for server selection and optimization
-        4. Logging configuration for debugging
-        5. Environment initialization if auto_init is True
+    def __init__(self, username_str: str, password_str: str, verbose: bool = False):
+        """Initialize NordVPN client.
 
         Args:
-            username: Optional username (defaults to NORD_USER env var)
-            password: Optional password (defaults to NORD_PASSWORD env var)
-            verbose: Enable verbose logging for detailed operation tracking
-            auto_init: Whether to automatically initialize the environment
-                      (creates directories, checks OpenVPN, tests API)
-
-        Environment variables:
-            NORD_USER: NordVPN username (primary)
-            NORD_PASSWORD: NordVPN password (primary)
-            NORDVPN_LOGIN: NordVPN username (fallback)
-            NORDVPN_PASSWORD: NordVPN password (fallback)
-
-        Raises:
-            CredentialsError: If neither direct credentials nor environment variables are provided
-            ConnectionError: If auto_init is True and environment setup fails
-
+            username_str: NordVPN username
+            password_str: NordVPN password
+            verbose: Whether to enable verbose output
         """
-        # Get credentials
-        username_str = username or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
-        password_str = (
-            password or os.getenv("NORD_PASSWORD") or os.getenv("NORDVPN_PASSWORD")
-        )
-        if not username_str or not password_str:
-            raise CredentialsError(
-                "NORD_USER and NORD_PASSWORD environment variables must be set",
-            )
-
-        # Initialize components
         self.verbose = verbose
+        self.logger = logger
         self.api_client = NordVPNAPIClient(username_str, password_str, verbose)
         self.vpn_manager = VPNConnectionManager(verbose=verbose)
         self.server_manager = ServerManager(self.api_client)
-        self._failed_servers = set()  # Track failed servers in this session
 
-        # Set up logging
-        self.logger = logger
-        if verbose:
-            self.logger.add(sys.stdout, level="DEBUG")
+    def is_protected(self) -> bool:
+        """Check if VPN is active."""
+        status = self.status()
+        return status.get("connected", False)
 
-        # Initialize if requested
-        if auto_init:
-            try:
-                self.init()
-            except Exception as e:
-                if verbose:
-                    self.logger.warning(f"Failed to initialize environment: {e}")
+    def status(self) -> dict[str, Any]:
+        """Get current VPN status.
+
+        Returns:
+            dict: Status information including:
+                - connected (bool): Whether connected to VPN
+                - ip (str): Current IP address
+                - normal_ip (str): IP when not connected to VPN
+                - server (str): Connected server if any
+                - country (str): Connected country if any
+        """
+        return self.vpn_manager.status()
+
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country.
+
+        Args:
+            country_code: Two-letter country code (e.g. 'US', 'GB')
+
+        Raises:
+            VPNError: If connection fails
+        """
+        if not check_root():
+            ensure_root()
+            return
+
+        try:
+            # First check if we're already connected
+            status = self.status()
+            if status.get("connected", False):
+                console.print("[yellow]Already connected to VPN.[/yellow]")
+                console.print(f"Current IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(
+                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
+                )
+                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+                console.print("\n[yellow]Please disconnect first with:[/yellow]")
+                console.print("[blue]nyord-vpn bye[/blue]")
+                return
+
+            # Select fastest server
+            server = self.server_manager.select_fastest_server(country_code)
+            if not server:
+                raise VPNError(f"No servers available in {country_code}")
+
+            hostname = server.get("hostname")
+            if not hostname:
+                raise VPNError("Selected server has no hostname")
+
+            if self.verbose:
+                self.logger.info(f"Selected server: {hostname}")
+                console.print(f"Selected server: [cyan]{hostname}[/cyan]")
+
+            # Set up VPN configuration
+            self.vpn_manager.setup_connection(
+                hostname, self.api_client.username, self.api_client.password
+            )
+
+            # Connect to VPN
+            if self.verbose:
+                self.logger.info("Establishing VPN connection...")
+                console.print("Establishing VPN connection...")
+
+            # Connect and wait for result
+            self.vpn_manager.connect(server)
+
+            # Get status for display
+            status = self.status()
+            if self.verbose:
+                self.logger.info("Successfully connected to VPN")
+                self.logger.info(f"New IP: {status.get('ip', 'Unknown')}")
+            console.print("[green]Successfully connected to VPN[/green]")
+            console.print(f"New IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+            console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+            console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+
+        except Exception as e:
+            if isinstance(e, VPNError):
+                raise
+            raise VPNError(f"Failed to connect: {str(e)}")
+
+    def bye(self) -> None:
+        """Disconnect from VPN."""
+        if not check_root():
+            ensure_root()
+            return
+
+        try:
+            # First check if we're actually connected
+            status = self.status()
+            if not status.get("connected", False):
+                console.print("[yellow]Not connected to VPN[/yellow]")
+                console.print(
+                    f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+                )
+                return
+
+            # Store the current IP for display
+            current_ip = status.get("ip", "Unknown")
+
+            # Disconnect
+            self.vpn_manager.disconnect()
+
+            # Get new status for display
+            status = self.status()
+            console.print("[green]Successfully disconnected from VPN[/green]")
+            console.print(
+                f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+            )
+            console.print(f"Previous IP: [yellow]{current_ip}[/yellow]")
+
+        except Exception as e:
+            raise VPNError(f"Failed to disconnect: {e}")
+
+    def info(self) -> None:
+        """Display current VPN status."""
+        try:
+            status = self.status()
+            if status.get("connected", False):
+                console.print("[green]VPN Status: Connected[/green]")
+                console.print(f"Current IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(
+                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
+                )
+                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+            else:
+                console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                console.print(
+                    f"Normal IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+                )
+        except Exception as e:
+            raise VPNError(f"Failed to get status: {e}")
 
     def init(self) -> None:
         """Initialize the client environment and verify all dependencies.
@@ -305,184 +384,9 @@ class Client:
 
             if self.verbose:
                 self.logger.info("Client environment initialized successfully")
-            else:
-                console.print(
-                    "[green]Client environment initialized successfully[/green]",
-                )
 
         except Exception as e:
             raise ConnectionError(f"Failed to initialize client environment: {e}")
-
-    def status(self) -> dict[str, str | bool | None]:
-        """Get current VPN connection status and details.
-
-        Retrieves comprehensive information about the current VPN connection:
-        1. Connection state (connected/disconnected)
-        2. Current IP address (VPN IP if connected, normal IP if not)
-        3. Connected server details (if connected)
-        4. Country information (if connected)
-        5. Connection duration (if connected)
-
-        Returns:
-            dict: Status information with the following keys:
-                - status (bool): True if connected, False if not
-                - ip (str): Current IP address
-                - server (str, optional): Connected server hostname
-                - country (str, optional): Connected server country
-                - connected_since (str, optional): Connection timestamp
-
-        Note:
-            This method performs real-time checks of the connection state
-            and IP address, ensuring accurate status information even if
-            the connection was established outside this client instance.
-
-        """
-        try:
-            current_ip = self.vpn_manager.get_current_ip()
-            if not current_ip:
-                return {
-                    "status": False,
-                    "ip": "Unknown",
-                    "country": "Unknown",
-                    "city": "Unknown",
-                    "server": None,
-                }
-
-            is_connected = self.vpn_manager.verify_connection()
-            if not is_connected:
-                return {
-                    "status": False,
-                    "ip": current_ip,
-                    "country": "Unknown",
-                    "city": "Unknown",
-                    "server": None,
-                }
-
-            # Get location info from NordVPN API
-            try:
-                response = requests.get(
-                    "https://nordvpn.com/wp-admin/admin-ajax.php?action=get_user_info_data",
-                    headers=API_HEADERS,
-                    timeout=5,
-                )
-                response.raise_for_status()
-                nord_data = response.json()
-                return {
-                    "status": True,
-                    "ip": current_ip,
-                    "country": nord_data.get("country", "Unknown"),
-                    "city": nord_data.get("city", "Unknown"),
-                    "server": self.vpn_manager._server,
-                }
-            except Exception:
-                return {
-                    "status": True,
-                    "ip": current_ip,
-                    "country": self.vpn_manager._country_name or "Unknown",
-                    "city": "Unknown",
-                    "server": self.vpn_manager._server,
-                }
-
-        except Exception as e:
-            raise ConnectionError(f"Failed to get status: {e}")
-
-    def go(self, country_code: str) -> None:
-        """Connect to VPN in specified country."""
-        max_retries = 3
-        retry_count = 0
-
-        while retry_count < max_retries:
-            try:
-                # Get country info
-                country = self.server_manager.get_country_info(country_code)
-                if not country:
-                    raise ValueError(f"Country code '{country_code}' not found")
-
-                if self.verbose:
-                    self.logger.info(f"Connecting to {country['name']}")
-
-                # Get initial IP
-                self._initial_ip = self.get_current_ip()
-                if self.verbose:
-                    self.logger.info(f"Initial IP: {self._initial_ip}")
-
-                # Select fastest server
-                server = self.server_manager.select_fastest_server(country_code)
-                if not server:
-                    raise VPNError("No server available")
-
-                hostname = (
-                    server.get("hostname") if isinstance(server, dict) else server
-                )
-                if not hostname:
-                    raise VPNError("Invalid server data - missing hostname")
-
-                if self.verbose:
-                    self.logger.info(f"Selected server: {hostname}")
-                else:
-                    console.print(f"[cyan]Server:[/cyan] {hostname}")
-
-                # Set up VPN configuration
-                self.vpn_manager.setup_connection(
-                    hostname,
-                    self.api_client.username,
-                    self.api_client.password,
-                )
-
-                # Establish VPN connection
-                if self.verbose:
-                    self.logger.info("Establishing VPN connection...")
-                self.vpn_manager.connect({"hostname": hostname})
-
-                # Update connection info
-                self._connected_ip = self.get_current_ip()
-                self._server = hostname
-                self._country_name = country["name"]
-
-                if self.verbose:
-                    self.logger.info(f"Connected to {hostname}")
-                    self.logger.info(f"New IP: {self._connected_ip}")
-                else:
-                    console.print(f"[green]Connected to {hostname}[/green]")
-                    console.print(f"[cyan]New IP:[/cyan] {self._connected_ip}")
-
-                # Save state
-                self._save_state()
-                break
-
-            except Exception as e:
-                if self.verbose:
-                    self.logger.warning(f"Connection failed: {e}")
-                else:
-                    console.print(f"[yellow]Connection failed: {e}[/yellow]")
-
-                retry_count += 1
-                if retry_count < max_retries:
-                    if self.verbose:
-                        self.logger.info("Retrying with different server...")
-                    else:
-                        console.print(
-                            "[yellow]Retrying with different server...[/yellow]",
-                        )
-                    time.sleep(2)
-                else:
-                    raise VPNError(
-                        f"Failed to connect after {max_retries} attempts: {e}",
-                    )
-
-    def disconnect(self, verbose: bool = True) -> None:
-        """Disconnect from VPN."""
-        try:
-            self.vpn_manager.disconnect()
-            if verbose:
-                pass
-        except Exception as e:
-            raise ConnectionError(f"Failed to disconnect: {e}")
-
-    def is_protected(self) -> bool:
-        """Check if VPN is active."""
-        status = self.status().get("status", False)
-        return bool(status)
 
     def get_current_ip(self) -> str | None:
         """Get current IP address."""
@@ -492,10 +396,10 @@ class Client:
         """Save current connection state."""
         state = {
             "connected": self.is_protected(),
-            "initial_ip": self._initial_ip,
-            "connected_ip": self._connected_ip,
-            "server": self._server,
-            "country": self._country_name,
+            "initial_ip": self.get_current_ip(),
+            "connected_ip": self.get_current_ip(),
+            "server": self.status().get("server", "Unknown"),
+            "country": self.status().get("country", "Unknown"),
             "timestamp": time.time(),
         }
         save_vpn_state(state)

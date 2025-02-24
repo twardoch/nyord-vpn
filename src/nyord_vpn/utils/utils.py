@@ -12,7 +12,7 @@ Directory Structure:
    - OpenVPN configuration
    - Authentication data
 
-2. Config Directory (~/.config/nyord-vpn/):
+2. Config Directory (~/.cache/nyord-vpn/):
    - User configuration
    - Custom settings
    - Persistent data
@@ -59,23 +59,28 @@ state management.
 
 import json
 import os
+import sys
+import subprocess
 import time
 from pathlib import Path
 
-from loguru import logger
 from platformdirs import user_cache_dir, user_config_dir
+from rich.console import Console
+from loguru import logger
 
-# Application directories with platform-specific paths
+console = Console()
+
+# Application directories
 APP_NAME = "nyord-vpn"
 APP_AUTHOR = "twardoch"
 CACHE_DIR = Path(user_cache_dir(APP_NAME, APP_AUTHOR))
 CONFIG_DIR = Path(user_config_dir(APP_NAME, APP_AUTHOR))
 
-# Ensure core directories exist
+# Ensure directories exist
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-# File paths for various components
+# File paths
 PACKAGE_DIR = Path(__file__).parent
 DATA_DIR = PACKAGE_DIR / "data"
 CACHE_FILE = DATA_DIR / "countries.json"
@@ -86,48 +91,74 @@ OPENVPN_CONFIG = CACHE_DIR / "openvpn.ovpn"
 OPENVPN_AUTH = CACHE_DIR / "openvpn.auth"
 OPENVPN_LOG = CACHE_DIR / "openvpn.log"
 
-# Cache settings
+# Cache expiry in seconds (24 hours)
 CACHE_EXPIRY = 24 * 60 * 60  # 24 hours in seconds
 
 
-def is_process_running(process_id) -> bool | None:
-    """Check if a process is running using its PID.
+def check_root() -> bool:
+    """Check if running with root privileges.
 
-    Uses sudo to check process existence since OpenVPN
-    processes run with elevated privileges. This is more
-    reliable than direct process checking for root processes.
+    Returns:
+        bool: True if already running as root, False if needs elevation
+    """
+    return os.geteuid() == 0
+
+
+def ensure_root() -> None:
+    """Request root privileges using sudo.
+
+    This function checks if the current process has root privileges.
+    If not, it attempts to re-run the script with sudo.
+
+    The function will:
+    1. Check current user's effective UID
+    2. If not root, re-run with sudo
+    3. Display appropriate messages
+    4. Exit with status code on failure
+
+    Note:
+        This is required for OpenVPN operations which need
+        root access to configure network interfaces.
+    """
+    if not check_root():
+        try:
+            # Re-run the script with sudo
+            args = ["sudo", sys.executable, *sys.argv]
+            console.print(
+                "[yellow]This command requires admin privileges.[/yellow]",
+            )
+            console.print(
+                "[cyan]Enter your computer admin (sudo) password when asked.[/cyan]"
+            )
+            subprocess.run(args, check=True)
+            sys.exit(0)
+        except subprocess.CalledProcessError:
+            console.print("[red]Error: Admin privileges required.[/red]")
+            console.print("[yellow]Run the command again with sudo:[/yellow]")
+            console.print(f"[blue]sudo {' '.join(sys.argv)}[/blue]")
+            sys.exit(1)
+
+
+def is_process_running(process_id: int) -> bool | None:
+    """Check if a process is running by its PID.
 
     Args:
         process_id: Process ID to check
 
     Returns:
-        bool: True if process exists, False otherwise
-
-    Note:
-        This function requires sudo access and is specifically
-        designed for checking OpenVPN processes.
-
+        bool: True if running, False if not, None if check fails
     """
     try:
-        os.system("sudo kill -0 " + str(process_id))
+        os.kill(process_id, 0)
         return True
-    except Exception:
+    except OSError:
         return False
+    except Exception:
+        return None
 
 
 def ensure_data_dir() -> None:
-    """Create data directory if it doesn't exist.
-
-    This function ensures the package data directory exists:
-    1. Creates directory with parents if needed
-    2. Sets appropriate permissions
-    3. Handles concurrent creation safely
-
-    The data directory stores:
-    - Country information
-    - Default configurations
-    - Static resources
-    """
+    """Ensure data directory exists and is writable."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -169,7 +200,7 @@ def save_vpn_state(state: dict) -> None:
     Args:
         state: Dictionary containing state information:
             - connected (bool): Current connection status
-            - initial_ip (str): Original IP before VPN
+            - normal_ip (str): IP address when not connected to VPN
             - connected_ip (str): VPN-assigned IP
             - server (str): Connected server hostname
             - country (str): Server country
@@ -180,9 +211,26 @@ def save_vpn_state(state: dict) -> None:
         and status monitoring. Failed saves are logged
         but don't raise exceptions to prevent disrupting
         VPN operations.
-
     """
     try:
+        # If we're saving a disconnected state, update normal_ip
+        if not state.get("connected"):
+            current_ip = state.get("current_ip")
+            if current_ip:
+                state["normal_ip"] = current_ip
+
+        # Load existing state to preserve normal_ip if not present
+        if STATE_FILE.exists():
+            try:
+                existing = json.loads(STATE_FILE.read_text())
+                if not state.get("normal_ip"):
+                    state["normal_ip"] = existing.get("normal_ip")
+            except json.JSONDecodeError:
+                pass
+
+        # Ensure timestamp is updated
+        state["timestamp"] = time.time()
+
         STATE_FILE.write_text(json.dumps(state, indent=2))
     except Exception as e:
         logger.warning(f"Failed to save VPN state: {e}")
@@ -199,7 +247,7 @@ def load_vpn_state() -> dict:
     Returns:
         dict: State information containing:
             - connected (bool): Connection status
-            - initial_ip (str|None): Original IP
+            - normal_ip (str|None): IP when not connected to VPN
             - connected_ip (str|None): VPN IP
             - server (str|None): Server hostname
             - country (str|None): Server country
@@ -209,7 +257,6 @@ def load_vpn_state() -> dict:
         The state is considered stale after 5 minutes
         to prevent using outdated connection information.
         Failed loads return a safe default state.
-
     """
     try:
         if STATE_FILE.exists():
@@ -222,7 +269,7 @@ def load_vpn_state() -> dict:
 
     return {
         "connected": False,
-        "initial_ip": None,  # Original IP before VPN connection
+        "normal_ip": None,  # IP address when not connected to VPN
         "connected_ip": None,  # IP address when connected to VPN
         "server": None,
         "country": None,

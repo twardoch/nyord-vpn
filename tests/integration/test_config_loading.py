@@ -105,7 +105,7 @@ async def test_default_values() -> None:
     assert config.default_country == "United States"
     assert config.retry_attempts == 3
     assert config.use_legacy_fallback is True
-    assert config.config_dir == Path.home() / ".config" / "nyord-vpn"
+    assert config.config_dir == Path.home() / ".cache" / "nyord-vpn"
     assert config.api_timeout == 30
 
     # Test with VPNClient
@@ -115,7 +115,7 @@ async def test_default_values() -> None:
     assert client.config.default_country == "United States"
     assert client.config.retry_attempts == 3
     assert client.config.use_legacy_fallback is True
-    assert client.config.config_dir == Path.home() / ".config" / "nyord-vpn"
+    assert client.config.config_dir == Path.home() / ".cache" / "nyord-vpn"
     assert client.config.api_timeout == 30
 
 

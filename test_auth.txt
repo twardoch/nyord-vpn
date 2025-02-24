@@ -1,2 +1,0 @@
-your_nordvpn_username
-your_nordvpn_password
