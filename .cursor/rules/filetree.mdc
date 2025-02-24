@@ -1,0 +1,124 @@
+---
+description: File tree of the project
+globs: 
+---
+[ 896]  .
+├── [  96]  .cursor
+│   └── [  96]  rules
+│       └── [4.0K]  nyord-vpn.mdc
+├── [  96]  .github
+│   └── [ 128]  workflows
+│       ├── [2.7K]  push.yml
+│       └── [1.4K]  release.yml
+├── [3.5K]  .gitignore
+├── [ 532]  .pre-commit-config.yaml
+├── [ 160]  .specstory
+│   ├── [1.6K]  history
+│   │   ├── [2.0K]  .what-is-this.md
+│   │   ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
+│   │   ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
+│   │   ├── [167K]  2025-02-22_20-24-managing-todos-and-development-tasks.md
+│   │   ├── [8.3K]  2025-02-22_21-08-final-decision-and-todo-update.md
+│   │   ├── [203K]  2025-02-22_21-21-git-management-and-todo-updates.md
+│   │   ├── [ 39K]  2025-02-22_21-59-git-management-and-todo-updates.md
+│   │   ├── [363K]  2025-02-22_22-27-git-management-and-todo-updates.md
+│   │   ├── [ 52K]  2025-02-22_23-26-nordvpn-client-implementation-discussion.md
+│   │   ├── [137K]  2025-02-22_23-35-task-management-and-project-update.md
+│   │   ├── [ 58K]  2025-02-22_23-55-updating-todo-md-and-project-management.md
+│   │   ├── [ 61K]  2025-02-23_00-02-task-management-and-collaboration-strategy.md
+│   │   ├── [165K]  2025-02-23_00-09-updating-todo-md-and-task-prioritization.md
+│   │   ├── [217K]  2025-02-23_01-01-codebase-analysis-and-optimization-discussion.md
+│   │   ├── [101K]  2025-02-23_01-43-importerror-in-nyord-vpn-module.md
+│   │   ├── [ 53K]  2025-02-23_01-55-understanding-vpn-cli-commands-and-issues.md
+│   │   ├── [216K]  2025-02-23_02-15-python-virtual-environment-setup-and-testing.md
+│   │   ├── [ 26K]  2025-02-23_02-34-vpn-connection-troubleshooting-with-python.md
+│   │   ├── [189K]  2025-02-23_04-09-executing-python-vpn-connection-command.md
+│   │   ├── [156K]  2025-02-23_04-56-vpn-connection-troubleshooting.md
+│   │   ├── [ 44K]  2025-02-23_05-42-vpn-connection-status-troubleshooting.md
+│   │   ├── [2.9K]  2025-02-23_05-54-comparing-vpn-management-tools-openpyn-vs-nyord.md
+│   │   ├── [ 16K]  2025-02-23_06-04-untitled.md
+│   │   ├── [ 16K]  2025-02-23_06-09-improving-nyord-vpn-server-selection-and-setup.md
+│   │   ├── [ 76K]  2025-02-23_06-46-implementing-todo-items-in-project.md
+│   │   ├── [156K]  2025-02-23_06-52-code-optimization-and-refactoring-discussion.md
+│   │   ├── [227K]  2025-02-23_07-19-vpn-connection-troubleshooting-log.md
+│   │   ├── [673K]  2025-02-23_07-30-vpn-connection-issues-and-server-selection-errors.md
+│   │   ├── [432K]  2025-02-23_07-55-vpn-client-initialization-and-connection-logs.md
+│   │   ├── [359K]  2025-02-23_08-03-nordvpn-client-initialization-logs.md
+│   │   ├── [410K]  2025-02-23_08-18-vpn-client-frustrations-and-logs.md
+│   │   ├── [6.0K]  2025-02-23_23-48-hierarchical-representation-of-codebase-structure.md
+│   │   ├── [7.9K]  2025-02-23_23-48-nordvpn-client-codebase-organization.md
+│   │   ├── [ 93K]  2025-02-24_00-09-code-analysis-and-docstring-enhancement.md
+│   │   ├── [2.8K]  2025-02-24_01-16-vpn-configuration-file-retrieval-and-security.md
+│   │   ├── [ 70K]  2025-02-24_01-29-improving-nyord-vpn-configuration-method.md
+│   │   ├── [ 42K]  2025-02-24_01-47-openvpn-configuration-and-debugging.md
+│   │   ├── [ 95K]  2025-02-24_02-10-vpn-connection-error-troubleshooting.md
+│   │   ├── [ 58K]  2025-02-24_02-47-vpn-connection-troubleshooting-openvpn-auth-failure.md
+│   │   ├── [ 12K]  2025-02-24_03-15-questioning-openvpn-command-location-in-code.md
+│   │   ├── [ 20K]  2025-02-24_03-31-untitled.md
+│   │   ├── [184K]  2025-02-24_03-36-zip-extraction-to-cache-directory.md
+│   │   ├── [224K]  2025-02-24_04-13-vpn-connection-management-and-ip-tracking-issues.md
+│   │   ├── [1.8M]  2025-02-24_04-43-vpn-connection-debugging-and-ip-verification.md
+│   │   ├── [168K]  2025-02-24_05-02-optimizing-vpn-config-extraction-process.md
+│   │   ├── [579K]  2025-02-24_05-33-vpn-connection-troubleshooting-and-debugging.md
+│   │   ├── [287K]  2025-02-24_06-17-vpn-connection-management-with-nyord-vpn.md
+│   │   ├── [210K]  2025-02-24_06-58-vpn-connection-troubleshooting.md
+│   │   ├── [105K]  2025-02-24_07-15-vpn-connection-troubleshooting-and-improvements.md
+│   │   └── [6.2K]  2025-02-24_07-20-fixing-import-error-in-vpn-module.md
+│   └── [5.8M]  history.txt
+├── [1.0K]  LICENSE
+├── [5.5K]  README.md
+├── [ 11K]  TODO.md
+├── [ 12K]  cleanup.py
+├── [  96]  dist
+│   └── [   1]  .gitkeep
+├── [310K]  nyord_vpn.txt
+├── [ 426]  package.toml
+├── [6.9K]  pyproject.toml
+├── [ 192]  src
+│   ├── [   0]  __init__.py
+│   └── [ 416]  nyord_vpn
+│       ├── [2.3K]  __init__.py
+│       ├── [2.5K]  __main__.py
+│       ├── [ 256]  core
+│       │   ├── [ 178]  __init__.py
+│       │   ├── [9.1K]  api.py
+│       │   ├── [6.4K]  base.py
+│       │   └── [ 13K]  client.py
+│       ├── [ 128]  data
+│       │   ├── [ 93K]  countries.json
+│       │   └── [ 963]  country_ids.json
+│       ├── [7.2K]  exceptions.py
+│       ├── [ 288]  network
+│       │   ├── [ 204]  __init__.py
+│       │   ├── [1.0K]  country.py
+│       │   ├── [ 38K]  server.py
+│       │   ├── [ 42K]  vpn.py
+│       │   └── [4.5K]  vpn_commands.py
+│       ├── [ 192]  scripts
+│       │   ├── [  37]  __init__.py
+│       │   └── [3.0K]  update_countries.py
+│       ├── [ 224]  storage
+│       │   ├── [   0]  __init__.py
+│       │   ├── [8.8K]  models.py
+│       │   └── [4.0K]  state.py
+│       └── [ 288]  utils
+│           ├── [ 194]  __init__.py
+│           ├── [3.8K]  connection.py
+│           ├── [  64]  data
+│           ├── [ 12K]  templates.py
+│           └── [9.4K]  utils.py
+├── [ 320]  tests
+│   ├── [  40]  __init__.py
+│   ├── [2.6K]  conftest.py
+│   ├── [ 288]  integration
+│   │   ├── [  39]  __init__.py
+│   │   ├── [ 12K]  test_config_loading.py
+│   │   ├── [2.9K]  test_connection.py
+│   │   ├── [9.3K]  test_errors.py
+│   │   └── [1.4K]  test_validation_integration.py
+│   ├── [2.0K]  test_client.py
+│   ├── [3.5K]  test_legacy_api.py
+│   └── [ 159]  test_package.py
+└── [264K]  uv.lock
+
+19 directories, 99 files

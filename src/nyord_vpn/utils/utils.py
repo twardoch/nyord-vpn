@@ -67,6 +67,7 @@ from pathlib import Path
 from platformdirs import user_cache_dir, user_config_dir
 from rich.console import Console
 from loguru import logger
+import contextlib
 
 console = Console()
 
@@ -229,15 +230,14 @@ def save_vpn_state(state: dict) -> None:
             - country (str): Server country
             - timestamp (float): State update time
             - current_ip (str, optional): Current IP after disconnection
+
     """
     try:
         # Load existing state to preserve important info
         existing = {}
         if STATE_FILE.exists():
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 existing = json.loads(STATE_FILE.read_text())
-            except json.JSONDecodeError:
-                pass
 
         # If we're disconnected and have a current_ip, that's our normal_ip
         if not state.get("connected") and state.get("current_ip"):
@@ -273,12 +273,14 @@ def load_vpn_state() -> dict:
             try:
                 state = json.loads(STATE_FILE.read_text())
                 if logger.level("DEBUG").no <= logger.level("INFO").no:
-                    logger.debug(f"Loaded state from {STATE_FILE}: {json.dumps(state, indent=2)}")
+                    logger.debug(
+                        f"Loaded state from {STATE_FILE}: {json.dumps(state, indent=2)}"
+                    )
                 # State is valid for 5 minutes
                 if time.time() - state.get("timestamp", 0) < 300:
                     return state
                 # Even if state is stale, preserve IPs
-                default = {
+                return {
                     "connected": False,
                     "normal_ip": state.get("normal_ip"),
                     "connected_ip": None,
@@ -286,7 +288,6 @@ def load_vpn_state() -> dict:
                     "country": None,
                     "timestamp": time.time(),
                 }
-                return default
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse state file: {e}")
     except Exception as e:

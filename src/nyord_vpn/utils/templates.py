@@ -17,11 +17,11 @@ import zipfile
 import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
 
 import requests
 from loguru import logger
 from nyord_vpn.exceptions import VPNConfigError
+import contextlib
 
 # Constants
 CACHE_DIR = Path.home() / ".cache" / "nyord-vpn"
@@ -65,7 +65,7 @@ def verify_file_integrity(path: Path, expected_hash: str) -> bool:
         return False
 
 
-def get_zip_age() -> Optional[timedelta]:
+def get_zip_age() -> timedelta | None:
     """Get the age of the cached ZIP file."""
     try:
         if not CONFIG_ZIP.exists():
@@ -130,7 +130,9 @@ def cleanup_old_configs() -> None:
         log_debug("Failed to cleanup old configs: {}", e)
 
 
-def download_with_retry(url: str, headers: dict, timeout: int = 30) -> Tuple[bytes, str]:
+def download_with_retry(
+    url: str, headers: dict, timeout: int = 30
+) -> tuple[bytes, str]:
     """Download a file with exponential backoff retry."""
     last_error = None
     delay = INITIAL_RETRY_DELAY
@@ -141,9 +143,7 @@ def download_with_retry(url: str, headers: dict, timeout: int = 30) -> Tuple[byt
                 jitter = random.uniform(0, 0.1) * delay
                 sleep_time = delay + jitter
                 log_debug(
-                    "Retry attempt {} after {:.1f}s delay...", 
-                    attempt + 1, 
-                    sleep_time
+                    "Retry attempt {} after {:.1f}s delay...", attempt + 1, sleep_time
                 )
                 time.sleep(sleep_time)
 
@@ -156,16 +156,16 @@ def download_with_retry(url: str, headers: dict, timeout: int = 30) -> Tuple[byt
         except requests.RequestException as e:
             last_error = e
             if isinstance(e, requests.HTTPError):
-                if 400 <= e.response.status_code < 500 and e.response.status_code != 429:
+                if (
+                    400 <= e.response.status_code < 500
+                    and e.response.status_code != 429
+                ):
                     raise VPNConfigError(
                         f"Failed to download (HTTP {e.response.status_code}): {e}"
                     ) from e
             delay = min(delay * 2, MAX_RETRY_DELAY)
             log_debug(
-                "Download failed (attempt {}/{}): {}", 
-                attempt + 1,
-                MAX_RETRIES,
-                str(e)
+                "Download failed (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, str(e)
             )
 
     if isinstance(last_error, requests.HTTPError):
@@ -191,7 +191,7 @@ def extract_config_from_zip(server: str) -> Path:
         try:
             with zipfile.ZipFile(CONFIG_ZIP) as zip_ref:
                 try:
-                    file_info = zip_ref.getinfo(zip_path)
+                    zip_ref.getinfo(zip_path)
                     file_hash = calculate_sha256(zip_ref.read(zip_path))
                     zip_ref.extract(zip_path, CONFIG_DIR)
                     extracted_path = CONFIG_DIR / zip_path
@@ -199,7 +199,8 @@ def extract_config_from_zip(server: str) -> Path:
                         raise VPNConfigError("Extracted file is corrupted")
                 except KeyError:
                     tcp_configs = [
-                        name for name in zip_ref.namelist() 
+                        name
+                        for name in zip_ref.namelist()
                         if name.startswith("ovpn_tcp/") and name.endswith(".tcp.ovpn")
                     ]
                     log_debug("Available TCP configs in ZIP: {}", len(tcp_configs))
@@ -210,10 +211,8 @@ def extract_config_from_zip(server: str) -> Path:
                         f"ZIP contains {len(tcp_configs)} TCP configs."
                     )
         except zipfile.BadZipFile as e:
-            try:
+            with contextlib.suppress(Exception):
                 CONFIG_ZIP.unlink()
-            except Exception:
-                pass
             raise VPNConfigError(f"Corrupted ZIP file: {e}") from e
 
         extracted_path = CONFIG_DIR / zip_path
@@ -224,10 +223,8 @@ def extract_config_from_zip(server: str) -> Path:
         except Exception as e:
             raise VPNConfigError(f"Failed to move config file: {e}") from e
 
-        try:
+        with contextlib.suppress(FileNotFoundError, OSError):
             (CONFIG_DIR / "ovpn_tcp").rmdir()
-        except (FileNotFoundError, OSError):
-            pass
 
         try:
             config_path.chmod(0o600)
@@ -263,11 +260,14 @@ def download_config_zip() -> None:
             try:
                 with zipfile.ZipFile(temp_zip) as zip_ref:
                     tcp_configs = [
-                        name for name in zip_ref.namelist() 
+                        name
+                        for name in zip_ref.namelist()
                         if name.startswith("ovpn_tcp/") and name.endswith(".tcp.ovpn")
                     ]
                     if not tcp_configs:
-                        raise VPNConfigError("Downloaded ZIP contains no TCP configurations")
+                        raise VPNConfigError(
+                            "Downloaded ZIP contains no TCP configurations"
+                        )
                     log_debug("ZIP contains {} TCP configs", len(tcp_configs))
             except zipfile.BadZipFile as e:
                 raise VPNConfigError("Downloaded file is not a valid ZIP") from e

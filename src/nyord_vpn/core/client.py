@@ -35,7 +35,6 @@ import time
 import os
 from pathlib import Path
 from typing import TypedDict, Any
-import json
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -45,17 +44,14 @@ from rich.logging import RichHandler
 from nyord_vpn.storage.models import (
     ConnectionError,
     VPNError,
-    ServerError,
 )
 from nyord_vpn.utils.utils import (
     CACHE_DIR,
     CONFIG_DIR,
     DATA_DIR,
     save_vpn_state,
-    check_root,
-    ensure_root,
 )
-from nyord_vpn.network.server import ServerManager
+from nyord_vpn.network.server import ServerManager, get_servers
 from nyord_vpn.core.api import NordVPNAPIClient
 from nyord_vpn.network.vpn import VPNConnectionManager
 
@@ -184,7 +180,12 @@ class Client:
     4. User feedback and logging
     """
 
-    def __init__(self, username_str: str | None = None, password_str: str | None = None, verbose: bool = False) -> None:
+    def __init__(
+        self,
+        username_str: str | None = None,
+        password_str: str | None = None,
+        verbose: bool = False,
+    ) -> None:
         """Initialize NordVPN client.
 
         Args:
@@ -194,6 +195,7 @@ class Client:
 
         Raises:
             VPNError: If credentials are not available
+
         """
         self.verbose = verbose
         self.logger = logger
@@ -201,7 +203,7 @@ class Client:
         # Get credentials from env vars if not provided
         self.username = username_str or os.environ.get("NORDVPN_USERNAME")
         self.password = password_str or os.environ.get("NORDVPN_PASSWORD")
-        
+
         if not self.username or not self.password:
             raise VPNError(
                 "No VPN credentials available. Please set NORDVPN_USERNAME and NORDVPN_PASSWORD environment variables."
@@ -230,126 +232,97 @@ class Client:
         """
         return self.vpn_manager.status()
 
-    def go(self, country_code: str) -> None:
-        """Connect to VPN in specified country.
+    def go(
+        self,
+        country_code: str | None = None,
+        *,
+        all_servers: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Connect to a NordVPN server, disconnecting first if necessary.
 
         Args:
             country_code: Two-letter country code (e.g. 'us', 'de')
+            all_servers: Whether to connect to all servers in the country
+            verbose: Whether to enable verbose output
 
         Raises:
             VPNError: If connection fails
+
         """
-        try:
-            # Check if already connected
-            status = self.status()
-            if status.get("connected", False):
-                self.logger.info("Already connected to VPN, disconnecting first...")
-                self.bye()
+        self.verbose = verbose
+        if self.vpn_manager.is_connected():
+            if self.verbose:
+                logger.info("Already connected to VPN, disconnecting first...")
+            self.bye()
 
-            # Try up to 3 servers in the country
-            last_error = None
-            tried_servers = set()
-            hostname = None
-            attempt = 0
-            
-            while attempt < 3:  # Try up to 3 servers
-                try:
-                    # Add delay between attempts (except first)
-                    if attempt > 0:
-                        self.logger.info(f"Retrying with different server (attempt {attempt + 1}/3)")
-                        time.sleep(2)  # Wait 2 seconds between attempts
-                        
-                    # Get a server we haven't tried yet
-                    server = self.server_manager.select_fastest_server(
-                        country_code,
-                        exclude_servers=tried_servers
-                    )
-                    if not server:
-                        raise VPNError(f"No more servers available in {country_code}")
+        servers = get_servers(
+            country_code=country_code, all_servers=all_servers, verbose=self.verbose
+        )
 
-                    hostname = server.get("hostname")
-                    if not hostname:
-                        raise VPNError("Selected server has no hostname")
-                        
-                    tried_servers.add(hostname)
-                    self.logger.info(f"Selected server: {hostname}")
-                    
-                    try:
-                        self.vpn_manager.connect(server)
-                        return  # Success!
-                    except VPNError as e:
-                        last_error = e
-                        if hostname:
-                            self.logger.debug(f"Failed to connect to {hostname}: {e}")
-                        continue  # Try next server
-                        
-                except VPNError as e:
-                    last_error = e
-                    if hostname:
-                        self.logger.debug(f"Failed to connect to {hostname}: {e}")
-                finally:
-                    attempt += 1
+        # Sort by ping (lowest to highest)
+        servers.sort(key=lambda x: x.get("ping", float("inf")))  # Sort!
 
-            # If we get here, all attempts failed
-            raise VPNError(
-                f"Failed to connect to any server in {country_code} after {attempt} attempts. "
-                f"Last error: {last_error}"
-            )
+        selected_server = servers[0] if servers else None  # First server is best
+        if not selected_server:
+            logger.error("No servers available")
+            return
 
-        except Exception as e:
-            if isinstance(e, VPNError):
-                raise
-            raise VPNError(f"Failed to connect to VPN: {e}")
+        if self.verbose:
+            logger.info(f"Selected server: {selected_server.get('hostname')}")
+
+        self.vpn_manager.connect(servers)  # Pass the *list* of servers
 
     def bye(self) -> None:
-        """Disconnect from VPN and show status.
+        """Disconnect from the VPN."""
+        if self.verbose:
+            logger.info("Checking current connection status...")
 
-        Disconnects from any active VPN connection and displays
-        the current connection status including the public IP.
-
-        Raises:
-            VPNError: If disconnection fails
-        """
         try:
-            # Get current IP before disconnecting
-            current_ip = self.vpn_manager.get_current_ip()
-            if self.verbose:
-                self.logger.info("Checking current connection status...")
-
-            # Disconnect if connected
-            if self.vpn_manager.is_connected():
-                if self.verbose:
-                    self.logger.info("Disconnecting from VPN...")
+            status = self.vpn_manager.status()
+            if status["connected"]:
                 self.vpn_manager.disconnect()
-                console.print("[green]Disconnected from VPN[/green]")
-            else:
-                if self.verbose:
-                    self.logger.info("No active VPN connection found")
-                console.print("[yellow]Not connected to VPN[/yellow]")
+            elif self.verbose:
+                logger.info("No active VPN connection found")
+        except VPNError as e:
+            logger.error(f"Error during disconnect: {e}")
+            return
 
-            # Get fresh IP after disconnecting and save state
-            public_ip = self.vpn_manager.get_current_ip()
-            if not public_ip and current_ip:
-                public_ip = current_ip  # Use pre-disconnect IP if available
-            
-            # Save state with current IP after disconnection
-            state = {
-                "connected": False,
-                "current_ip": public_ip,  # This will update normal_ip in state
-                "server": None,
-                "country": None,
-                "timestamp": time.time(),
-            }
-            save_vpn_state(state)
-            
-            if public_ip:
-                console.print(f"Public IP: [cyan]{public_ip}[/cyan]")
-            else:
-                console.print("[yellow]Could not determine IP[/yellow]")
+        # Get current IP before disconnecting
+        current_ip = self.vpn_manager.get_current_ip()
+        if self.verbose:
+            self.logger.info("Checking current connection status...")
 
-        except Exception as e:
-            self.logger.error(f"Failed to disconnect: {e}")
-            raise VPNError(f"Failed to disconnect: {e}")
+        # Disconnect if connected
+        if self.vpn_manager.is_connected():
+            if self.verbose:
+                self.logger.info("Disconnecting from VPN...")
+            self.vpn_manager.disconnect()
+            console.print("[green]Disconnected from VPN[/green]")
+        else:
+            if self.verbose:
+                self.logger.info("No active VPN connection found")
+            console.print("[yellow]Not connected to VPN[/yellow]")
+
+        # Get fresh IP after disconnecting and save state
+        public_ip = self.vpn_manager.get_current_ip()
+        if not public_ip and current_ip:
+            public_ip = current_ip  # Use pre-disconnect IP if available
+
+        # Save state with current IP after disconnection
+        state = {
+            "connected": False,
+            "current_ip": public_ip,  # This will update normal_ip in state
+            "server": None,
+            "country": None,
+            "timestamp": time.time(),
+        }
+        save_vpn_state(state)
+
+        if public_ip:
+            console.print(f"Public IP: [cyan]{public_ip}[/cyan]")
+        else:
+            console.print("[yellow]Could not determine IP[/yellow]")
 
     def info(self) -> None:
         """Display current VPN status."""

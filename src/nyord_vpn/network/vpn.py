@@ -53,7 +53,6 @@ from nyord_vpn.exceptions import (
     VPNError,
     VPNAuthenticationError,
     VPNConfigError,
-    VPNProcessError,
 )
 from nyord_vpn.utils.templates import (
     get_config_path,
@@ -62,7 +61,6 @@ from nyord_vpn.network.vpn_commands import get_openvpn_command
 from nyord_vpn.utils.utils import (
     OPENVPN_AUTH,
     OPENVPN_LOG,
-    API_HEADERS,
 )
 from nyord_vpn.storage.state import save_vpn_state, load_vpn_state
 
@@ -198,6 +196,7 @@ class VPNConnectionManager:
         Note:
             Creates auth file with 0600 permissions for security.
             Validates credentials format before writing.
+
         """
         try:
             # Validate credentials
@@ -284,7 +283,9 @@ class VPNConnectionManager:
 
         Returns:
             Current public IP address or None if unavailable
+
         """
+
         def is_valid_ipv4(ip: str) -> bool:
             """Validate IPv4 address format."""
             try:
@@ -299,7 +300,9 @@ class VPNConnectionManager:
         for attempt in range(2):
             try:
                 if self.verbose:
-                    self.logger.debug(f"Checking IP with api.ipify.org (attempt {attempt + 1})")
+                    self.logger.debug(
+                        f"Checking IP with api.ipify.org (attempt {attempt + 1})"
+                    )
                 response = requests.get("https://api.ipify.org?format=json", timeout=3)
                 response.raise_for_status()
                 data = response.json()
@@ -310,7 +313,9 @@ class VPNConnectionManager:
                     return ip
             except Exception as e:
                 if self.verbose:
-                    self.logger.debug(f"Primary IP check failed (attempt {attempt + 1}): {e}")
+                    self.logger.debug(
+                        f"Primary IP check failed (attempt {attempt + 1}): {e}"
+                    )
                 if attempt < 1:  # Only sleep between attempts
                     time.sleep(0.5)
 
@@ -318,7 +323,9 @@ class VPNConnectionManager:
         for attempt in range(2):
             try:
                 if self.verbose:
-                    self.logger.debug(f"Checking IP with ip-api.com (attempt {attempt + 1})")
+                    self.logger.debug(
+                        f"Checking IP with ip-api.com (attempt {attempt + 1})"
+                    )
                 response = requests.get("http://ip-api.com/json", timeout=3)
                 response.raise_for_status()
                 data = response.json()
@@ -329,7 +336,9 @@ class VPNConnectionManager:
                     return ip
             except Exception as e:
                 if self.verbose:
-                    self.logger.debug(f"Backup IP check failed (attempt {attempt + 1}): {e}")
+                    self.logger.debug(
+                        f"Backup IP check failed (attempt {attempt + 1}): {e}"
+                    )
                 if attempt < 1:  # Only sleep between attempts
                     time.sleep(0.5)
 
@@ -372,291 +381,357 @@ class VPNConnectionManager:
                 f"server={state['server']}, country={state['country']}"
             )
 
-    def connect(self, server: dict[str, Any]) -> None:
-        """Connect to a VPN server.
+    def connect(self, servers: list[dict[str, Any]]) -> None:
+        """Connect to a VPN server, trying servers from the list on failure.
 
         Args:
-            server: Server information dictionary containing:
-                - hostname: Server hostname for connection
-                - country: Server country name
+            servers: List of server information dictionaries, ideally sorted.
 
         Raises:
-            VPNError: If connection fails
+            VPNError: If connection fails after trying all servers.
+
         """
-        try:
-            hostname = server.get("hostname")
-            if not hostname:
-                raise VPNError("Invalid server info - missing hostname")
+        error_messages = []  # Collect error messages
 
-            # Force cleanup of any existing connections
+        for server in servers:
             try:
-                self.disconnect()
-            except Exception as e:
-                if self.verbose:
-                    self.logger.warning(f"Error during disconnect: {e}, attempting force cleanup")
-                
-                # Ensure no OpenVPN processes are running
-                for proc in psutil.process_iter(["name", "pid", "cmdline"]):
-                    try:
-                        if proc.info["name"] == "openvpn":
-                            cmdline = proc.info.get("cmdline", [])
-                            if any("nordvpn.com" in arg for arg in cmdline):
-                                try:
-                                    os.kill(proc.info["pid"], signal.SIGKILL)
-                                    time.sleep(0.1)  # Brief pause after kill
-                                except Exception:
-                                    pass
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
+                hostname = server.get("hostname")
+                if not hostname:
+                    raise VPNError("Invalid server info - missing hostname")
 
-            # Store server info
-            self._server = hostname
-            self._country_name = server.get("country")
-
-            # Ensure OpenVPN is available
-            if not self.openvpn_path:
-                self.openvpn_path = self.check_openvpn_installation()
-
-            if self.verbose:
-                self.logger.debug(f"Connecting to {hostname}")
-
-            # Get OpenVPN config
-            config_path = get_config_path(hostname)
-            if not config_path:
-                raise VPNConfigError(f"Failed to get OpenVPN config for {hostname}")
-
-            # Log config file contents for debugging
-            if self.verbose:
+                # Force cleanup of any existing connections
                 try:
-                    config_content = config_path.read_text()
-                    self.logger.debug(f"OpenVPN config for {hostname}:")
-                    for line in config_content.splitlines():
-                        if not line.strip().startswith("#"):  # Skip comments
-                            self.logger.debug(f"  {line}")
+                    self.disconnect()
                 except Exception as e:
-                    self.logger.warning(f"Failed to read config file: {e}")
+                    if self.verbose:
+                        self.logger.warning(
+                            f"Error during disconnect: {e}, attempting force cleanup"
+                        )
 
-            # Verify auth file exists and has correct format
-            if not OPENVPN_AUTH.exists():
-                raise VPNError("Auth file not found - please run setup first")
-            try:
-                auth_content = OPENVPN_AUTH.read_text().strip().split("\n")
-                if len(auth_content) != 2:
-                    raise VPNError("Auth file is corrupted - please run setup again")
-                if not auth_content[0] or not auth_content[1]:
-                    raise VPNError("Auth file contains empty username or password - please run setup again")
+                    # Ensure no OpenVPN processes are running
+                    for proc in psutil.process_iter(["name", "pid", "cmdline"]):
+                        try:
+                            if proc.info["name"] == "openvpn":
+                                cmdline = proc.info.get("cmdline", [])
+                                if any("nordvpn.com" in arg for arg in cmdline):
+                                    try:
+                                        os.kill(proc.info["pid"], signal.SIGKILL)
+                                        time.sleep(0.1)  # Brief pause after kill
+                                    except Exception:
+                                        pass
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+
+                # Store server info
+                self._server = hostname
+                self._country_name = server.get("country")
+
+                # Ensure OpenVPN is available
+                if not self.openvpn_path:
+                    self.openvpn_path = self.check_openvpn_installation()
+
                 if self.verbose:
-                    self.logger.debug(f"Auth file exists and has correct format")
-            except Exception as e:
-                if isinstance(e, VPNError):
-                    raise
-                raise VPNError(f"Failed to read auth file: {e}")
+                    self.logger.debug(f"Connecting to {hostname}")
 
-            # Start OpenVPN process
-            cmd = get_openvpn_command(
-                config_path=config_path,
-                auth_path=OPENVPN_AUTH,
-                log_path=OPENVPN_LOG if self.verbose else None,
-                verbosity=5 if self.verbose else 3,
-            )
+                # Get OpenVPN config
+                config_path = get_config_path(hostname)
+                if not config_path:
+                    raise VPNConfigError(f"Failed to get OpenVPN config for {hostname}")
 
-            if self.verbose:
-                self.logger.debug("Running OpenVPN command:")
-                self.logger.debug(" ".join(cmd))
+                # Log config file contents for debugging
+                if self.verbose:
+                    try:
+                        config_content = config_path.read_text()
+                        self.logger.debug(f"OpenVPN config for {hostname}:")
+                        for line in config_content.splitlines():
+                            if not line.strip().startswith("#"):  # Skip comments
+                                self.logger.debug(f"  {line}")
+                    except Exception as e:
+                        self.logger.warning(f"Failed to read config file: {e}")
 
-            try:
-                # Clear any existing log file
-                if OPENVPN_LOG and OPENVPN_LOG.exists():
-                    OPENVPN_LOG.unlink()
+                # Verify auth file exists and has correct format
+                if not OPENVPN_AUTH.exists():
+                    raise VPNError("Auth file not found - please run setup first")
+                try:
+                    auth_content = OPENVPN_AUTH.read_text().strip().split("\n")
+                    if len(auth_content) != 2:
+                        raise VPNError(
+                            "Auth file is corrupted - please run setup again"
+                        )
+                    if not auth_content[0] or not auth_content[1]:
+                        raise VPNError(
+                            "Auth file contains empty username or password - please run setup again"
+                        )
+                    if self.verbose:
+                        self.logger.debug("Auth file exists and has correct format")
+                except Exception as e:
+                    if isinstance(e, VPNError):
+                        raise
+                    raise VPNError(f"Failed to read auth file: {e}")
 
                 # Start OpenVPN process
-                self.process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    bufsize=1,
+                cmd = get_openvpn_command(
+                    config_path=config_path,
+                    auth_path=OPENVPN_AUTH,
+                    log_path=OPENVPN_LOG if self.verbose else None,
+                    verbosity=5 if self.verbose else 3,
                 )
 
-                # Give process a moment to start
-                time.sleep(0.5)
+                if self.verbose:
+                    self.logger.debug("Running OpenVPN command:")
+                    self.logger.debug(" ".join(cmd))
 
-                # Check if process died immediately
-                if self.process.poll() is not None:
-                    stdout, stderr = self.process.communicate()
-                    raise VPNError(
-                        f"OpenVPN process failed to start:\n"
-                        f"Exit code: {self.process.returncode}\n"
-                        f"Output: {stdout}\n"
-                        f"Error: {stderr}"
+                try:
+                    # Clear any existing log file
+                    if OPENVPN_LOG and OPENVPN_LOG.exists():
+                        OPENVPN_LOG.unlink()
+
+                    # Start OpenVPN process
+                    self.process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        bufsize=1,
                     )
 
-            except subprocess.SubprocessError as e:
-                raise VPNError(f"Failed to start OpenVPN process: {e}")
+                    # Give process a moment to start
+                    time.sleep(0.5)
 
-            # Monitor OpenVPN output
-            start_time = time.time()
-            success = False
-            error_msg = None
-            log_content = ""
-
-            while time.time() - start_time < 30:  # 30 second timeout
-                # Check if process died
-                if self.process.poll() is not None:
-                    stdout, stderr = self.process.communicate()
-                    
-                    # Try to get log content for better error reporting
-                    try:
-                        if OPENVPN_LOG and OPENVPN_LOG.exists():
-                            log_content = OPENVPN_LOG.read_text()
-                            if self.verbose:
-                                self.logger.debug("OpenVPN log content:")
-                                for line in log_content.splitlines():
-                                    self.logger.debug(f"  {line}")
-                    except Exception as e:
-                        if self.verbose:
-                            self.logger.warning(f"Failed to read OpenVPN log: {e}")
-
-                    # If we have log content, check for known errors
-                    if log_content:
-                        if "AUTH_FAILED" in log_content:
-                            # Get more context around the auth failure
-                            auth_lines = [line for line in log_content.splitlines() if "AUTH" in line]
-                            if auth_lines and self.verbose:
-                                self.logger.debug("Auth-related log lines:")
-                                for line in auth_lines:
-                                    self.logger.debug(f"  {line}")
-                            error_msg = "Authentication failed - check your credentials"
-                            if "AUTH_FAILED,SESSION" in log_content:
-                                error_msg = "Session authentication failed - server may require re-login"
-                            elif "AUTH_FAILED,CERTIFICATE" in log_content:
-                                error_msg = "Certificate authentication failed - server config may be invalid"
-                        elif "Cannot load certificate file" in log_content:
-                            error_msg = "Certificate error - server config may be invalid"
-                        elif "Cannot load private key file" in log_content:
-                            error_msg = "Private key error - server config may be invalid"
-                        elif "All TAP-Windows adapters on this system are currently in use" in log_content:
-                            error_msg = "All VPN adapters are in use"
-                        elif "TLS Error" in log_content:
-                            error_msg = "TLS handshake failed - server may be down"
-                        elif "TLS key negotiation failed" in log_content:
-                            error_msg = "TLS key negotiation failed - server may require different TLS settings"
-                        elif "Connection timed out" in log_content:
-                            error_msg = "Connection timed out - server may be unreachable"
-                        elif "Cannot resolve host address" in log_content:
-                            error_msg = "Cannot resolve server hostname - DNS issue"
-                    
-                    # If no specific error found, use a generic message
-                    if not error_msg:
-                        error_msg = (
-                            f"OpenVPN process terminated unexpectedly:\n"
+                    # Check if process died immediately
+                    if self.process.poll() is not None:
+                        stdout, stderr = self.process.communicate()
+                        raise VPNError(
+                            f"OpenVPN process failed to start:\n"
                             f"Exit code: {self.process.returncode}\n"
                             f"Output: {stdout}\n"
-                            f"Error: {stderr}\n"
-                            f"Log: {log_content if log_content else 'No log available'}"
+                            f"Error: {stderr}"
                         )
-                    break
 
-                # Check log file for status
-                if OPENVPN_LOG and OPENVPN_LOG.exists():
-                    try:
-                        log_content = OPENVPN_LOG.read_text()
-                        
-                        # Check for success
-                        if "Initialization Sequence Completed" in log_content:
-                            success = True
-                            break
-                            
-                        # Check for auth progress
-                        if self.verbose and "AUTH" in log_content:
-                            auth_lines = [line for line in log_content.splitlines() if "AUTH" in line]
-                            if auth_lines:
-                                self.logger.debug("Auth progress:")
-                                for line in auth_lines:
-                                    self.logger.debug(f"  {line}")
-                            
-                        # Check for common errors
-                        if "AUTH_FAILED" in log_content:
-                            error_msg = "Authentication failed - check your credentials"
-                            break
-                        if "TLS Error" in log_content:
-                            error_msg = "TLS handshake failed - server may be down"
-                            break
-                        if "Connection timed out" in log_content:
-                            error_msg = "Connection timed out - server may be unreachable"
-                            break
-                        if "Cannot resolve host address" in log_content:
-                            error_msg = "Cannot resolve server hostname - DNS issue"
-                            break
-                        if "All TAP-Windows adapters on this system are currently in use" in log_content:
-                            error_msg = "All VPN adapters are in use"
-                            break
-                        if "Cannot load certificate file" in log_content:
-                            error_msg = "Certificate error - server config may be invalid"
-                            break
-                        if "Cannot load private key file" in log_content:
-                            error_msg = "Private key error - server config may be invalid"
-                            break
-                    except Exception as e:
+                except subprocess.SubprocessError as e:
+                    raise VPNError(f"Failed to start OpenVPN process: {e}")
+
+                # Monitor OpenVPN output
+                start_time = time.time()
+                success = False
+                error_msg = None
+                log_content = ""
+
+                while time.time() - start_time < 30:  # 30 second timeout
+                    # Check if process died
+                    if self.process.poll() is not None:
+                        stdout, stderr = self.process.communicate()
+
+                        # Try to get log content for better error reporting
+                        try:
+                            if OPENVPN_LOG and OPENVPN_LOG.exists():
+                                log_content = OPENVPN_LOG.read_text()
+                                if self.verbose:
+                                    self.logger.debug("OpenVPN log content:")
+                                    for line in log_content.splitlines():
+                                        self.logger.debug(f"  {line}")
+                        except Exception as e:
+                            if self.verbose:
+                                self.logger.warning(f"Failed to read OpenVPN log: {e}")
+
+                        # If we have log content, check for known errors
+                        if log_content:
+                            if "AUTH_FAILED" in log_content:
+                                # Get more context around the auth failure
+                                auth_lines = [
+                                    line
+                                    for line in log_content.splitlines()
+                                    if "AUTH" in line
+                                ]
+                                if auth_lines and self.verbose:
+                                    self.logger.debug("Auth-related log lines:")
+                                    for line in auth_lines:
+                                        self.logger.debug(f"  {line}")
+                                error_msg = (
+                                    "Authentication failed - check your credentials"
+                                )
+                                if "AUTH_FAILED,SESSION" in log_content:
+                                    error_msg = "Session authentication failed - server may require re-login"
+                                elif "AUTH_FAILED,CERTIFICATE" in log_content:
+                                    error_msg = "Certificate authentication failed - server config may be invalid"
+                            elif "Cannot load certificate file" in log_content:
+                                error_msg = (
+                                    "Certificate error - server config may be invalid"
+                                )
+                            elif "Cannot load private key file" in log_content:
+                                error_msg = (
+                                    "Private key error - server config may be invalid"
+                                )
+                            elif (
+                                "All TAP-Windows adapters on this system are currently in use"
+                                in log_content
+                            ):
+                                error_msg = "All VPN adapters are in use"
+                            elif "TLS Error" in log_content:
+                                error_msg = "TLS handshake failed - server may be down"
+                            elif "TLS key negotiation failed" in log_content:
+                                error_msg = "TLS key negotiation failed - server may require different TLS settings"
+                            elif "Connection timed out" in log_content:
+                                error_msg = (
+                                    "Connection timed out - server may be unreachable"
+                                )
+                            elif "Cannot resolve host address" in log_content:
+                                error_msg = "Cannot resolve server hostname - DNS issue"
+
+                        # If no specific error found, use a generic message
+                        if not error_msg:
+                            error_msg = (
+                                f"OpenVPN process terminated unexpectedly:\n"
+                                f"Exit code: {self.process.returncode}\n"
+                                f"Output: {stdout}\n"
+                                f"Error: {stderr}\n"
+                                f"Log: {log_content if log_content else 'No log available'}"
+                            )
+                        break
+
+                    # Check log file for status
+                    if OPENVPN_LOG and OPENVPN_LOG.exists():
+                        try:
+                            log_content = OPENVPN_LOG.read_text()
+
+                            # Check for success
+                            if "Initialization Sequence Completed" in log_content:
+                                success = True
+                                break
+
+                            # Check for auth progress
+                            if self.verbose and "AUTH" in log_content:
+                                auth_lines = [
+                                    line
+                                    for line in log_content.splitlines()
+                                    if "AUTH" in line
+                                ]
+                                if auth_lines:
+                                    self.logger.debug("Auth progress:")
+                                    for line in auth_lines:
+                                        self.logger.debug(f"  {line}")
+
+                            # Check for common errors
+                            if "AUTH_FAILED" in log_content:
+                                error_msg = (
+                                    "Authentication failed - check your credentials"
+                                )
+                                break
+                            if "TLS Error" in log_content:
+                                error_msg = "TLS handshake failed - server may be down"
+                                break
+                            if "Connection timed out" in log_content:
+                                error_msg = (
+                                    "Connection timed out - server may be unreachable"
+                                )
+                                break
+                            if "Cannot resolve host address" in log_content:
+                                error_msg = "Cannot resolve server hostname - DNS issue"
+                                break
+                            if (
+                                "All TAP-Windows adapters on this system are currently in use"
+                                in log_content
+                            ):
+                                error_msg = "All VPN adapters are in use"
+                                break
+                            if "Cannot load certificate file" in log_content:
+                                error_msg = (
+                                    "Certificate error - server config may be invalid"
+                                )
+                                break
+                            if "Cannot load private key file" in log_content:
+                                error_msg = (
+                                    "Private key error - server config may be invalid"
+                                )
+                                break
+                        except Exception as e:
+                            if self.verbose:
+                                self.logger.warning(f"Failed to read OpenVPN log: {e}")
+
+                    time.sleep(0.1)
+
+                # Handle timeout or error
+                if not success:
+                    # Kill the process if it's still running
+                    if self.process and self.process.poll() is None:
+                        try:
+                            self.process.terminate()
+                            time.sleep(0.1)
+                            if self.process.poll() is None:
+                                self.process.kill()
+                        except Exception:
+                            pass
+
+                    if error_msg:
                         if self.verbose:
-                            self.logger.warning(f"Failed to read OpenVPN log: {e}")
+                            self.logger.warning(
+                                f"Connection to {hostname} failed: {error_msg}"
+                            )
+                        error_messages.append(
+                            f"Connection to {hostname} failed: {error_msg}"
+                        )  # Collect
+                    else:
+                        if self.verbose:
+                            self.logger.warning(
+                                f"Connection to {hostname} timed out after 30 seconds"
+                            )
+                        error_messages.append(
+                            f"Connection to {hostname} timed out after 30 seconds"
+                        )  # Collect
+                    continue  # Try the next server
 
-                time.sleep(0.1)
+                # Verify connection is working
+                time.sleep(1)  # Brief pause to let connection stabilize
+                if not self.verify_connection():
+                    error_msg = "Connection verification failed"
+                    if self.verbose:
+                        self.logger.warning(error_msg)
+                    error_messages.append(error_msg)  # Collect
+                    continue  # Try next server
 
-            # Handle timeout or error
-            if not success:
-                # Kill the process if it's still running
-                if self.process and self.process.poll() is None:
+                # Update state
+                state = {
+                    "connected": True,
+                    "process_id": self.process.pid if self.process else None,
+                    "server": self._server,
+                    "country": self._country_name,
+                    "timestamp": time.time(),
+                }
+                save_vpn_state(state)
+
+                if self.verbose:
+                    self.logger.info(f"Connected to {hostname}")
+                return  # Success!
+
+            except Exception as e:
+                # Clean up on error
+                if self.process:
                     try:
                         self.process.terminate()
-                        time.sleep(0.1)
+                        time.sleep(0.1)  # Brief pause
                         if self.process.poll() is None:
                             self.process.kill()
                     except Exception:
                         pass
 
-                if error_msg:
-                    raise VPNError(error_msg)
-                raise VPNError("Connection timed out after 30 seconds")
+                # Reset state
+                self.process = None
+                self._server = None
+                self._country_name = None
 
-            # Verify connection is working
-            time.sleep(1)  # Brief pause to let connection stabilize
-            if not self.verify_connection():
-                raise VPNError("Connection verification failed")
+                error_messages.append(str(e))  # Collect
 
-            # Update state
-            state = {
-                "connected": True,
-                "process_id": self.process.pid if self.process else None,
-                "server": self._server,
-                "country": self._country_name,
-                "timestamp": time.time(),
-            }
-            save_vpn_state(state)
+                # Re-raise with context
+                if isinstance(e, VPNError | VPNAuthenticationError | VPNConfigError):
+                    # raise # No, we try other servers
+                    continue  # Yes, try other servers
+                # raise VPNError(f"Failed to connect to VPN: {e}") # No, we try other servers
+                continue
 
-            if self.verbose:
-                self.logger.info(f"Connected to {hostname}")
-
-        except Exception as e:
-            # Clean up on error
-            if self.process:
-                try:
-                    self.process.terminate()
-                    time.sleep(0.1)  # Brief pause
-                    if self.process.poll() is None:
-                        self.process.kill()
-                except Exception:
-                    pass
-            
-            # Reset state
-            self.process = None
-            self._server = None
-            self._country_name = None
-
-            # Re-raise with context
-            if isinstance(e, (VPNError, VPNAuthenticationError, VPNConfigError)):
-                raise
-            raise VPNError(f"Failed to connect to VPN: {e}")
+        # If we get here, all attempts failed
+        raise VPNError(
+            "Failed to connect after trying all servers:\n" + "\n".join(error_messages)
+        )
 
     def disconnect(self) -> None:
         """Disconnect from VPN and clean up.
@@ -669,6 +744,7 @@ class VPNConnectionManager:
 
         Raises:
             VPNError: If disconnection fails with details about what failed
+
         """
         try:
             # First try graceful termination of our tracked process
@@ -692,8 +768,10 @@ class VPNConnectionManager:
                         cmdline = proc.info.get("cmdline", [])
                         if any("nordvpn.com" in arg for arg in cmdline):
                             if self.verbose:
-                                self.logger.debug(f"Found OpenVPN process {proc.info['pid']}")
-                            
+                                self.logger.debug(
+                                    f"Found OpenVPN process {proc.info['pid']}"
+                                )
+
                             # Try graceful termination first
                             try:
                                 os.kill(proc.info["pid"], signal.SIGTERM)
@@ -706,10 +784,14 @@ class VPNConnectionManager:
                                 if self._is_process_running(proc.info["pid"]):
                                     os.kill(proc.info["pid"], signal.SIGKILL)
                                     if self.verbose:
-                                        self.logger.debug(f"Force killed OpenVPN process {proc.info['pid']}")
+                                        self.logger.debug(
+                                            f"Force killed OpenVPN process {proc.info['pid']}"
+                                        )
                             except Exception as e:
                                 if self.verbose:
-                                    self.logger.warning(f"Failed to kill process {proc.info['pid']}: {e}")
+                                    self.logger.warning(
+                                        f"Failed to kill process {proc.info['pid']}: {e}"
+                                    )
 
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
@@ -726,7 +808,9 @@ class VPNConnectionManager:
                     continue
 
             if remaining:
-                raise VPNError(f"Failed to kill all OpenVPN processes. Remaining: {remaining}")
+                raise VPNError(
+                    f"Failed to kill all OpenVPN processes. Remaining: {remaining}"
+                )
 
             # Clean up OpenVPN log file
             if OPENVPN_LOG and OPENVPN_LOG.exists():
@@ -767,11 +851,15 @@ class VPNConnectionManager:
                 error_details.append("Permission denied")
             else:
                 error_details.append(str(e))
-            
+
             if self.verbose:
-                self.logger.exception(f"Error during disconnect: {'; '.join(error_details)}")
-            
-            raise VPNError(f"Failed to disconnect from VPN: {'; '.join(error_details)}") from e
+                self.logger.exception(
+                    f"Error during disconnect: {'; '.join(error_details)}"
+                )
+
+            raise VPNError(
+                f"Failed to disconnect from VPN: {'; '.join(error_details)}"
+            ) from e
 
     def is_connected(self) -> bool:
         """Check if OpenVPN process is running."""
@@ -779,15 +867,16 @@ class VPNConnectionManager:
 
     def verify_connection(self) -> bool:
         """Verify that the VPN connection is working properly.
-        
+
         Returns:
             bool: True if connection is verified working
-            
+
         This method checks:
         1. OpenVPN process is running
         2. TUN/TAP interface is up
         3. DNS is working
         4. IP has changed from pre-connection IP
+
         """
         try:
             # Check process is still running
@@ -795,12 +884,15 @@ class VPNConnectionManager:
                 if self.verbose:
                     self.logger.debug("OpenVPN process not running")
                 return False
-                
+
             # Check TUN/TAP interface (platform specific)
             if sys.platform == "darwin":  # macOS
                 try:
                     output = subprocess.check_output(["ifconfig"], text=True)
-                    if not any(line.startswith("utun") and "UP" in line for line in output.split("\n")):
+                    if not any(
+                        line.startswith("utun") and "UP" in line
+                        for line in output.split("\n")
+                    ):
                         if self.verbose:
                             self.logger.debug("No active utun interface found")
                         return False
@@ -810,7 +902,9 @@ class VPNConnectionManager:
                     return False
             elif sys.platform == "linux":
                 try:
-                    output = subprocess.check_output(["ip", "link", "show", "tun0"], text=True)
+                    output = subprocess.check_output(
+                        ["ip", "link", "show", "tun0"], text=True
+                    )
                     if "UP" not in output:
                         if self.verbose:
                             self.logger.debug("TUN interface not up")
@@ -819,7 +913,7 @@ class VPNConnectionManager:
                     if self.verbose:
                         self.logger.debug("Failed to check TUN interface")
                     return False
-                    
+
             # Check DNS resolution
             try:
                 socket.gethostbyname("nordvpn.com")
@@ -827,7 +921,7 @@ class VPNConnectionManager:
                 if self.verbose:
                     self.logger.debug("DNS resolution failed")
                 return False
-                
+
             # Check IP has changed
             try:
                 current_ip = self.get_current_ip()
@@ -835,23 +929,23 @@ class VPNConnectionManager:
                     if self.verbose:
                         self.logger.debug("Failed to get current IP")
                     return False
-                    
+
                 # Get the pre-connection IP from state
                 state = load_vpn_state()
                 normal_ip = state.get("normal_ip")
-                
+
                 if normal_ip and current_ip == normal_ip:
                     if self.verbose:
                         self.logger.debug("IP has not changed from pre-connection IP")
                     return False
-                    
+
             except Exception as e:
                 if self.verbose:
                     self.logger.debug(f"IP verification failed: {e}")
                 return False
-                
+
             return True
-            
+
         except Exception as e:
             if self.verbose:
                 self.logger.debug(f"Connection verification failed: {e}")
@@ -869,6 +963,7 @@ class VPNConnectionManager:
 
         Raises:
             VPNError: If status check fails
+
         """
         try:
             # Load state once
@@ -934,6 +1029,7 @@ class VPNConnectionManager:
 
         Returns:
             bool: True if connected to VPN, False otherwise
+
         """
         try:
             # Load state once

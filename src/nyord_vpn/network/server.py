@@ -4,7 +4,6 @@ import subprocess
 import time
 import socket
 from typing import Any, TypedDict
-from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -153,28 +152,29 @@ class ServerManager:
 
     def _validate_country_code(self, country_code: str | None) -> str | None:
         """Validate and normalize country code.
-        
+
         Args:
             country_code: Two-letter country code or None
-            
+
         Returns:
             Normalized uppercase country code or None if no code provided
-            
+
         Raises:
             ServerError: If country code is invalid
+
         """
         if not country_code:
             return None
-            
+
         normalized = country_code.upper()
         if not isinstance(normalized, str) or len(normalized) != 2:
             raise ServerError(f"Invalid country code format: {country_code}")
-            
+
         # Verify country exists
         country_info = self.get_country_info(normalized)
         if not country_info:
             raise ServerError(f"Country code not found: {normalized}")
-            
+
         return normalized
 
     def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
@@ -204,7 +204,7 @@ class ServerManager:
             "filters[servers_technologies][identifier]": "openvpn_tcp",
             "limit": "5",
         }
-        
+
         try:
             # Validate country code first
             normalized_country = self._validate_country_code(country)
@@ -666,7 +666,9 @@ class ServerManager:
                 self.logger.debug(f"Running ping command: {' '.join(cmd)}")
 
             # Run ping
-            ping_result = subprocess.run(cmd, capture_output=True, text=True, timeout=2, check=False)
+            ping_result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=2, check=False
+            )
 
             if ping_result.returncode != 0:
                 if self.api_client.verbose:
@@ -752,6 +754,7 @@ class ServerManager:
 
         Returns:
             List of selected servers, may be fewer than requested count if not enough servers available
+
         """
         # Group servers by region/continent
         regions = {}
@@ -814,15 +817,20 @@ class ServerManager:
 
         Raises:
             ServerError: If no servers are available after retries
+
         """
         try:
             # Check retry limit
             if _retry_count >= max_retries:
-                error_msg = f"Failed to find working server after {max_retries} attempts"
+                error_msg = (
+                    f"Failed to find working server after {max_retries} attempts"
+                )
                 if country_code:
                     error_msg += f" in {country_code.upper()}"
                 if self._failed_servers:
-                    error_msg += f". Failed servers: {', '.join(sorted(self._failed_servers))}"
+                    error_msg += (
+                        f". Failed servers: {', '.join(sorted(self._failed_servers))}"
+                    )
                 raise ServerError(error_msg)
 
             # Get available servers
@@ -836,12 +844,15 @@ class ServerManager:
                 servers = [
                     s
                     for s in servers
-                    if s.get("country", {}).get("code", "").upper() == normalized_country
+                    if s.get("country", {}).get("code", "").upper()
+                    == normalized_country
                 ]
                 if not servers:
                     # Try to get country info for better error message
                     country_info = self.get_country_info(normalized_country)
-                    country_name = country_info.get("name") if country_info else normalized_country
+                    country_name = (
+                        country_info.get("name") if country_info else normalized_country
+                    )
                     raise ServerError(
                         f"No servers available in {country_name} ({normalized_country}). "
                         "Try another country or check your connection."
@@ -854,20 +865,25 @@ class ServerManager:
                 if s.get("hostname") not in self._failed_servers
                 and (not exclude_servers or s.get("hostname") not in exclude_servers)
             ]
-            
+
             if not available_servers:
                 if self._failed_servers:
                     # If all servers failed, clear failed list and retry
                     if self.api_client.verbose:
-                        self.logger.debug("All servers failed, clearing failed list and retrying")
+                        self.logger.debug(
+                            "All servers failed, clearing failed list and retrying"
+                        )
                     self._failed_servers.clear()
                     return self.select_fastest_server(
-                        country_code, random_select, exclude_servers, _retry_count + 1, max_retries
+                        country_code,
+                        random_select,
+                        exclude_servers,
+                        _retry_count + 1,
+                        max_retries,
                     )
-                else:
-                    raise ServerError(
-                        f"No available servers found{' in ' + normalized_country if normalized_country else ''}"
-                    )
+                raise ServerError(
+                    f"No available servers found{' in ' + normalized_country if normalized_country else ''}"
+                )
 
             # Select servers based on strategy
             selected_servers = (
@@ -931,12 +947,13 @@ class ServerManager:
 
     def get_random_country(self) -> str:
         """Get a random country code from available servers.
-        
+
         Returns:
             Two-letter country code, defaults to "US" on error
-            
+
         Note:
             Uses cache to avoid unnecessary API calls.
+
         """
         try:
             cache = self.get_servers_cache()
@@ -947,12 +964,12 @@ class ServerManager:
             }
             if not countries:
                 raise ServerError("No countries found in server list")
-                
+
             selected = random.choice(list(countries))
             if self.api_client.verbose:
                 self.logger.debug(f"Selected random country: {selected}")
             return selected
-            
+
         except Exception as e:
             self.logger.warning(f"Failed to get random country: {e}")
             return "US"
@@ -969,12 +986,13 @@ class ServerManager:
         Note:
             Uses cache first, falls back to API if needed.
             Cache format matches API response for consistency.
+
         """
         if not country_code:
             return None
-            
+
         normalized = country_code.upper()
-        
+
         try:
             # First check cache
             cache = self.get_servers_cache()
@@ -994,11 +1012,11 @@ class ServerManager:
                 timeout=10,
             )
             response.raise_for_status()
-            
+
             for country in response.json():
                 if not isinstance(country, dict):
                     continue
-                    
+
                 if country.get("code", "").upper() == normalized:
                     return {
                         "code": country["code"],

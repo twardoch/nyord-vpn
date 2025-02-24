@@ -48,6 +48,7 @@ def get_openvpn_command(
     Note:
         The command includes security-focused defaults and robust
         error handling parameters to ensure stable VPN connections.
+
     """
     # Validate required files
     if not config_path.exists():
@@ -114,36 +115,42 @@ def get_openvpn_command(
     # Platform-specific options
     system = platform.system().lower()
     if system == "darwin":  # macOS
-        cmd.extend([
-            # Basic routing
-            "--redirect-gateway",
-            "def1",
-            # DNS configuration
-            "--dhcp-option",
-            "DNS",
-            "103.86.96.100",  # NordVPN DNS
-            "--dhcp-option",
-            "DNS",
-            "103.86.99.100",  # NordVPN DNS backup
-        ])
+        cmd.extend(
+            [
+                # Basic routing
+                "--redirect-gateway",
+                "def1",
+                # DNS configuration
+                "--dhcp-option",
+                "DNS",
+                "103.86.96.100",  # NordVPN DNS
+                "--dhcp-option",
+                "DNS",
+                "103.86.99.100",  # NordVPN DNS backup
+            ]
+        )
     else:  # Linux and others
         # Use standard Linux DNS update scripts if available
         resolv_conf_script = Path("/etc/openvpn/update-resolv-conf")
         if resolv_conf_script.exists():
-            cmd.extend([
-                "--up",
-                str(resolv_conf_script),
-                "--down",
-                str(resolv_conf_script),
-            ])
-        
-        cmd.extend([
-            # Enable routing
-            "--redirect-gateway",  # Redirect all traffic through VPN
-            "def1",  # Use default gateway
-            "bypass-dhcp",  # Don't redirect DHCP
-            "bypass-dns",  # Don't redirect DNS
-        ])
+            cmd.extend(
+                [
+                    "--up",
+                    str(resolv_conf_script),
+                    "--down",
+                    str(resolv_conf_script),
+                ]
+            )
+
+        cmd.extend(
+            [
+                # Enable routing
+                "--redirect-gateway",  # Redirect all traffic through VPN
+                "def1",  # Use default gateway
+                "bypass-dhcp",  # Don't redirect DHCP
+                "bypass-dns",  # Don't redirect DNS
+            ]
+        )
 
     # Add log file if specified
     if log_path:

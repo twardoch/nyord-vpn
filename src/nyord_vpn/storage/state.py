@@ -2,6 +2,7 @@ import json
 import time
 
 from nyord_vpn.utils.utils import STATE_FILE, logger
+import contextlib
 
 
 def save_vpn_state(state: dict) -> None:
@@ -34,19 +35,17 @@ def save_vpn_state(state: dict) -> None:
         # Load existing state to preserve important info
         existing = {}
         if STATE_FILE.exists():
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 existing = json.loads(STATE_FILE.read_text())
-            except json.JSONDecodeError:
-                pass
 
         # Handle IP updates
         current_ip = state.get("current_ip")
-        
+
         # If we're disconnected and have a current_ip, that's definitely our normal_ip
         # This happens after a disconnect operation (bye command)
         if not state.get("connected") and current_ip:
             state["normal_ip"] = current_ip  # Decisively update normal_ip
-            state["connected_ip"] = None     # Clear VPN IP
+            state["connected_ip"] = None  # Clear VPN IP
         # If we're connected and have a current_ip, it's our VPN IP
         elif state.get("connected") and current_ip:
             state["connected_ip"] = current_ip
@@ -96,7 +95,7 @@ def load_vpn_state() -> dict:
             if time.time() - state.get("timestamp", 0) < 300:
                 return state
             # Even if state is stale, preserve IPs
-            default = {
+            return {
                 "connected": False,
                 "normal_ip": state.get("normal_ip"),
                 "connected_ip": None,
@@ -104,7 +103,6 @@ def load_vpn_state() -> dict:
                 "country": None,
                 "timestamp": time.time(),
             }
-            return default
     except Exception as e:
         logger.warning(f"Failed to load VPN state: {e}")
 
