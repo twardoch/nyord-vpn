@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 import time
 import random
+import fcntl
+import contextlib
 
 import requests
 from loguru import logger
@@ -29,12 +31,14 @@ from nyord_vpn.exceptions import VPNConfigError
 CACHE_DIR = Path.home() / ".cache" / "nyord-vpn"
 CONFIG_DIR = CACHE_DIR / "configs"
 CONFIG_ZIP = CACHE_DIR / "ovpn.zip"
+LOCK_FILE = CACHE_DIR / ".lock"
 OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
 ZIP_MAX_AGE_DAYS = 7  # Maximum age of ZIP file before redownload
 MAX_CACHED_CONFIGS = 5  # Maximum number of cached config files
 MAX_RETRIES = 3  # Maximum number of download retries
 INITIAL_RETRY_DELAY = 1  # Initial retry delay in seconds
 MAX_RETRY_DELAY = 30  # Maximum retry delay in seconds
+LOCK_TIMEOUT = 60  # Maximum time to wait for lock in seconds
 
 # Browser-like headers to avoid 403
 HEADERS = {
@@ -44,6 +48,55 @@ HEADERS = {
     "Referer": "https://nordvpn.com/",
     "Origin": "https://nordvpn.com",
 }
+
+
+@contextlib.contextmanager
+def file_lock():
+    """Context manager for file-based locking to prevent concurrent access.
+
+    Uses fcntl for atomic file locking. Will wait up to LOCK_TIMEOUT seconds
+    to acquire the lock.
+
+    Raises:
+        VPNConfigError: If lock cannot be acquired or released
+    """
+    lock_fd = None
+    try:
+        # Create lock file if it doesn't exist
+        LOCK_FILE.touch(mode=0o600, exist_ok=True)
+
+        # Open the lock file
+        lock_fd = os.open(str(LOCK_FILE), os.O_RDWR)
+
+        # Try to acquire lock with timeout
+        start_time = time.monotonic()
+        while True:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() - start_time > LOCK_TIMEOUT:
+                    raise VPNConfigError(
+                        f"Failed to acquire lock after {LOCK_TIMEOUT} seconds"
+                    )
+                time.sleep(0.1)
+
+        log_debug("Acquired file lock")
+        yield
+
+    except Exception as e:
+        if not isinstance(e, VPNConfigError):
+            raise VPNConfigError(f"Error while holding file lock: {e}") from e
+        raise
+
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+                log_debug("Released file lock")
+            except Exception as e:
+                logger.error("Failed to release file lock: {}", e)
 
 
 def log_debug(msg: str, *args: object, **kwargs: object) -> None:
@@ -373,46 +426,50 @@ def get_config_path(server: str) -> Path:
     Raises:
         VPNConfigError: If config file cannot be found or downloaded
     """
-    # Remove .tcp suffix if present as configs are already in tcp directory
-    server = server.replace(".tcp", "")
+    # Use file locking to prevent concurrent access
+    with file_lock():
+        # Remove .tcp suffix if present as configs are already in tcp directory
+        server = server.replace(".tcp", "")
 
-    # The config files in the ZIP have .tcp.ovpn extension
-    config_path = CONFIG_DIR / f"{server}.tcp.ovpn"
-    log_debug("Looking for config file at: {}", config_path)
+        # The config files in the ZIP have .tcp.ovpn extension
+        config_path = CONFIG_DIR / f"{server}.tcp.ovpn"
+        log_debug("Looking for config file at: {}", config_path)
 
-    # Check if we need to download a fresh ZIP
-    if is_zip_expired():
-        age = get_zip_age()
-        if age:
-            log_debug("ZIP file is {} days old, downloading fresh copy...", age.days)
-        else:
-            log_debug("ZIP file is missing, downloading...")
-        if CONFIG_ZIP.exists():
-            try:
-                CONFIG_ZIP.unlink()
-            except Exception as e:
-                log_debug("Failed to remove old ZIP file: {}", e)
-        download_config_zip()
-
-    # If config doesn't exist, try downloading and extracting
-    if not config_path.exists():
-        log_debug("Config file not found at: {}", config_path)
-
-        # Download ZIP if needed
-        if not CONFIG_ZIP.exists():
+        # Check if we need to download a fresh ZIP
+        if is_zip_expired():
+            age = get_zip_age()
+            if age:
+                log_debug(
+                    "ZIP file is {} days old, downloading fresh copy...", age.days
+                )
+            else:
+                log_debug("ZIP file is missing, downloading...")
+            if CONFIG_ZIP.exists():
+                try:
+                    CONFIG_ZIP.unlink()
+                except Exception as e:
+                    log_debug("Failed to remove old ZIP file: {}", e)
             download_config_zip()
 
-        # Extract just the needed config
-        config_path = extract_config_from_zip(server)
-        log_debug("Successfully extracted config to: {}", config_path)
+        # If config doesn't exist, try downloading and extracting
+        if not config_path.exists():
+            log_debug("Config file not found at: {}", config_path)
 
-    # Verify config file permissions
-    try:
-        stat_info = config_path.stat()
-        if stat_info.st_mode & 0o777 != 0o600:
-            config_path.chmod(0o600)
-            log_debug("Fixed config file permissions for {}", config_path)
-    except Exception as e:
-        raise VPNConfigError(f"Failed to verify config file permissions: {e}")
+            # Download ZIP if needed
+            if not CONFIG_ZIP.exists():
+                download_config_zip()
 
-    return config_path
+            # Extract just the needed config
+            config_path = extract_config_from_zip(server)
+            log_debug("Successfully extracted config to: {}", config_path)
+
+        # Verify config file permissions
+        try:
+            stat_info = config_path.stat()
+            if stat_info.st_mode & 0o777 != 0o600:
+                config_path.chmod(0o600)
+                log_debug("Fixed config file permissions for {}", config_path)
+        except Exception as e:
+            raise VPNConfigError(f"Failed to verify config file permissions: {e}")
+
+        return config_path
