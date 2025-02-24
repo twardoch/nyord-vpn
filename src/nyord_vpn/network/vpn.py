@@ -355,8 +355,8 @@ class VPNConnectionManager:
                 try:
                     self.process = subprocess.Popen(
                         cmd,
-                        stdout=subprocess.PIPE if not self.verbose else None,
-                        stderr=subprocess.PIPE if not self.verbose else None,
+                        stdout=subprocess.PIPE,  # Always capture output for error handling
+                        stderr=subprocess.PIPE,  # Always capture errors
                         text=True,
                         bufsize=1,  # Line buffered
                     )
@@ -369,42 +369,72 @@ class VPNConnectionManager:
                 while time.time() - start_time < 30:
                     if self.process.poll() is not None:
                         stdout, stderr = self.process.communicate()
-                        if self.verbose:
-                            self.logger.error(f"OpenVPN process output: {stdout}")
-                            self.logger.error(f"OpenVPN process error: {stderr}")
-                        raise VPNProcessError(f"OpenVPN process failed: {stderr}")
+                        error_msg = f"OpenVPN process failed:\nOutput: {stdout}\nError: {stderr}"
+                        self.logger.error(error_msg)
+                        raise VPNProcessError(error_msg)
 
-                    if self.verbose and self.process.stdout:
-                        line = self.process.stdout.readline()
-                        if line:
-                            self.logger.debug(f"OpenVPN: {line.strip()}")
+                    # Always read output for logging
+                    if self.process.stdout:
+                        while True:
+                            line = self.process.stdout.readline()
+                            if not line:
+                                break
+                            line = line.strip()
+                            if line:
+                                if self.verbose:
+                                    self.logger.debug(f"OpenVPN: {line}")
+                                # Check for critical errors in output
+                                if "ERROR:" in line:
+                                    self.logger.error(f"OpenVPN error: {line}")
+                                    if "Cannot resolve host address" in line:
+                                        raise VPNError(
+                                            f"Failed to resolve server: {line}"
+                                        )
+                                    if "TLS key negotiation failed" in line:
+                                        raise VPNError(
+                                            "Failed to establish secure connection"
+                                        )
 
                     # Check if connection is established
                     if OPENVPN_LOG and OPENVPN_LOG.exists():
-                        log_content = OPENVPN_LOG.read_text()
-                        if "Initialization Sequence Completed" in log_content:
-                            self.logger.info("OpenVPN connection established")
-                            break
-                        if "AUTH_FAILED" in log_content:
-                            self.logger.error("OpenVPN authentication failed")
+                        try:
+                            log_content = OPENVPN_LOG.read_text()
+                            if "Initialization Sequence Completed" in log_content:
+                                self.logger.info("OpenVPN connection established")
+                                break
+                            if "AUTH_FAILED" in log_content:
+                                self.logger.error("OpenVPN authentication failed")
+                                if self.verbose:
+                                    self.logger.error(f"OpenVPN log: {log_content}")
+                                raise VPNAuthenticationError(
+                                    "Authentication failed - check your credentials"
+                                )
+                            if "TLS Error" in log_content:
+                                self.logger.error("OpenVPN TLS handshake failed")
+                                if self.verbose:
+                                    self.logger.error(f"OpenVPN log: {log_content}")
+                                raise VPNError(
+                                    "TLS handshake failed - server may be down"
+                                )
+                        except Exception as e:
+                            self.logger.error(f"Failed to read OpenVPN log: {e}")
                             if self.verbose:
-                                self.logger.error(f"OpenVPN log: {log_content}")
-                            raise VPNAuthenticationError(
-                                "Authentication failed - check your credentials"
-                            )
-                        if "TLS Error" in log_content:
-                            self.logger.error("OpenVPN TLS handshake failed")
-                            if self.verbose:
-                                self.logger.error(f"OpenVPN log: {log_content}")
-                            raise VPNError("TLS handshake failed - server may be down")
+                                self.logger.error(f"Log path: {OPENVPN_LOG}")
 
                     time.sleep(0.1)
 
                 else:
                     self.logger.error("OpenVPN connection timed out")
                     if self.verbose and OPENVPN_LOG and OPENVPN_LOG.exists():
-                        self.logger.error(f"OpenVPN log: {OPENVPN_LOG.read_text()}")
+                        try:
+                            self.logger.error(f"OpenVPN log: {OPENVPN_LOG.read_text()}")
+                        except Exception as e:
+                            self.logger.error(f"Failed to read OpenVPN log: {e}")
                     raise VPNError("Connection timed out after 30 seconds")
+
+            # Verify connection is working
+            if not self.verify_connection():
+                raise VPNError("VPN connection failed verification")
 
             # Update connection info
             self._server = hostname
