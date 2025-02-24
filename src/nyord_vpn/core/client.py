@@ -32,6 +32,7 @@ Example usage:
 """
 
 import time
+import os
 from pathlib import Path
 from typing import TypedDict, Any
 
@@ -181,18 +182,30 @@ class Client:
     4. User feedback and logging
     """
 
-    def __init__(self, username_str: str, password_str: str, verbose: bool = False) -> None:
+    def __init__(self, username_str: str | None = None, password_str: str | None = None, verbose: bool = False) -> None:
         """Initialize NordVPN client.
 
         Args:
-            username_str: NordVPN username
-            password_str: NordVPN password
+            username_str: NordVPN username (optional if NORDVPN_USERNAME env var is set)
+            password_str: NordVPN password (optional if NORDVPN_PASSWORD env var is set)
             verbose: Whether to enable verbose output
 
+        Raises:
+            VPNError: If credentials are not available
         """
         self.verbose = verbose
         self.logger = logger
-        self.api_client = NordVPNAPIClient(username_str, password_str, verbose)
+
+        # Get credentials from env vars if not provided
+        self.username = username_str or os.environ.get("NORDVPN_USERNAME")
+        self.password = password_str or os.environ.get("NORDVPN_PASSWORD")
+        
+        if not self.username or not self.password:
+            raise VPNError(
+                "No VPN credentials available. Please set NORDVPN_USERNAME and NORDVPN_PASSWORD environment variables."
+            )
+
+        self.api_client = NordVPNAPIClient(self.username, self.password, verbose)
         self.vpn_manager = VPNConnectionManager(verbose=verbose)
         self.server_manager = ServerManager(self.api_client)
 
@@ -285,37 +298,42 @@ class Client:
             raise VPNError(f"Failed to connect: {e!s}")
 
     def bye(self) -> None:
-        """Disconnect from VPN."""
-        if not check_root():
-            ensure_root()
-            return
+        """Disconnect from VPN and show status.
 
+        Disconnects from any active VPN connection and displays
+        the current connection status including the public IP.
+        """
         try:
-            # First check if we're actually connected
-            status = self.status()
-            if not status.get("connected", False):
-                console.print("[yellow]Not connected to VPN[/yellow]")
-                console.print(
-                    f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
-                )
-                return
+            # Get current IP before disconnecting
+            current_ip = self.vpn_manager.get_current_ip()
 
-            # Store the current IP for display
-            current_ip = status.get("ip", "Unknown")
+            # Disconnect if connected
+            if self.vpn_manager.is_connected():
+                self.vpn_manager.disconnect()
+                print("Disconnected from VPN")
+            else:
+                print("Not connected to VPN")
 
-            # Disconnect
-            self.vpn_manager.disconnect()
-
-            # Get new status for display
-            status = self.status()
-            console.print("[green]Successfully disconnected from VPN[/green]")
-            console.print(
-                f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
-            )
-            console.print(f"Previous IP: [yellow]{current_ip}[/yellow]")
+            # Get fresh IP after disconnecting and save state
+            public_ip = self.vpn_manager.get_current_ip()
+            if not public_ip and current_ip:
+                public_ip = current_ip  # Use pre-disconnect IP if available
+            
+            # Save state with current IP after disconnection
+            state = {
+                "connected": False,
+                "current_ip": public_ip,  # This will update normal_ip in state
+                "server": None,
+                "country": None,
+                "timestamp": time.time(),
+            }
+            save_vpn_state(state)
+            
+            print(f"Public IP: {public_ip or 'Could not determine IP'}")
 
         except Exception as e:
-            raise VPNError(f"Failed to disconnect: {e}")
+            self.logger.error(f"Failed to disconnect: {e}")
+            raise
 
     def info(self) -> None:
         """Display current VPN status."""

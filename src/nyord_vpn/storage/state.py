@@ -21,6 +21,7 @@ def save_vpn_state(state: dict) -> None:
             - server (str): Connected server hostname
             - country (str): Server country
             - timestamp (float): State update time
+            - current_ip (str, optional): Current IP after disconnection
 
     Note:
         The state file is used for connection recovery
@@ -30,25 +31,37 @@ def save_vpn_state(state: dict) -> None:
 
     """
     try:
-        # If we're saving a disconnected state, update normal_ip
-        if not state.get("connected"):
-            current_ip = state.get("current_ip")
-            if current_ip:
-                state["normal_ip"] = current_ip
-
-        # Load existing state to preserve normal_ip if not present
+        # Load existing state to preserve important info
+        existing = {}
         if STATE_FILE.exists():
             try:
                 existing = json.loads(STATE_FILE.read_text())
-                if not state.get("normal_ip"):
-                    state["normal_ip"] = existing.get("normal_ip")
             except json.JSONDecodeError:
                 pass
+
+        # Handle IP updates
+        current_ip = state.get("current_ip")
+        
+        # If we're disconnected and have a current_ip, that's definitely our normal_ip
+        # This happens after a disconnect operation (bye command)
+        if not state.get("connected") and current_ip:
+            state["normal_ip"] = current_ip  # Decisively update normal_ip
+            state["connected_ip"] = None     # Clear VPN IP
+        # If we're connected and have a current_ip, it's our VPN IP
+        elif state.get("connected") and current_ip:
+            state["connected_ip"] = current_ip
+            # Keep existing normal_ip while connected
+            if not state.get("normal_ip") and existing.get("normal_ip"):
+                state["normal_ip"] = existing.get("normal_ip")
 
         # Ensure timestamp is updated
         state["timestamp"] = time.time()
 
-        STATE_FILE.write_text(json.dumps(state, indent=2))
+        # Write state atomically using temp file
+        temp_state = STATE_FILE.with_suffix(".tmp")
+        temp_state.write_text(json.dumps(state, indent=2))
+        temp_state.replace(STATE_FILE)
+
     except Exception as e:
         logger.warning(f"Failed to save VPN state: {e}")
 
@@ -82,13 +95,23 @@ def load_vpn_state() -> dict:
             # State is valid for 5 minutes
             if time.time() - state.get("timestamp", 0) < 300:
                 return state
+            # Even if state is stale, preserve IPs
+            default = {
+                "connected": False,
+                "normal_ip": state.get("normal_ip"),
+                "connected_ip": None,
+                "server": None,
+                "country": None,
+                "timestamp": time.time(),
+            }
+            return default
     except Exception as e:
         logger.warning(f"Failed to load VPN state: {e}")
 
     return {
         "connected": False,
-        "normal_ip": None,  # IP address when not connected to VPN
-        "connected_ip": None,  # IP address when connected to VPN
+        "normal_ip": None,
+        "connected_ip": None,
         "server": None,
         "country": None,
         "timestamp": time.time(),

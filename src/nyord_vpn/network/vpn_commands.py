@@ -7,6 +7,7 @@ It centralizes all OpenVPN-related command construction to ensure consistency
 and proper configuration across the application.
 """
 
+import platform
 from pathlib import Path
 
 from nyord_vpn.exceptions import VPNConfigError
@@ -47,7 +48,6 @@ def get_openvpn_command(
     Note:
         The command includes security-focused defaults and robust
         error handling parameters to ensure stable VPN connections.
-
     """
     # Validate required files
     if not config_path.exists():
@@ -70,6 +70,7 @@ def get_openvpn_command(
     if not 1 <= verbosity <= 6:
         raise VPNConfigError(f"Invalid verbosity level: {verbosity} (must be 1-6)")
 
+    # Base command with common options
     cmd = [
         "openvpn",
         "--config",
@@ -88,8 +89,58 @@ def get_openvpn_command(
         str(ping_interval),
         "--ping-restart",
         str(ping_restart),
+        # Add script security for up/down scripts
+        "--script-security",
+        "2",
+        # Network setup
+        "--persist-tun",  # Keep tun device between restarts
+        "--persist-key",  # Keep keys between restarts
+        "--nobind",  # Don't bind to a specific local port
+        "--fast-io",  # Optimize I/O operations
+        # Cipher configuration
+        "--data-ciphers",
+        "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305",
+        "--data-ciphers-fallback",
+        "AES-256-CBC",
     ]
 
+    # Platform-specific options
+    system = platform.system().lower()
+    if system == "darwin":  # macOS
+        # On macOS, we don't use external DNS scripts
+        cmd.extend([
+            # Enable routing
+            "--redirect-gateway",  # Redirect all traffic through VPN
+            "def1",  # Use default gateway
+            "autolocal",  # Automatically handle local routing
+            # DNS handling is done by the system
+            "--dhcp-option",
+            "DNS",
+            "103.86.96.100",  # NordVPN DNS
+            "--dhcp-option",
+            "DNS",
+            "103.86.99.100",  # NordVPN DNS backup
+        ])
+    else:  # Linux and others
+        # Use standard Linux DNS update scripts if available
+        resolv_conf_script = Path("/etc/openvpn/update-resolv-conf")
+        if resolv_conf_script.exists():
+            cmd.extend([
+                "--up",
+                str(resolv_conf_script),
+                "--down",
+                str(resolv_conf_script),
+            ])
+        
+        cmd.extend([
+            # Enable routing
+            "--redirect-gateway",  # Redirect all traffic through VPN
+            "def1",  # Use default gateway
+            "bypass-dhcp",  # Don't redirect DHCP
+            "bypass-dns",  # Don't redirect DNS
+        ])
+
+    # Add log file if specified
     if log_path:
         cmd.extend(["--log", str(log_path)])
 
