@@ -35,7 +35,6 @@ by combining multiple indicators and implementing fallback
 logic when certain checks fail.
 """
 
-from typing import Optional
 import psutil
 
 
@@ -55,6 +54,7 @@ def is_openvpn_running() -> bool:
         This function only checks for process existence,
         not whether the process is functioning correctly
         or if the VPN connection is actually established.
+
     """
     for proc in psutil.process_iter(["name"]):
         if proc.info.get("name") == "openvpn":
@@ -64,10 +64,10 @@ def is_openvpn_running() -> bool:
 
 def compute_connection_status(
     current_ip: str,
-    initial_ip: Optional[str],
-    connected_ip: Optional[str],
+    initial_ip: str | None,
+    connected_ip: str | None,
     openvpn_running: bool,
-    nord_status: Optional[bool] = None,
+    nord_status: bool | None = None,
 ) -> bool:
     """Determine VPN connection status through multiple checks.
 
@@ -105,6 +105,7 @@ def compute_connection_status(
         The function implements fallback logic when the API
         status is unavailable, relying more heavily on
         local indicators in such cases.
+
     """
     if nord_status is not None:
         is_connected = (

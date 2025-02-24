@@ -21,9 +21,9 @@ def _check_root() -> None:
     if os.geteuid() != 0:
         try:
             # Re-run the script with sudo
-            args = ["sudo", sys.executable] + sys.argv
+            args = ["sudo", sys.executable, *sys.argv]
             console.print(
-                "[yellow]This command requires administrator privileges.[/yellow]"
+                "[yellow]This command requires administrator privileges.[/yellow]",
             )
             console.print("[cyan]Please enter your password when prompted.[/cyan]")
             subprocess.run(args, check=True)
@@ -38,7 +38,7 @@ def _check_root() -> None:
 class CLI:
     """NordVPN CLI interface."""
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False) -> None:
         """Initialize CLI."""
         try:
             self.client = Client(verbose=verbose)
@@ -51,6 +51,7 @@ class CLI:
 
         Args:
             country_code: Two-letter country code (e.g. 'us', 'uk')
+
         """
         _check_root()
         try:
@@ -121,12 +122,10 @@ class CLI:
 
         Args:
             live: If True, fetch fresh data from API instead of using cache
+
         """
         try:
-            if live:
-                countries = fetch_countries()
-            else:
-                countries = self.client.countries
+            countries = fetch_countries() if live else self.client.countries
 
             table = Table(title="Available Countries")
             table.add_column("Country", style="cyan")
@@ -148,7 +147,7 @@ class CLI:
             console.print(
                 f"\nTotal: [cyan]{len(countries)}[/cyan] countries, "
                 f"[blue]{total_cities}[/blue] cities, "
-                f"[green]{total_servers}[/green] servers"
+                f"[green]{total_servers}[/green] servers",
             )
 
         except VPNError as e:
@@ -167,7 +166,8 @@ class CLI:
                     {
                         "countries": countries,
                         "last_updated": time.strftime(
-                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                            "%Y-%m-%dT%H:%M:%SZ",
+                            time.gmtime(),
                         ),
                     },
                     f,

@@ -16958,7 +16958,1155 @@ I see the issue now. Looking at the working implementations in `njord-v1.txt` an
 
 _****_
 
+```diff
+  remote-cert-tls server
+  cipher AES-256-CBC
+- compress
+- allow-compression no
++ auth SHA512
++ verify-x509-name CN={hostname}
+  auth-nocache
+  pull
+  LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG
+  SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g
+- nQesFRtXY2ZCjs50Jm73B2LViXjO/Dk3UZG0CL7WQm16HQP2n9ZZE4Xcn4iNyS49
+- 9JgcxQxPHzQjjazaV/0ijPkOJKhxJnqkii+SxwEhBiSE1nEz/3CkzqNlHKBJbDGm
+- MgM7/vQfbE7RAGMGtlghiFVktF6KI6CkFHmKSslThKCjzVJwoO4spB2pqTC0Hcx0
+- EbWHCEtSaH3f+eU1Gu9QKXXYfDyP8qc8DHwsqJWp9LUvHhDKIp60olYZPNj1zW1o
+- 4kbz8QM5bwvuJ4mZG1MFQZQGF79Q3WpsCgLpyMnwCuPVGu3/B2L/Zc9yTrWluXBa
+- YEQdIIw1CBq/JfOhJZNp5u3KNxhGKEtKOR2cGRaHwX+snPtBfu7jgGc1IrKF5oP6
+- Z4RNkpS9NnzNdZDEGpCKHXQ=
++ nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/
++ k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S
++ DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/
++ pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo
++ k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp
++ +RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd
++ NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa
++ wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC
++ VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S
++ PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==
+  -----END CERTIFICATE-----
+  </ca>
+  
+  <tls-auth>
++ #
++ # 2048 bit OpenVPN static key
++ #
+  -----BEGIN OpenVPN Static key V1-----
+  e685bdaf659a25a200e2b9e39e51ff03
+```
 
+---
+
+_****_
+
+
+
+I've updated the OpenVPN configuration template with several important changes:
+
+1. Removed `compress` and `allow-compression no` directives that were causing issues
+2. Added `auth SHA512` for stronger authentication
+3. Added `verify-x509-name CN={hostname}` to verify server certificate
+4. Fixed the certificate formatting and added proper headers
+5. Added proper comments for the TLS auth key section
+
+Let's try running the command again with this updated configuration:
+
+---
+
+_****_
+
+```bash
+sudo nyord-vpn go pl --verbose
+```
+
+```
+(nyord_vpn) adam@Hamlet nyord_vpn % 
+                             DEBUG    |
+
+                             nyord_vpn.serve
+
+                             r_manager:_ping
+
+                             _server:360 -
+
+                             Ping output
+
+                             line: ---
+
+                             pl128.nordvpn.c
+
+                             om ping
+
+                             statistics ---
+
+2025-02-23 08:31:45.696 | DEBUG    | nyord_vpn.server_manager:_pin
+g_server:360 - Ping output line: --- pl128.nordvpn.com ping statis
+tics ---
+                    DEBUG    2025-02-23      server_manager.py:360
+                             08:31:45.698 |
+
+                             DEBUG    |
+
+                             nyord_vpn.serve
+
+                             r_manager:_ping
+
+                             _server:360 -
+
+                             Ping output
+
+                             line: 2 packets
+
+                             transmitted, 1
+
+                             packets
+
+                             received, 50.0%
+
+                             packet loss, 1
+
+                             packets out of
+
+                             wait time
+
+2025-02-23 08:31:45.698 | DEBUG    | nyord_vpn.server_manager:_pin
+g_server:360 - Ping output line: 2 packets transmitted, 1 packets
+received, 50.0% packet loss, 1 packets out of wait time
+                    DEBUG    2025-02-23      server_manager.py:360
+                             08:31:45.700 |
+
+                             DEBUG    |
+
+                             nyord_vpn.serve
+
+                             r_manager:_ping
+
+                             _server:360 -
+
+                             Ping output
+
+                             line:
+
+                             round-trip
+
+                             min/avg/max/std
+
+                             dev =
+
+                             28.760/28.760/2
+
+                             8.760/0.000 ms
+
+2025-02-23 08:31:45.700 | DEBUG    | nyord_vpn.server_manager:_pin
+g_server:360 - Ping output line: round-trip min/avg/max/stddev = 2
+8.760/28.760/28.760/0.000 ms
+                    DEBUG    2025-02-23      server_manager.py:369
+                             08:31:45.702 |
+
+                             DEBUG    |
+
+                             nyord_vpn.serve
+
+                             r_manager:_ping
+
+                             _server:369 -
+
+                             Parsed min time
+
+                             from stats:
+
+                             28.76ms
+
+2025-02-23 08:31:45.702 | DEBUG    | nyord_vpn.server_manager:_pin
+g_server:369 - Parsed min time from stats: 28.76ms
+                    DEBUG    2025-02-23      server_manager.py:574
+                             08:31:45.704 |
+
+                             DEBUG    |
+
+                             nyord_vpn.serve
+
+                             r_manager:selec
+
+                             t_fastest_serve
+
+                             r:574 - Server
+
+                             pl128.nordvpn.c
+
+                             om responded in
+
+                             28.76ms
+
+2025-02-23 08:31:45.704 | DEBUG    | nyord_vpn.server_manager:sele
+ct_fastest_server:574 - Server pl128.nordvpn.com responded in 28.7
+6ms
+                    INFO     2025-02-23      server_manager.py:592
+                             08:31:45.710 |
+
+                             INFO     |
+
+                             nyord_vpn.serve
+
+                             r_manager:selec
+
+                             t_fastest_serve
+
+                             r:592 -
+
+                             Selected
+
+                             fastest server:
+
+                             pl125.nordvpn.c
+
+                             om (15% load,
+
+                             15.392ms)
+
+2025-02-23 08:31:45.710 | INFO     | nyord_vpn.server_manager:sele
+ct_fastest_server:592 - Selected fastest server: pl125.nordvpn.com
+ (15% load, 15.392ms)
+                    INFO     2025-02-23 08:31:45.718 client.py:334
+                             | INFO     |
+
+                             nyord_vpn.client:go:334
+
+                             - Selected server:
+
+                             pl125.nordvpn.com
+
+2025-02-23 08:31:45.718 | INFO     | nyord_vpn.client:go:334 - Sel
+ected server: pl125.nordvpn.com
+                    INFO     2025-02-23 08:31:45.722 client.py:345
+                             | INFO     |
+
+                             nyord_vpn.client:go:345
+
+                             - Establishing VPN
+
+                             connection...
+
+2025-02-23 08:31:45.722 | INFO     | nyord_vpn.client:go:345 - Est
+ablishing VPN connection...
+2025-02-23 08:31:45 us=739886 DEPRECATED OPTION: --cipher set to '
+AES-256-CBC' but missing in --data-ciphers (AES-256-GCM:AES-128-GC
+M:CHACHA20-POLY1305). OpenVPN ignores --cipher for cipher negotiat
+ions.
+2025-02-23 08:31:45 us=740772 Current Parameter Settings:
+2025-02-23 08:31:45 us=740780   config = '/Users/adam/.config/nyor
+d-vpn/configs/pl125.nordvpn.com.ovpn'
+2025-02-23 08:31:45 us=740788   mode = 0
+2025-02-23 08:31:45 us=740792   show_ciphers = DISABLED
+2025-02-23 08:31:45 us=740796   show_digests = DISABLED
+2025-02-23 08:31:45 us=740799   show_engines = DISABLED
+2025-02-23 08:31:45 us=740802   genkey = DISABLED
+2025-02-23 08:31:45 us=740806   genkey_filename = '[UNDEF]'
+2025-02-23 08:31:45 us=740811   key_pass_file = '[UNDEF]'
+2025-02-23 08:31:45 us=740816   show_tls_ciphers = DISABLED
+2025-02-23 08:31:45 us=740821   connect_retry_max = 0
+2025-02-23 08:31:45 us=740825 Connection profiles [0]:
+2025-02-23 08:31:45 us=740828   proto = tcp-client
+2025-02-23 08:31:45 us=740832   local = '[UNDEF]'
+2025-02-23 08:31:45 us=740835   local_port = '[UNDEF]'
+2025-02-23 08:31:45 us=740840   remote = 'pl125.nordvpn.com'
+2025-02-23 08:31:45 us=740845   remote_port = '443'
+2025-02-23 08:31:45 us=740849   remote_float = DISABLED
+2025-02-23 08:31:45 us=740853   bind_defined = DISABLED
+2025-02-23 08:31:45 us=740857   bind_local = DISABLED
+2025-02-23 08:31:45 us=740860   bind_ipv6_only = DISABLED
+2025-02-23 08:31:45 us=740865   connect_retry_seconds = 1
+2025-02-23 08:31:45 us=740904   connect_timeout = 120
+2025-02-23 08:31:45 us=740918   socks_proxy_server = '[UNDEF]'
+2025-02-23 08:31:45 us=740925   socks_proxy_port = '[UNDEF]'
+2025-02-23 08:31:45 us=740931   tun_mtu = 1500
+2025-02-23 08:31:45 us=740936   tun_mtu_defined = ENABLED
+2025-02-23 08:31:45 us=741047   link_mtu = 1500
+2025-02-23 08:31:45 us=741078   link_mtu_defined = DISABLED
+2025-02-23 08:31:45 us=741087   tun_mtu_extra = 0
+2025-02-23 08:31:45 us=741111   tun_mtu_extra_defined = DISABLED
+2025-02-23 08:31:45 us=741120   tls_mtu = 1250
+2025-02-23 08:31:45 us=741172   mtu_discover_type = -1
+2025-02-23 08:31:45 us=741179   fragment = 0
+2025-02-23 08:31:45 us=741183   mssfix = 1492
+2025-02-23 08:31:45 us=741187   mssfix_encap = ENABLED
+2025-02-23 08:31:45 us=741190   mssfix_fixed = DISABLED
+2025-02-23 08:31:45 us=741194   explicit_exit_notification = 0
+2025-02-23 08:31:45 us=741197   tls_auth_file = '[INLINE]'
+2025-02-23 08:31:45 us=741201   key_direction = 1
+2025-02-23 08:31:45 us=741206   tls_crypt_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741211   tls_crypt_v2_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741216 Connection profiles END
+2025-02-23 08:31:45 us=741221   remote_random = DISABLED
+2025-02-23 08:31:45 us=741224   ipchange = '[UNDEF]'
+2025-02-23 08:31:45 us=741227   dev = 'tun'
+2025-02-23 08:31:45 us=741231   dev_type = '[UNDEF]'
+2025-02-23 08:31:45 us=741234   dev_node = '[UNDEF]'
+2025-02-23 08:31:45 us=741237   lladdr = '[UNDEF]'
+2025-02-23 08:31:45 us=741240   topology = 1
+2025-02-23 08:31:45 us=741244   ifconfig_local = '[UNDEF]'
+2025-02-23 08:31:45 us=741247   ifconfig_remote_netmask = '[UNDEF]
+'
+2025-02-23 08:31:45 us=741250   ifconfig_noexec = DISABLED
+2025-02-23 08:31:45 us=741253   ifconfig_nowarn = DISABLED
+2025-02-23 08:31:45 us=741256   ifconfig_ipv6_local = '[UNDEF]'
+2025-02-23 08:31:45 us=741259   ifconfig_ipv6_netbits = 0
+2025-02-23 08:31:45 us=741263   ifconfig_ipv6_remote = '[UNDEF]'
+2025-02-23 08:31:45 us=741266   shaper = 0
+2025-02-23 08:31:45 us=741272   mtu_test = 0
+2025-02-23 08:31:45 us=741276   mlock = DISABLED
+2025-02-23 08:31:45 us=741279   keepalive_ping = 0
+2025-02-23 08:31:45 us=741282   keepalive_timeout = 0
+2025-02-23 08:31:45 us=741285   inactivity_timeout = 0
+2025-02-23 08:31:45 us=741289   session_timeout = 0
+2025-02-23 08:31:45 us=741292   inactivity_minimum_bytes = 0
+2025-02-23 08:31:45 us=741295   ping_send_timeout = 0
+2025-02-23 08:31:45 us=741298   ping_rec_timeout = 0
+2025-02-23 08:31:45 us=741301   ping_rec_timeout_action = 0
+2025-02-23 08:31:45 us=741356   ping_timer_remote = DISABLED
+2025-02-23 08:31:45 us=741369   remap_sigusr1 = 0
+2025-02-23 08:31:45 us=741374   persist_tun = ENABLED
+2025-02-23 08:31:45 us=741378   persist_local_ip = DISABLED
+2025-02-23 08:31:45 us=741381   persist_remote_ip = DISABLED
+2025-02-23 08:31:45 us=741384   persist_key = ENABLED
+2025-02-23 08:31:45 us=741388   passtos = DISABLED
+2025-02-23 08:31:45 us=741391   resolve_retry_seconds = 1000000000
+2025-02-23 08:31:45 us=741394   resolve_in_advance = DISABLED
+2025-02-23 08:31:45 us=741398   username = '[UNDEF]'
+2025-02-23 08:31:45 us=741401   groupname = '[UNDEF]'
+2025-02-23 08:31:45 us=741404   chroot_dir = '[UNDEF]'
+2025-02-23 08:31:45 us=741407   cd_dir = '[UNDEF]'
+2025-02-23 08:31:45 us=741410   writepid = '[UNDEF]'
+2025-02-23 08:31:45 us=741413   up_script = '[UNDEF]'
+2025-02-23 08:31:45 us=741416   down_script = '[UNDEF]'
+2025-02-23 08:31:45 us=741420   down_pre = DISABLED
+2025-02-23 08:31:45 us=741423   up_restart = DISABLED
+2025-02-23 08:31:45 us=741426   up_delay = DISABLED
+2025-02-23 08:31:45 us=741429   daemon = DISABLED
+2025-02-23 08:31:45 us=741432   log = DISABLED
+2025-02-23 08:31:45 us=741435   suppress_timestamps = DISABLED
+2025-02-23 08:31:45 us=741504   machine_readable_output = DISABLED
+2025-02-23 08:31:45 us=741518   nice = 0
+2025-02-23 08:31:45 us=741523   verbosity = 4
+2025-02-23 08:31:45 us=741527   mute = 0
+2025-02-23 08:31:45 us=741533   status_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741537   status_file_version = 1
+2025-02-23 08:31:45 us=741540   status_file_update_freq = 60
+2025-02-23 08:31:45 us=741543   occ = ENABLED
+2025-02-23 08:31:45 us=741546   rcvbuf = 0
+2025-02-23 08:31:45 us=741550   sndbuf = 0
+2025-02-23 08:31:45 us=741553   sockflags = 0
+2025-02-23 08:31:45 us=741556   fast_io = DISABLED
+2025-02-23 08:31:45 us=741559   comp.alg = 0
+2025-02-23 08:31:45 us=741563   comp.flags = 24
+2025-02-23 08:31:45 us=741566   route_script = '[UNDEF]'
+2025-02-23 08:31:45 us=741569   route_default_gateway = '[UNDEF]'
+2025-02-23 08:31:45 us=741572   route_default_metric = 0
+2025-02-23 08:31:45 us=741576   route_noexec = DISABLED
+2025-02-23 08:31:45 us=741579   route_delay = 0
+2025-02-23 08:31:45 us=741583   route_delay_window = 30
+2025-02-23 08:31:45 us=741586   route_delay_defined = DISABLED
+2025-02-23 08:31:45 us=741589   route_nopull = DISABLED
+2025-02-23 08:31:45 us=741592   route_gateway_via_dhcp = DISABLED
+2025-02-23 08:31:45 us=741596   allow_pull_fqdn = DISABLED
+2025-02-23 08:31:45 us=741599   management_addr = '[UNDEF]'
+2025-02-23 08:31:45 us=741606   management_port = '[UNDEF]'
+2025-02-23 08:31:45 us=741609   management_user_pass = '[UNDEF]'
+2025-02-23 08:31:45 us=741613   management_log_history_cache = 250
+2025-02-23 08:31:45 us=741616   management_echo_buffer_size = 100
+2025-02-23 08:31:45 us=741619   management_client_user = '[UNDEF]'
+2025-02-23 08:31:45 us=741622   management_client_group = '[UNDEF]
+'
+2025-02-23 08:31:45 us=741625   management_flags = 0
+2025-02-23 08:31:45 us=741629   shared_secret_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741632   key_direction = 1
+2025-02-23 08:31:45 us=741636   ciphername = 'AES-256-CBC'
+2025-02-23 08:31:45 us=741641   ncp_ciphers = 'AES-256-GCM:AES-128
+-GCM:CHACHA20-POLY1305'
+2025-02-23 08:31:45 us=741645   authname = 'SHA512'
+2025-02-23 08:31:45 us=741648   engine = DISABLED
+2025-02-23 08:31:45 us=741651   replay = ENABLED
+2025-02-23 08:31:45 us=741654   mute_replay_warnings = DISABLED
+2025-02-23 08:31:45 us=741658   replay_window = 64
+2025-02-23 08:31:45 us=741661   replay_time = 15
+2025-02-23 08:31:45 us=741664   packet_id_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741667   test_crypto = DISABLED
+2025-02-23 08:31:45 us=741670   tls_server = DISABLED
+2025-02-23 08:31:45 us=741673   tls_client = ENABLED
+2025-02-23 08:31:45 us=741677   ca_file = '[INLINE]'
+2025-02-23 08:31:45 us=741680   ca_path = '[UNDEF]'
+2025-02-23 08:31:45 us=741683   dh_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741686   cert_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741690   extra_certs_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741693   priv_key_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741696   pkcs12_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741700   cipher_list = '[UNDEF]'
+2025-02-23 08:31:45 us=741703   cipher_list_tls13 = '[UNDEF]'
+2025-02-23 08:31:45 us=741706   tls_cert_profile = '[UNDEF]'
+2025-02-23 08:31:45 us=741709   tls_verify = '[UNDEF]'
+2025-02-23 08:31:45 us=741712   tls_export_peer_cert_dir = '[UNDEF
+]'
+2025-02-23 08:31:45 us=741718   verify_x509_type = 1
+2025-02-23 08:31:45 us=741721   verify_x509_name = 'CN=pl125.nordv
+pn.com'
+2025-02-23 08:31:45 us=741724   crl_file = '[UNDEF]'
+2025-02-23 08:31:45 us=741728   ns_cert_type = 0
+2025-02-23 08:31:45 us=741731   remote_cert_ku[i] = 65535
+2025-02-23 08:31:45 us=741734   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741737   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741741   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741744   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741747   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741750   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741753   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741756   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741760   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741763   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741766   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741769   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741772   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741775   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741779   remote_cert_ku[i] = 0
+2025-02-23 08:31:45 us=741782   remote_cert_eku = 'TLS Web Server 
+Authentication'
+2025-02-23 08:31:45 us=741785   ssl_flags = 192
+2025-02-23 08:31:45 us=741789   tls_timeout = 2
+2025-02-23 08:31:45 us=741792   renegotiate_bytes = -1
+2025-02-23 08:31:45 us=741795   renegotiate_packets = 0
+2025-02-23 08:31:45 us=741798   renegotiate_seconds = 3600
+2025-02-23 08:31:45 us=741802   handshake_window = 60
+2025-02-23 08:31:45 us=741805   transition_window = 3600
+2025-02-23 08:31:45 us=741809   single_session = DISABLED
+2025-02-23 08:31:45 us=741812   push_peer_info = DISABLED
+2025-02-23 08:31:45 us=741815   tls_exit = DISABLED
+2025-02-23 08:31:45 us=741819   tls_crypt_v2_metadata = '[UNDEF]'
+2025-02-23 08:31:45 us=741822   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741825   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741828   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741831   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741835   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741838   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741842   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741845   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741848   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741851   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741854   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741857   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741861   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741864   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741867   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741870   pkcs11_protected_authentication = 
+DISABLED
+2025-02-23 08:31:45 us=741876   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741879   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741882   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741885   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741889   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741892   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741895   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741898   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741901   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741904   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741907   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741911   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741914   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741917   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741920   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741923   pkcs11_private_mode = 00000000
+2025-02-23 08:31:45 us=741926   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741930   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741933   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741936   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741939   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741942   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741946   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741949   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741952   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741955   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741958   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741961   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741964   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741968   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741971   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741974   pkcs11_cert_private = DISABLED
+2025-02-23 08:31:45 us=741977   pkcs11_pin_cache_period = -1
+2025-02-23 08:31:45 us=741980   pkcs11_id = '[UNDEF]'
+2025-02-23 08:31:45 us=741984   pkcs11_id_management = DISABLED
+2025-02-23 08:31:45 us=741988   server_network = 0.0.0.0
+2025-02-23 08:31:45 us=741992   server_netmask = 0.0.0.0
+2025-02-23 08:31:45 us=741996   server_network_ipv6 = ::
+2025-02-23 08:31:45 us=741999   server_netbits_ipv6 = 0
+2025-02-23 08:31:45 us=742003   server_bridge_ip = 0.0.0.0
+2025-02-23 08:31:45 us=742006   server_bridge_netmask = 0.0.0.0
+2025-02-23 08:31:45 us=742010   server_bridge_pool_start = 0.0.0.0
+2025-02-23 08:31:45 us=742014   server_bridge_pool_end = 0.0.0.0
+2025-02-23 08:31:45 us=742017   ifconfig_pool_defined = DISABLED
+2025-02-23 08:31:45 us=742021   ifconfig_pool_start = 0.0.0.0
+2025-02-23 08:31:45 us=742024   ifconfig_pool_end = 0.0.0.0
+2025-02-23 08:31:45 us=742028   ifconfig_pool_netmask = 0.0.0.0
+2025-02-23 08:31:45 us=742031   ifconfig_pool_persist_filename = '
+[UNDEF]'
+2025-02-23 08:31:45 us=742035   ifconfig_pool_persist_refresh_freq
+ = 600
+2025-02-23 08:31:45 us=742038   ifconfig_ipv6_pool_defined = DISAB
+LED
+2025-02-23 08:31:45 us=742041   ifconfig_ipv6_pool_base = ::
+2025-02-23 08:31:45 us=742045   ifconfig_ipv6_pool_netbits = 0
+2025-02-23 08:31:45 us=742048   n_bcast_buf = 256
+2025-02-23 08:31:45 us=742051   tcp_queue_limit = 64
+2025-02-23 08:31:45 us=742054   real_hash_size = 256
+2025-02-23 08:31:45 us=742058   virtual_hash_size = 256
+2025-02-23 08:31:45 us=742061   client_connect_script = '[UNDEF]'
+2025-02-23 08:31:45 us=742064   learn_address_script = '[UNDEF]'
+2025-02-23 08:31:45 us=742067   client_disconnect_script = '[UNDEF
+]'
+2025-02-23 08:31:45 us=742071   client_crresponse_script = '[UNDEF
+]'
+2025-02-23 08:31:45 us=742074   client_config_dir = '[UNDEF]'
+2025-02-23 08:31:45 us=742077   ccd_exclusive = DISABLED
+2025-02-23 08:31:45 us=742080   tmp_dir = '/tmp'
+2025-02-23 08:31:45 us=742083   push_ifconfig_defined = DISABLED
+2025-02-23 08:31:45 us=742087   push_ifconfig_local = 0.0.0.0
+2025-02-23 08:31:45 us=742093   push_ifconfig_remote_netmask = 0.0
+.0.0
+2025-02-23 08:31:45 us=742097   push_ifconfig_ipv6_defined = DISAB
+LED
+2025-02-23 08:31:45 us=742100   push_ifconfig_ipv6_local = ::/0
+2025-02-23 08:31:45 us=742104   push_ifconfig_ipv6_remote = ::
+2025-02-23 08:31:45 us=742107   enable_c2c = DISABLED
+2025-02-23 08:31:45 us=742110   duplicate_cn = DISABLED
+2025-02-23 08:31:45 us=742113   cf_max = 0
+2025-02-23 08:31:45 us=742116   cf_per = 0
+2025-02-23 08:31:45 us=742120   cf_initial_max = 100
+2025-02-23 08:31:45 us=742123   cf_initial_per = 10
+2025-02-23 08:31:45 us=742126   max_clients = 1024
+2025-02-23 08:31:45 us=742129   max_routes_per_client = 256
+2025-02-23 08:31:45 us=742133   auth_user_pass_verify_script = '[U
+NDEF]'
+2025-02-23 08:31:45 us=742136   auth_user_pass_verify_script_via_f
+ile = DISABLED
+2025-02-23 08:31:45 us=742139   auth_token_generate = DISABLED
+2025-02-23 08:31:45 us=742142   force_key_material_export = DISABL
+ED
+2025-02-23 08:31:45 us=742158   auth_token_lifetime = 0
+2025-02-23 08:31:45 us=742165   auth_token_secret_file = '[UNDEF]'
+2025-02-23 08:31:45 us=742168   port_share_host = '[UNDEF]'
+2025-02-23 08:31:45 us=742172   port_share_port = '[UNDEF]'
+2025-02-23 08:31:45 us=742175   vlan_tagging = DISABLED
+2025-02-23 08:31:45 us=742182   vlan_accept = all
+2025-02-23 08:31:45 us=742186   vlan_pvid = 1
+2025-02-23 08:31:45 us=742189   client = ENABLED
+2025-02-23 08:31:45 us=742193   pull = ENABLED
+2025-02-23 08:31:45 us=742196   auth_user_pass_file = '/Users/adam
+/.config/nyord-vpn/configs/auth.txt'
+2025-02-23 08:31:45 us=742203 OpenVPN 2.6.13 x86_64-apple-darwin23
+.6.0 [SSL (OpenSSL)] [LZO] [LZ4] [PKCS11] [MH/RECVDA] [AEAD]
+2025-02-23 08:31:45 us=742210 library versions: OpenSSL 3.4.0 22 O
+ct 2024, LZO 2.10
+2025-02-23 08:31:45 us=743764 Outgoing Control Channel Authenticat
+ion: Using 512 bit message hash 'SHA512' for HMAC authentication
+2025-02-23 08:31:45 us=743782 Incoming Control Channel Authenticat
+ion: Using 512 bit message hash 'SHA512' for HMAC authentication
+2025-02-23 08:31:45 us=743928 Control Channel MTU parms [ mss_fix:
+0 max_frag:0 tun_mtu:1250 tun_max_mtu:0 headroom:126 payload:1600
+tailroom:126 ET:0 ]
+2025-02-23 08:31:46 us=743159 Data Channel MTU parms [ mss_fix:0 m
+ax_frag:0 tun_mtu:1500 tun_max_mtu:1600 headroom:136 payload:1768
+tailroom:562 ET:0 ]
+2025-02-23 08:31:46 us=743237 TCP/UDP: Preserving recently used re
+mote address: [AF_INET]217.138.209.67:443
+2025-02-23 08:31:46 us=743347 Socket Buffers: R=[131072->131072] S
+=[131072->131072]
+2025-02-23 08:31:46 us=743365 Attempting to establish TCP connecti
+on with [AF_INET]217.138.209.67:443
+2025-02-23 08:31:46 us=772244 TCP connection established with [AF_
+INET]217.138.209.67:443
+2025-02-23 08:31:46 us=772266 TCPv4_CLIENT link local: (not bound)
+2025-02-23 08:31:46 us=772274 TCPv4_CLIENT link remote: [AF_INET]2
+17.138.209.67:443
+2025-02-23 08:31:46 us=793481 TLS: Initial packet from [AF_INET]21
+7.138.209.67:443, sid=0e4bb45e 3c0e6d45
+2025-02-23 08:31:46 us=844500 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 08:31:46 us=844810 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 08:31:46 us=844976 VERIFY KU OK
+2025-02-23 08:31:46 us=844986 Validating certificate extended key 
+usage
+2025-02-23 08:31:46 us=844990 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 08:31:46 us=844994 VERIFY EKU OK
+2025-02-23 08:31:46 us=844997 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 08:31:46 us=845000 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 08:31:46 us=947162 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 08:31:46 us=947393 [pl125.nordvpn.com] Peer Connection 
+Initiated with [AF_INET]217.138.209.67:443
+2025-02-23 08:31:46 us=947491 TLS: move_session: dest=TM_ACTIVE sr
+c=TM_INITIAL reinit_src=1
+2025-02-23 08:31:46 us=947704 TLS: tls_multi_process: initial untr
+usted session promoted to trusted
+2025-02-23 08:31:47 us=985958 SENT CONTROL [pl125.nordvpn.com]: 'P
+USH_REQUEST' (status=1)
+2025-02-23 08:31:48 us=51943 PUSH: Received control message: 'PUSH
+_REPLY,redirect-gateway def1,dhcp-option DNS 103.86.96.100,dhcp-op
+tion DNS 103.86.99.100,explicit-exit-notify,comp-lzo no,route-gate
+way 10.100.0.1,topology subnet,ping 60,ping-restart 180,ifconfig 1
+0.100.0.2 255.255.0.0,peer-id 0,cipher AES-256-GCM'
+2025-02-23 08:31:48 us=52225 OPTIONS IMPORT: --explicit-exit-notif
+y can only be used with --proto udp
+2025-02-23 08:31:48 us=52240 OPTIONS IMPORT: --ifconfig/up options
+ modified
+2025-02-23 08:31:48 us=52246 OPTIONS IMPORT: route options modifie
+d
+2025-02-23 08:31:48 us=52251 OPTIONS IMPORT: route-related options
+ modified
+2025-02-23 08:31:48 us=52256 OPTIONS IMPORT: --ip-win32 and/or --d
+hcp-option options modified
+2025-02-23 08:31:48 us=53019 Opened utun device utun5
+2025-02-23 08:31:48 us=53037 do_ifconfig, ipv4=1, ipv6=0
+2025-02-23 08:31:48 us=53097 /sbin/ifconfig utun5 delete
+ifconfig: ioctl (SIOCDIFADDR): Can't assign requested address
+2025-02-23 08:31:48 us=61456 NOTE: Tried to delete pre-existing tu
+n/tap instance -- No Problem if failure
+2025-02-23 08:31:48 us=61553 /sbin/ifconfig utun5 10.100.0.2 10.10
+0.0.2 netmask 255.255.0.0 mtu 1500 up
+2025-02-23 08:31:48 us=68735 /sbin/route add -net 10.100.0.0 10.10
+0.0.2 255.255.0.0
+route: writing to routing socket: File exists
+add net 10.100.0.0: gateway 10.100.0.2: File exists
+2025-02-23 08:31:48 us=76924 /sbin/route add -net 217.138.209.67 1
+92.168.0.1 255.255.255.255
+add net 217.138.209.67: gateway 192.168.0.1
+2025-02-23 08:31:48 us=81060 /sbin/route add -net 0.0.0.0 10.100.0
+.1 128.0.0.0
+route: writing to routing socket: File exists
+add net 0.0.0.0: gateway 10.100.0.1: File exists
+2025-02-23 08:31:48 us=84428 /sbin/route add -net 128.0.0.0 10.100
+.0.1 128.0.0.0
+route: writing to routing socket: File exists
+add net 128.0.0.0: gateway 10.100.0.1: File exists
+2025-02-23 08:31:48 us=87635 Data Channel MTU parms [ mss_fix:1385
+ max_frag:0 tun_mtu:1500 tun_max_mtu:1600 headroom:136 payload:176
+8 tailroom:562 ET:0 ]
+2025-02-23 08:31:48 us=87839 Outgoing Data Channel: Cipher 'AES-25
+6-GCM' initialized with 256 bit key
+2025-02-23 08:31:48 us=87849 Incoming Data Channel: Cipher 'AES-25
+6-GCM' initialized with 256 bit key
+2025-02-23 08:31:48 us=87858 Initialization Sequence Completed
+2025-02-23 08:31:48 us=87863 Data Channel: cipher 'AES-256-GCM', p
+eer-id: 0, compression: 'stub'
+2025-02-23 08:31:48 us=87867 Timers: ping 60, ping-restart 180
+2025-02-23 08:33:39 us=583813 read TCPv4_CLIENT: No route to host 
+(fd=4,code=65)
+2025-02-23 08:33:39 us=583885 Connection reset, restarting [0]
+2025-02-23 08:33:39 us=584262 TCP/UDP: Closing socket
+2025-02-23 08:33:39 us=584322 SIGUSR1[soft,connection-reset] recei
+ved, process restarting
+2025-02-23 08:33:39 us=584362 Restart pause, 1 second(s)
+2025-02-23 08:33:40 us=586378 Re-using SSL/TLS context
+2025-02-23 08:33:40 us=586440 Outgoing Control Channel Authenticat
+ion: Using 512 bit message hash 'SHA512' for HMAC authentication
+2025-02-23 08:33:40 us=586449 Incoming Control Channel Authenticat
+ion: Using 512 bit message hash 'SHA512' for HMAC authentication
+2025-02-23 08:33:40 us=586542 Control Channel MTU parms [ mss_fix:
+0 max_frag:0 tun_mtu:1250 tun_max_mtu:0 headroom:126 payload:1600
+tailroom:126 ET:0 ]
+2025-02-23 08:33:40 us=586557 Data Channel MTU parms [ mss_fix:0 m
+ax_frag:0 tun_mtu:1500 tun_max_mtu:1600 headroom:136 payload:1768
+tailroom:562 ET:0 ]
+2025-02-23 08:33:40 us=586591 TCP/UDP: Preserving recently used re
+mote address: [AF_INET]217.138.209.67:443
+2025-02-23 08:33:40 us=586617 Socket Buffers: R=[131072->131072] S
+=[131072->131072]
+2025-02-23 08:33:40 us=586623 Attempting to establish TCP connecti
+on with [AF_INET]217.138.209.67:443
+2025-02-23 08:33:40 us=607458 TCP connection established with [AF_
+INET]217.138.209.67:443
+2025-02-23 08:33:40 us=607478 TCPv4_CLIENT link local: (not bound)
+2025-02-23 08:33:40 us=607484 TCPv4_CLIENT link remote: [AF_INET]2
+17.138.209.67:443
+2025-02-23 08:33:40 us=636983 TLS: Initial packet from [AF_INET]21
+7.138.209.67:443, sid=b9936576 85928f60
+2025-02-23 08:33:40 us=709913 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 08:33:40 us=710063 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 08:33:40 us=710212 VERIFY KU OK
+2025-02-23 08:33:40 us=710221 Validating certificate extended key 
+usage
+2025-02-23 08:33:40 us=710225 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 08:33:40 us=710228 VERIFY EKU OK
+2025-02-23 08:33:40 us=710231 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 08:33:40 us=710234 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 08:33:40 us=842427 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 08:33:40 us=842455 [pl125.nordvpn.com] Peer Connection 
+Initiated with [AF_INET]217.138.209.67:443
+2025-02-23 08:33:40 us=842471 TLS: move_session: dest=TM_ACTIVE sr
+c=TM_INITIAL reinit_src=1
+2025-02-23 08:33:40 us=842523 TLS: tls_multi_process: initial untr
+usted session promoted to trusted
+2025-02-23 08:33:41 us=907180 SENT CONTROL [pl125.nordvpn.com]: 'P
+USH_REQUEST' (status=1)
+2025-02-23 08:33:41 us=945996 PUSH: Received control message: 'PUS
+H_REPLY,redirect-gateway def1,dhcp-option DNS 103.86.96.100,dhcp-o
+ption DNS 103.86.99.100,explicit-exit-notify,comp-lzo no,route-gat
+eway 10.100.0.1,topology subnet,ping 60,ping-restart 180,ifconfig
+10.100.0.2 255.255.0.0,peer-id 0,cipher AES-256-GCM'
+2025-02-23 08:33:41 us=946073 OPTIONS IMPORT: --explicit-exit-noti
+fy can only be used with --proto udp
+2025-02-23 08:33:41 us=946082 OPTIONS IMPORT: --ifconfig/up option
+s modified
+2025-02-23 08:33:41 us=946087 OPTIONS IMPORT: route options modifi
+ed
+2025-02-23 08:33:41 us=946091 OPTIONS IMPORT: route-related option
+s modified
+2025-02-23 08:33:41 us=946096 OPTIONS IMPORT: --ip-win32 and/or --
+dhcp-option options modified
+2025-02-23 08:33:41 us=946100 Preserving previous TUN/TAP instance
+: utun5
+2025-02-23 08:33:41 us=946126 Data Channel MTU parms [ mss_fix:138
+5 max_frag:0 tun_mtu:1500 tun_max_mtu:1600 headroom:136 payload:17
+68 tailroom:562 ET:0 ]
+2025-02-23 08:33:41 us=946338 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 08:33:41 us=946357 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 08:33:41 us=946367 Initialization Sequence Completed
+2025-02-23 08:33:41 us=946374 Data Channel: cipher 'AES-256-GCM', 
+peer-id: 0, compression: 'stub'
+2025-02-23 08:33:41 us=946380 Timers: ping 60, ping-restart 180
+2025-02-23 09:30:54 us=449329 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 09:30:54 us=449594 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 09:30:54 us=449877 VERIFY KU OK
+2025-02-23 09:30:54 us=449897 Validating certificate extended key 
+usage
+2025-02-23 09:30:54 us=449906 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 09:30:54 us=449913 VERIFY EKU OK
+2025-02-23 09:30:54 us=449919 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 09:30:54 us=449925 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 09:30:54 us=569965 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 09:30:54 us=570246 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 09:30:54 us=570271 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 10:28:08 us=726282 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 10:28:08 us=726544 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 10:28:08 us=726816 VERIFY KU OK
+2025-02-23 10:28:08 us=726832 Validating certificate extended key 
+usage
+2025-02-23 10:28:08 us=726840 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 10:28:08 us=726846 VERIFY EKU OK
+2025-02-23 10:28:08 us=726852 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 10:28:08 us=726857 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 10:28:08 us=810602 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 10:28:08 us=810878 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 10:28:08 us=810898 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 11:25:23 us=736762 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 11:25:23 us=737025 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 11:25:23 us=737295 VERIFY KU OK
+2025-02-23 11:25:23 us=737315 Validating certificate extended key 
+usage
+2025-02-23 11:25:23 us=737323 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 11:25:23 us=737330 VERIFY EKU OK
+2025-02-23 11:25:23 us=737336 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 11:25:23 us=737341 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 11:25:23 us=802840 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 11:25:23 us=802998 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 11:25:23 us=803012 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 12:22:38 us=307828 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 12:22:38 us=308063 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 12:22:38 us=308371 VERIFY KU OK
+2025-02-23 12:22:38 us=308391 Validating certificate extended key 
+usage
+2025-02-23 12:22:38 us=308402 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 12:22:38 us=308408 VERIFY EKU OK
+2025-02-23 12:22:38 us=308413 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 12:22:38 us=308417 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 12:22:38 us=360621 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 12:22:38 us=360892 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 12:22:38 us=360915 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 13:19:52 us=908000 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 13:19:52 us=908152 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 13:19:52 us=908305 VERIFY KU OK
+2025-02-23 13:19:52 us=908316 Validating certificate extended key 
+usage
+2025-02-23 13:19:52 us=908321 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 13:19:52 us=908325 VERIFY EKU OK
+2025-02-23 13:19:52 us=908328 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 13:19:52 us=908331 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 13:19:53 us=28346 Control Channel: TLSv1.3, cipher TLSv
+1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, signa
+ture: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 13:19:53 us=28527 Outgoing Data Channel: Cipher 'AES-25
+6-GCM' initialized with 256 bit key
+2025-02-23 13:19:53 us=28538 Incoming Data Channel: Cipher 'AES-25
+6-GCM' initialized with 256 bit key
+2025-02-23 14:17:08 us=156220 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 14:17:08 us=156484 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 14:17:08 us=156763 VERIFY KU OK
+2025-02-23 14:17:08 us=156779 Validating certificate extended key 
+usage
+2025-02-23 14:17:08 us=156787 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 14:17:08 us=156793 VERIFY EKU OK
+2025-02-23 14:17:08 us=156799 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 14:17:08 us=156805 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 14:17:08 us=202508 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 14:17:08 us=202769 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 14:17:08 us=202788 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 15:14:23 us=338942 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 15:14:23 us=339512 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 15:14:23 us=340162 VERIFY KU OK
+2025-02-23 15:14:23 us=340182 Validating certificate extended key 
+usage
+2025-02-23 15:14:23 us=340191 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 15:14:23 us=340199 VERIFY EKU OK
+2025-02-23 15:14:23 us=340205 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 15:14:23 us=340211 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 15:14:23 us=387864 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 15:14:23 us=388578 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 15:14:23 us=388613 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 16:11:37 us=637582 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 16:11:37 us=637845 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 16:11:37 us=638120 VERIFY KU OK
+2025-02-23 16:11:37 us=638136 Validating certificate extended key 
+usage
+2025-02-23 16:11:37 us=638144 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 16:11:37 us=638151 VERIFY EKU OK
+2025-02-23 16:11:37 us=638156 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 16:11:37 us=638162 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 16:11:37 us=732906 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 16:11:37 us=733317 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 16:11:37 us=733346 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 17:08:52 us=231278 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 17:08:52 us=231567 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 17:08:52 us=231844 VERIFY KU OK
+2025-02-23 17:08:52 us=231860 Validating certificate extended key 
+usage
+2025-02-23 17:08:52 us=231867 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 17:08:52 us=231874 VERIFY EKU OK
+2025-02-23 17:08:52 us=231879 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 17:08:52 us=231885 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 17:08:52 us=334596 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 17:08:52 us=334870 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 17:08:52 us=334889 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 18:06:06 us=700200 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 18:06:06 us=700454 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 18:06:06 us=700735 VERIFY KU OK
+2025-02-23 18:06:06 us=700751 Validating certificate extended key 
+usage
+2025-02-23 18:06:06 us=700759 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 18:06:06 us=700765 VERIFY EKU OK
+2025-02-23 18:06:06 us=700771 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 18:06:06 us=700776 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 18:06:06 us=796820 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 18:06:06 us=797236 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 18:06:06 us=797266 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 19:03:20 us=993320 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 19:03:20 us=993535 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 19:03:20 us=993769 VERIFY KU OK
+2025-02-23 19:03:20 us=993781 Validating certificate extended key 
+usage
+2025-02-23 19:03:20 us=993787 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 19:03:20 us=993792 VERIFY EKU OK
+2025-02-23 19:03:20 us=993797 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 19:03:20 us=993801 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 19:03:21 us=102670 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 19:03:21 us=102893 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 19:03:21 us=102909 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 20:00:35 us=934326 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 20:00:35 us=934587 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 20:00:35 us=934856 VERIFY KU OK
+2025-02-23 20:00:35 us=934871 Validating certificate extended key 
+usage
+2025-02-23 20:00:35 us=934879 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 20:00:35 us=934885 VERIFY EKU OK
+2025-02-23 20:00:35 us=934891 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 20:00:35 us=934896 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 20:00:36 us=28917 Control Channel: TLSv1.3, cipher TLSv
+1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, signa
+ture: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 20:00:36 us=29346 Outgoing Data Channel: Cipher 'AES-25
+6-GCM' initialized with 256 bit key
+2025-02-23 20:00:36 us=29385 Incoming Data Channel: Cipher 'AES-25
+6-GCM' initialized with 256 bit key
+2025-02-23 20:57:50 us=364366 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 20:57:50 us=364619 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 20:57:50 us=364888 VERIFY KU OK
+2025-02-23 20:57:50 us=364901 Validating certificate extended key 
+usage
+2025-02-23 20:57:50 us=364908 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 20:57:50 us=364915 VERIFY EKU OK
+2025-02-23 20:57:50 us=364921 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 20:57:50 us=364926 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 20:57:50 us=449322 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 20:57:50 us=449752 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 20:57:50 us=449781 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 21:55:04 us=731605 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 21:55:04 us=731759 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 21:55:04 us=731915 VERIFY KU OK
+2025-02-23 21:55:04 us=731923 Validating certificate extended key 
+usage
+2025-02-23 21:55:04 us=731927 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 21:55:04 us=731932 VERIFY EKU OK
+2025-02-23 21:55:04 us=731935 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 21:55:04 us=731939 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 21:55:04 us=875991 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 21:55:04 us=876147 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 21:55:04 us=876158 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 22:52:18 us=454458 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 22:52:18 us=454712 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 22:52:18 us=454981 VERIFY KU OK
+2025-02-23 22:52:18 us=454997 Validating certificate extended key 
+usage
+2025-02-23 22:52:18 us=455005 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 22:52:18 us=455012 VERIFY EKU OK
+2025-02-23 22:52:18 us=455018 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 22:52:18 us=455023 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 22:52:18 us=545975 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 22:52:18 us=546402 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 22:52:18 us=546440 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 23:49:33 us=145940 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-23 23:49:33 us=146083 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-23 23:49:33 us=146239 VERIFY KU OK
+2025-02-23 23:49:33 us=146249 Validating certificate extended key 
+usage
+2025-02-23 23:49:33 us=146253 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-23 23:49:33 us=146257 VERIFY EKU OK
+2025-02-23 23:49:33 us=146260 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-23 23:49:33 us=146263 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-23 23:49:33 us=232492 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-23 23:49:33 us=232686 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-23 23:49:33 us=232696 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-24 00:46:47 us=579291 VERIFY OK: depth=2, C=PA, O=NordVPN,
+ CN=NordVPN Root CA
+2025-02-24 00:46:47 us=579432 VERIFY OK: depth=1, O=NordVPN, CN=No
+rdVPN CA10
+2025-02-24 00:46:47 us=579586 VERIFY KU OK
+2025-02-24 00:46:47 us=579595 Validating certificate extended key 
+usage
+2025-02-24 00:46:47 us=579600 ++ Certificate has EKU (str) TLS Web
+ Server Authentication, expects TLS Web Server Authentication
+2025-02-24 00:46:47 us=579603 VERIFY EKU OK
+2025-02-24 00:46:47 us=579606 VERIFY X509NAME OK: CN=pl125.nordvpn
+.com
+2025-02-24 00:46:47 us=579609 VERIFY OK: depth=0, CN=pl125.nordvpn
+.com
+2025-02-24 00:46:47 us=671301 Control Channel: TLSv1.3, cipher TLS
+v1.3 TLS_AES_256_GCM_SHA384, peer certificate: 4096 bits RSA, sign
+ature: RSA-SHA512, peer temporary key: 253 bits X25519
+2025-02-24 00:46:47 us=671594 Outgoing Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-24 00:46:47 us=671628 Incoming Data Channel: Cipher 'AES-2
+56-GCM' initialized with 256 bit key
+2025-02-24 00:58:33 us=604714 event_wait : Interrupted system call
+ (fd=-1,code=4)
+2025-02-24 00:58:33 us=604860 TCP/UDP: Closing socket
+2025-02-24 00:58:33 us=604965 /sbin/route delete -net 217.138.209.
+67 192.168.0.1 255.255.255.255
+delete net 217.138.209.67: gateway 192.168.0.1
+2025-02-24 00:58:33 us=608681 /sbin/route delete -net 0.0.0.0 10.1
+00.0.1 128.0.0.0
+route: writing to routing socket: not in table
+delete net 0.0.0.0: gateway 10.100.0.1: not in table
+2025-02-24 00:58:33 us=612039 /sbin/route delete -net 128.0.0.0 10
+.100.0.1 128.0.0.0
+route: writing to routing socket: not in table
+delete net 128.0.0.0: gateway 10.100.0.1: not in table
+2025-02-24 00:58:33 us=616076 Closing TUN/TAP interface
+2025-02-24 00:58:33 us=616660 SIGTERM[hard,] received, process exi
+ting
+[02/24/25 00:58:33] INFO     2025-02-24         vpn_manager.py:352
+                             00:58:33.619 |
+
+                             INFO     |
+
+                             nyord_vpn.vpn_mana
+
+                             ger:start_openvpn:
+
+                             352 - OpenVPN
+
+                             process started
+
+2025-02-24 00:58:33.619 | INFO     | nyord_vpn.vpn_manager:start_o
+penvpn:352 - OpenVPN process started
+[02/24/25 00:58:38] WARNING  2025-02-24 00:58:38.624 client.py:373
+                             | WARNING  |
+
+                             nyord_vpn.client:go:373
+
+                             - Connection failed:
+
+                             Failed to establish VPN
+
+                             connection
+
+2025-02-24 00:58:38.624 | WARNING  | nyord_vpn.client:go:373 - Con
+nection failed: Failed to establish VPN connection
+Error: Failed to connect after 3 attempts: Failed to establish VPN
+connection
+
+```
 
 ---
 

@@ -189,87 +189,7 @@ To try the connection again:
 
 _****_
 
-```bash
-python -m nyord_vpn --verbose --api legacy connect
-```
-
-```
-(nyord_vpn) adam@Hamlet nyord_vpn % python -m nyord_vpn --verbose 
---api legacy c
-onnect
-Using legacy VPN API
-Initialized VPN client
-Initializing legacy VPN client
-Found OpenVPN version 2.6.13
-Created config directory: /var/folders/05/clcynl0509ldxltl599hhhx4
-0000gn/T/nyord_vpn_rn5rfbu8
-Requesting administrator password to configure VPN connection...
-Initializing VPN connection...
-Getting server recommendation for fastest server
-Selected server: pl198.nordvpn.com
-Downloading config for server: pl198.nordvpn.com
-Saved config to: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T/
-nyord_vpn_rn5rfbu8/pl198.nordvpn.com.ovpn
-Created auth file: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/
-T/nordvpn__81vdos_.auth
-Starting OpenVPN process
-OpenVPN process started with PID: 85406
-Connecting to pl198.nordvpn.com...
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-Password:VPN protection status: False
-Waiting for connection... attempt 1/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 2/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 3/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 4/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 5/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 6/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 7/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 8/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 9/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 10/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 11/12
-OpenVPN process 85406 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 12/12
-Failed to establish VPN connection after 60 seconds
-Cleaning up auth file
-Connection failed: Failed to establish VPN connection after 60 sec
-onds
-Stopping OpenVPN process 85406
-Graceful shutdown failed, force killing process
-```
+Cancelled
 
 ---
 
@@ -331,7 +251,7 @@ The connection will now fail faster if it's not working, instead of waiting for 
 
 _****_
 
-
+Cancelled
 
 ---
 
@@ -435,41 +355,7 @@ Let's try connecting again:
 
 _****_
 
-```bash
-python -m nyord_vpn --verbose --api legacy connect
-```
-
-```
-(nyord_vpn) adam@Hamlet nyord_vpn % python -m nyord_vpn --verbose 
---api legacy connect                              python -m nyord_
-vpn --verbose --api legacy connect
-Using legacy VPN API
-Initialized VPN client
-Initializing legacy VPN client
-Found OpenVPN version 2.6.13
-Created config directory: /var/folders/05/clcynl0509ldxltl599hhhx4
-0000gn/T/nyord_vpn_2tktxh5w
-Requesting administrator password to configure VPN connection...
-Initializing VPN connection...
-Getting server recommendation for fastest server
-Selected server: pl198.nordvpn.com
-Downloading config for server: pl198.nordvpn.com
-Saved config to: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T/
-nyord_vpn_2tktxh5w/pl198.nordvpn.com.ovpn
-Created auth file: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/
-T/nordvpn_r_tto9wu.auth
-Starting OpenVPN process
-OpenVPN process started with PID: 85623
-Connecting to pl198.nordvpn.com...
-OpenVPN process 85623 is running
-Checking if IP belongs to NordVPN
-Password:VPN protection status: False
-Waiting for connection... attempt 1/2
-OpenVPN process 85623 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 2/2
-```
+Cancelled
 
 ---
 
@@ -682,43 +568,7 @@ Let's try connecting again:
 
 _****_
 
-```bash
-python -m nyord_vpn --verbose --api legacy connect
-```
-
-```
-(nyord_vpn) adam@Hamlet nyord_vpn % python -m nyord_vpn --verbose 
---api legacy connect                python -m nyord_vpn --verbose 
---api legacy connect
-Using legacy VPN API
-Initialized VPN client
-Initializing legacy VPN client
-Found OpenVPN version 2.6.13
-Created config directory: /var/folders/05/clcynl0509ldxltl599hhhx4
-0000gn/T/nyord_vpn_x6kjs650
-Requesting administrator password to configure VPN connection...
-Initializing VPN connection...
-Getting server recommendation for fastest server
-Selected server: pl241.nordvpn.com
-Downloading config for server: pl241.nordvpn.com
-Saved config to: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T/
-nyord_vpn_x6kjs650/pl241.nordvpn.com.ovpn
-Created auth file: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/
-T/nordvpn_8fksshyp.auth
-Starting OpenVPN process
-OpenVPN process started with PID: 86507
-Waiting for sudo password entry...
-Sudo password accepted, proceeding with connection
-Connecting to pl241.nordvpn.com...
-OpenVPN process 86507 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 1/2
-OpenVPN process 86507 is running
-Checking if IP belongs to NordVPN
-VPN protection status: False
-Waiting for connection... attempt 2/2
-```
+Cancelled
 
 ---
 
@@ -735,6 +585,171 @@ The verbose logging is fucking terrible
 ---
 
 _**Assistant**_
+
+Let me clean up the logging to be more concise and useful. We'll remove redundant messages and make the important ones stand out:
+
+---
+
+_****_
+
+```diff
+              # Disconnect if connected
+              if self._openvpn_pid:
+-                 logger.debug("Disconnecting existing connection")
+                  self.disconnect()
+  
+              # Get server and config
+-             logger.info("Initializing VPN connection...")
+              server = self._get_server(country)
+              config_file = self._get_config(server)
+              auth_file.write_text(f"{self.username}\n{self.password}")
+              auth_file.chmod(0o600)
+-             logger.debug(f"Created auth file: {auth_file}")
+  
+              try:
+                  # Start OpenVPN
+-                 logger.debug("Starting OpenVPN process")
+                  process = subprocess.Popen(
+                      [
+                  self._openvpn_pid = process.pid
+                  self._current_server = server
+-                 logger.debug(f"OpenVPN process started with PID: {self._openvpn_pid}")
++                 logger.info(f"Connecting to {server}...")
+  
+                  # Wait for sudo password entry to complete
+-                 logger.info("Waiting for sudo password entry...")
+                  while True:
+                      if process.poll() is not None:
+-                         # Process ended prematurely
+                          stdout, stderr = process.communicate()
+-                         logger.error(
+-                             "OpenVPN process exited during sudo password entry"
+-                         )
+-                         logger.error(f"OpenVPN output: {stdout}")
+-                         logger.error(f"OpenVPN errors: {stderr}")
+-                         msg = f"OpenVPN failed during sudo: {stderr or stdout}"
+-                         raise VPNConnectionError(msg)
++                         logger.error(f"OpenVPN failed: {stderr or stdout}")
++                         raise VPNConnectionError(f"OpenVPN failed: {stderr or stdout}")
+  
+                      # Check if sudo is done by trying a test command
+                              ["sudo", "-n", "true"], check=True, capture_output=True
+                          )
+-                         logger.debug(
+-                             "Sudo password accepted, proceeding with connection"
+-                         )
+                          break
+                      except subprocess.CalledProcessError:
+-                         time.sleep(0.5)  # Wait a bit before checking again
+- 
+-                 # Wait for connection
+-                 logger.info(f"Connecting to {server}...")
++                         time.sleep(0.5)
+  
+                  # Monitor connection status
+                      if process.poll() is not None:
+                          stdout, stderr = process.communicate()
+-                         logger.error("OpenVPN process exited prematurely")
+-                         logger.error(f"OpenVPN output: {stdout}")
+-                         logger.error(f"OpenVPN errors: {stderr}")
+-                         msg = f"OpenVPN failed: {stderr or stdout}"
+-                         raise VPNConnectionError(msg)
++                         logger.error(f"OpenVPN failed: {stderr or stdout}")
++                         raise VPNConnectionError(f"OpenVPN failed: {stderr or stdout}")
+  
+                      # Check if we're connected
+  
+                      retries += 1
+-                     logger.debug(
+-                         f"Waiting for connection... attempt {retries}/{max_retries}"
+-                     )
+                      time.sleep(5)
+  
+                  # Connection failed - get OpenVPN output
+                  stdout, stderr = process.communicate()
+-                 logger.error(f"OpenVPN output: {stdout}")
+-                 logger.error(f"OpenVPN errors: {stderr}")
+-                 logger.error("Failed to establish VPN connection after 10 seconds")
+-                 msg = f"OpenVPN failed: {stderr or stdout}"
+-                 raise VPNConnectionError(msg)
++                 logger.error(f"OpenVPN failed: {stderr or stdout}")
++                 raise VPNConnectionError(f"OpenVPN failed: {stderr or stdout}")
+  
+              finally:
+-                 # Cleanup auth file
+-                 logger.debug("Cleaning up auth file")
+                  auth_file.unlink()
+          except Exception as e:
+-             # Cleanup on failure
+-             logger.error(f"Connection failed: {e}")
+              self.disconnect()
+-             msg = f"Failed to connect: {e}"
+-             raise VPNConnectionError(msg) from e
++             raise VPNConnectionError(str(e)) from e
+  
+      def disconnect(self) -> bool:
+```
+
+---
+
+_****_
+
+
+
+Changes made:
+1. Removed all debug-level logging that wasn't essential
+2. Removed redundant status messages
+3. Simplified error messages to show only the actual OpenVPN output
+4. Kept only the important user-facing messages:
+   - "Connecting to server..."
+   - "VPN connection established"
+   - Any error messages from OpenVPN
+
+Now the output will be much cleaner and only show what's actually important. Let's try connecting again:
+
+---
+
+_****_
+
+```bash
+python -m nyord_vpn --verbose --api legacy connect
+```
+
+```
+(nyord_vpn) adam@Hamlet nyord_vpn % python -m nyord_vpn --verbose
+ --api legacy connect                              python -m nyor
+d_vpn --verbose --api legacy connect
+Using legacy VPN API
+Initialized VPN client
+Initializing legacy VPN client
+Found OpenVPN version 2.6.13
+Created config directory: /var/folders/05/clcynl0509ldxltl599hhhx
+40000gn/T/nyord_vpn_cky30ys9
+Requesting administrator password to configure VPN connection...
+Getting server recommendation for fastest server
+Selected server: pl141.nordvpn.com
+Downloading config for server: pl141.nordvpn.com
+Saved config to: /var/folders/05/clcynl0509ldxltl599hhhx40000gn/T
+/nyord_vpn_cky30ys9/pl141.nordvpn.com.ovpn
+Connecting to pl141.nordvpn.com...
+Password:
+OpenVPN process 87420 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+OpenVPN process 87420 is running
+Checking if IP belongs to NordVPN
+VPN protection status: False
+OpenVPN failed: ifconfig: ioctl (SIOCDIFADDR): Can't assign reque
+sted address
+
+Stopping OpenVPN process 87420
+Password:Graceful shutdown failed, force killing process
+Password:
+```
+
+---
+
+_****_
 
 
 

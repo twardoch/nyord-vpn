@@ -5428,13 +5428,159 @@ I see the issue - the connection process is hanging and not handling interrupts 
 
 _****_
 
-
+```diff
+      def go(self, country_code: str) -> None:
+          """Connect to VPN in specified country."""
++         try:
+              country = self.get_country_by_code(country_code)
+              if not country:
+              except Exception as e:
+                  self.logger.warning(f"Error during auto-disconnect: {e}")
+-             # Continue with new connection attempt even if disconnect failed
+  
+              # Create auth file
+              auth_file = self._create_auth_file()
+              config_path = Path("/tmp/nordvpn.ovpn")
+  
+-         try:
+              # Get server info using the API
+              server_info = self.fetch_server_info(country_code)
+                  "--log",
+                  "/tmp/openvpn.log",  # Log to file
++                 "--connect-timeout",
++                 "10",  # Connection timeout in seconds
++                 "--connect-retry",
++                 "2",  # Number of retries
++                 "--connect-retry-max",
++                 "2",  # Maximum number of retries
+              ]
+  
+              self.logger.debug(f"Running command: {' '.join(cmd)}")
+  
+-             # Start OpenVPN in daemon mode
+-             subprocess.run(cmd, check=True)
++             # Start OpenVPN in daemon mode with timeout
++             try:
++                 subprocess.run(cmd, check=True, timeout=15)
++             except subprocess.TimeoutExpired:
++                 self.logger.error("OpenVPN startup timed out")
++                 self.disconnect()
++                 raise ConnectionError("Connection timed out")
+  
+-             # Wait for connection (up to 30 seconds)
+-             for _ in range(30):
+-                 time.sleep(1)
++             # Wait for connection (up to 15 seconds)
++             start_time = time.time()
++             while time.time() - start_time < 15:
+                  try:
+                      # Check current IP
+  
+                  except (requests.RequestException, psutil.Error):
++                     time.sleep(1)
+                      continue
++                 except KeyboardInterrupt:
++                     self.logger.warning("Connection interrupted by user")
++                     self.disconnect()
++                     raise
+  
+              # If we get here, connection failed
++             self.disconnect()
+              raise ConnectionError("Failed to establish VPN connection")
+  
++         except KeyboardInterrupt:
++             self.logger.warning("Operation cancelled by user")
++             self.disconnect()
++             raise
+          except Exception as e:
+              self.logger.error(f"Connection failed: {e}")
+```
 
 ---
 
 _****_
 
 
+
+Let me fix those linter errors by properly initializing the variables:
+
+---
+
+_****_
+
+```diff
+      def go(self, country_code: str) -> None:
+          """Connect to VPN in specified country."""
++         auth_file = None
++         config_path = Path("/tmp/nordvpn.ovpn")
++ 
+          try:
+              country = self.get_country_by_code(country_code)
+              # Create auth file
+              auth_file = self._create_auth_file()
+-             config_path = Path("/tmp/nordvpn.ovpn")
+  
+              # Get server info using the API
+```
+
+---
+
+_****_
+
+
+
+Let me fix those type errors:
+
+---
+
+_****_
+
+```diff
+      def go(self, country_code: str) -> None:
+          """Connect to VPN in specified country."""
+-         auth_file = None
++         auth_file: str | None = None
+          config_path = Path("/tmp/nordvpn.ovpn")
+  
+          finally:
+              # Clean up temporary files
+-             if os.path.exists(auth_file):
++             if auth_file and os.path.exists(auth_file):
+                  os.unlink(auth_file)
+              if config_path.exists():
+```
+
+---
+
+_****_
+
+
+
+The key improvements I've made:
+
+1. Added proper interrupt handling with KeyboardInterrupt catches
+2. Reduced connection timeouts:
+   - OpenVPN startup timeout: 15 seconds
+   - Connection establishment timeout: 15 seconds
+   - Individual IP check timeout: 5 seconds
+3. Added OpenVPN specific timeouts:
+   - Connection timeout: 10 seconds
+   - Maximum 2 connection retries
+4. Added proper cleanup on interruption or failure
+5. Fixed type safety issues with file handling
+
+Now when you run:
+```bash
+sudo nyord-vpn go de --verbose
+```
+
+The command will:
+1. Automatically disconnect any existing connection
+2. Connect more quickly (15s max instead of 30s)
+3. Handle Ctrl+C gracefully with proper cleanup
+4. Show clear error messages if something goes wrong
+
+If the connection takes too long or you want to cancel, you can safely press Ctrl+C and it will clean up properly.
 
 ---
 

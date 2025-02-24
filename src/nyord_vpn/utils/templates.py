@@ -1,28 +1,33 @@
-"""OpenVPN configuration management utilities.
+"""OpenVPN configuration templates and utilities.
 
 this_file: src/nyord_vpn/utils/templates.py
 
-This module provides OpenVPN configuration management for NordVPN.
-It handles downloading, caching, and managing OpenVPN configurations
-directly from NordVPN's servers.
+This module handles OpenVPN configuration file management:
+1. Config directory setup and maintenance
+2. Config file download and extraction
+3. Path resolution for config files
 """
 
-import os
+import io
 import shutil
-import tempfile
-from pathlib import Path
-import requests
 import zipfile
-import logging
-from typing import Optional
+from pathlib import Path
+
+import requests
+from loguru import logger
+
+
+from nyord_vpn.exceptions import VPNConfigError
 
 # Constants
+CACHE_DIR = Path.home() / ".cache" / "nyord-vpn"
+CONFIG_DIR = Path.home() / ".config" / "nyord-vpn" / "configs"
+CONFIG_ZIP = CACHE_DIR / "ovpn.zip"
 OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
-CONFIG_CACHE_DIR = Path.home() / ".config" / "nyord-vpn" / "configs"
 
 # Browser-like headers to avoid 403
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     "Accept": "application/json",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://nordvpn.com/",
@@ -30,89 +35,98 @@ HEADERS = {
 }
 
 
-def setup_config_directory() -> None:
-    """Setup and populate the OpenVPN configuration directory.
+def download_config_zip() -> None:
+    """Download and cache the OpenVPN configuration ZIP file.
 
-    Downloads and extracts the latest OpenVPN configurations from NordVPN
-    if they don't exist or are outdated.
+    Downloads the ZIP file containing all OpenVPN configurations from NordVPN
+    and caches it locally. The ZIP contains two folders:
+    - ovpn_tcp/: TCP configurations
+    - ovpn_udp/: UDP configurations (not used)
+
+    Raises:
+        VPNConfigError: If download or caching fails
     """
-    CONFIG_CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
-
     try:
+        # Create cache directory if needed
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        CACHE_DIR.chmod(0o700)  # Secure permissions
+
         # Download configurations
+        logger.debug("Downloading OpenVPN configurations...")
         response = requests.get(OVPN_CONFIG_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
 
-        # Create a temporary directory for extraction
-        with tempfile.TemporaryDirectory() as temp_dir:
-            zip_path = Path(temp_dir) / "ovpn.zip"
-            zip_path.write_bytes(response.content)
+        # Cache the ZIP file
+        CONFIG_ZIP.write_bytes(response.content)
+        CONFIG_ZIP.chmod(0o600)  # Secure permissions
 
-            # Extract only TCP configs
-            with zipfile.ZipFile(zip_path) as zf:
-                for info in zf.infolist():
-                    if "ovpn_tcp" in info.filename:
-                        zf.extract(info, CONFIG_CACHE_DIR)
-
-            # Move TCP configs to the root of CONFIG_CACHE_DIR
-            tcp_dir = CONFIG_CACHE_DIR / "ovpn_tcp"
-            if tcp_dir.exists():
-                for config in tcp_dir.glob("*.ovpn"):
-                    config.rename(CONFIG_CACHE_DIR / config.name)
-                shutil.rmtree(tcp_dir)
-
-    except (requests.RequestException, zipfile.BadZipFile, OSError) as e:
-        logging.error(f"Failed to download/extract OpenVPN configurations: {e}")
-        raise
+        logger.debug(f"OpenVPN configurations cached at {CONFIG_ZIP}")
+    except Exception as e:
+        raise VPNConfigError(f"Failed to download/cache configurations: {e}")
 
 
-def get_config_path(server: str) -> Optional[Path]:
-    """Get the path to the OpenVPN configuration file for a server.
+def get_config_path(hostname: str) -> Path | None:
+    """Get path to OpenVPN config file for a server.
+
+    Extracts the specific config file for the requested server from the cached
+    ZIP file. Only TCP configurations are supported.
 
     Args:
-        server: Server hostname (e.g., 'de1076.nordvpn.com')
+        hostname: Server hostname (e.g. 'us123.nordvpn.com')
 
     Returns:
-        Path to the configuration file or None if not found
+        Path to config file or None if not found
+
+    Raises:
+        VPNConfigError: If config extraction fails
     """
-    # Ensure configs are downloaded
-    if not CONFIG_CACHE_DIR.exists() or not any(CONFIG_CACHE_DIR.glob("*.ovpn")):
-        setup_config_directory()
+    try:
+        # Download ZIP if not cached
+        if not CONFIG_ZIP.exists():
+            download_config_zip()
 
-    # Look for exact match
-    config_path = CONFIG_CACHE_DIR / f"{server}.tcp.ovpn"
-    if config_path.exists():
+        # Create config directory if needed
+        tcp_dir = CONFIG_DIR / "ovpn_tcp"
+        tcp_dir.mkdir(parents=True, exist_ok=True)
+        tcp_dir.chmod(0o700)
+
+        # Construct config file path
+        base_name = hostname.replace(".tcp", "")
+        config_path = tcp_dir / f"{base_name}.tcp.ovpn"
+
+        # Extract if not already present
+        if not config_path.exists():
+            zip_path = f"ovpn_tcp/{base_name}.tcp.ovpn"
+            with zipfile.ZipFile(CONFIG_ZIP) as zf:
+                try:
+                    config_bytes = zf.read(zip_path)
+                except KeyError:
+                    return None
+
+                # Write config file
+                config_path.write_bytes(config_bytes)
+                config_path.chmod(0o600)
+
         return config_path
 
-    # Try without .tcp suffix
-    config_path = CONFIG_CACHE_DIR / f"{server}.ovpn"
-    if config_path.exists():
-        return config_path
-
-    return None
-
-
-def refresh_configs() -> None:
-    """Force refresh of OpenVPN configurations."""
-    if CONFIG_CACHE_DIR.exists():
-        shutil.rmtree(CONFIG_CACHE_DIR)
-    setup_config_directory()
+    except Exception as e:
+        raise VPNConfigError(f"Failed to extract config for {hostname}: {e}")
 
 
 def get_openvpn_command(
-    config_path: Path, auth_path: Path, log_path: Optional[Path] = None
+    config_path: Path, auth_path: Path, log_path: Path
 ) -> list[str]:
-    """Get the OpenVPN command with optimal parameters.
+    """Get OpenVPN command with all necessary arguments.
 
     Args:
-        config_path: Path to the OpenVPN configuration file
-        auth_path: Path to the authentication file
-        log_path: Optional path to log file
+        config_path: Path to OpenVPN config file
+        auth_path: Path to authentication file
+        log_path: Path to log file
 
     Returns:
-        List of command arguments for OpenVPN
+        List of command arguments
     """
-    cmd = [
+    return [
         "sudo",
         "openvpn",
         "--config",
@@ -121,7 +135,7 @@ def get_openvpn_command(
         str(auth_path),
         "--daemon",
         "--verb",
-        "5",  # Increased verbosity for better debugging
+        "5",  # Increased verbosity
         "--connect-retry",
         "2",  # Retry connection twice
         "--connect-timeout",
@@ -132,9 +146,6 @@ def get_openvpn_command(
         "10",  # Send ping every 10 seconds
         "--ping-restart",
         "60",  # Restart if no ping response for 60 seconds
+        "--log",
+        str(log_path),  # Log to file for debugging
     ]
-
-    if log_path:
-        cmd.extend(["--log", str(log_path)])
-
-    return cmd

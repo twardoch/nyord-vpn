@@ -13,7 +13,7 @@ class NyordVPNError(Exception):
 
 
 class VPNError(NyordVPNError):
-    """Raised when VPN connection operations fail."""
+    """Base exception for VPN-related errors."""
 
 
 class CredentialsError(NyordVPNError):
@@ -32,21 +32,29 @@ class ServerNotFoundError(NyordVPNError):
     """Raised when a VPN server cannot be found."""
 
 
-class VPNConfigError(NyordVPNError):
-    """Raised when there are issues with VPN configuration."""
+class VPNConfigError(VPNError):
+    """Raised when there are issues with OpenVPN configuration."""
 
 
 class VPNServerError(NyordVPNError):
     """Raised when there are issues with VPN server selection or availability."""
 
 
-class VPNAuthenticationError(NyordVPNError):
-    """Raised when authentication with VPN server fails."""
+class VPNAuthenticationError(VPNError):
+    """Raised when authentication fails."""
 
 
 class VPNTimeoutError(NyordVPNError):
     """Raised when VPN operations timeout."""
 
 
-class VPNProcessError(NyordVPNError):
+class VPNProcessError(VPNError):
     """Raised when there are issues with the OpenVPN process."""
+
+
+class VPNConnectionError(VPNError):
+    """Raised when connection establishment fails."""
+
+
+class VPNDisconnectionError(VPNError):
+    """Raised when disconnection fails."""

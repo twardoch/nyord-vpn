@@ -23,6 +23,7 @@ def cache_countries(data: CountryCache) -> None:
 
     Args:
         data: Dictionary containing countries list and last_updated timestamp
+
     """
     try:
         COUNTRIES_CACHE.parent.mkdir(parents=True, exist_ok=True)

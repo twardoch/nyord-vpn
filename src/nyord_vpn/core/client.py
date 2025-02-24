@@ -24,7 +24,7 @@ Used by:
 
 Example usage:
     from nyord_vpn import Client
-    
+
     client = Client(username="user", password="pass")
     client.go("us")  # Connect to US server
     client.status()  # Check connection status
@@ -66,8 +66,8 @@ logger.configure(
         {
             "sink": RichHandler(),
             "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        }
-    ]
+        },
+    ],
 )
 
 
@@ -126,7 +126,7 @@ FALLBACK_DATA: CountryCache = {
                     "longitude": -74.0063889,
                     "name": "New York",
                     "serverCount": 529,
-                }
+                },
             ],
             "code": "US",
             "id": 228,
@@ -143,7 +143,7 @@ FALLBACK_DATA: CountryCache = {
                     "longitude": -0.093689,
                     "name": "London",
                     "serverCount": 785,
-                }
+                },
             ],
             "code": "GB",
             "id": 227,
@@ -160,7 +160,7 @@ FALLBACK_DATA: CountryCache = {
                     "longitude": 8.683333,
                     "name": "Frankfurt",
                     "serverCount": 301,
-                }
+                },
             ],
             "code": "DE",
             "id": 81,
@@ -201,7 +201,7 @@ class Client:
         password: str | None = None,
         verbose: bool = False,
         auto_init: bool = True,
-    ):
+    ) -> None:
         """Initialize NordVPN client with credentials and optional configuration.
 
         This constructor sets up the core components of the VPN client:
@@ -227,6 +227,7 @@ class Client:
         Raises:
             CredentialsError: If neither direct credentials nor environment variables are provided
             ConnectionError: If auto_init is True and environment setup fails
+
         """
         # Get credentials
         username_str = username or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
@@ -235,7 +236,7 @@ class Client:
         )
         if not username_str or not password_str:
             raise CredentialsError(
-                "NORD_USER and NORD_PASSWORD environment variables must be set"
+                "NORD_USER and NORD_PASSWORD environment variables must be set",
             )
 
         # Initialize components
@@ -275,6 +276,7 @@ class Client:
         Raises:
             ConnectionError: If any initialization step fails (OpenVPN missing,
                            directory creation fails, API unreachable, etc.)
+
         """
         try:
             # Check OpenVPN installation
@@ -305,7 +307,7 @@ class Client:
                 self.logger.info("Client environment initialized successfully")
             else:
                 console.print(
-                    "[green]Client environment initialized successfully[/green]"
+                    "[green]Client environment initialized successfully[/green]",
                 )
 
         except Exception as e:
@@ -333,6 +335,7 @@ class Client:
             This method performs real-time checks of the connection state
             and IP address, ensuring accurate status information even if
             the connection was established outside this client instance.
+
         """
         try:
             current_ip = self.vpn_manager.get_current_ip()
@@ -421,7 +424,9 @@ class Client:
 
                 # Set up VPN configuration
                 self.vpn_manager.setup_connection(
-                    hostname, self.api_client.username, self.api_client.password
+                    hostname,
+                    self.api_client.username,
+                    self.api_client.password,
                 )
 
                 # Establish VPN connection
@@ -457,12 +462,12 @@ class Client:
                         self.logger.info("Retrying with different server...")
                     else:
                         console.print(
-                            "[yellow]Retrying with different server...[/yellow]"
+                            "[yellow]Retrying with different server...[/yellow]",
                         )
                     time.sleep(2)
                 else:
                     raise VPNError(
-                        f"Failed to connect after {max_retries} attempts: {e}"
+                        f"Failed to connect after {max_retries} attempts: {e}",
                     )
 
     def disconnect(self, verbose: bool = True) -> None:
@@ -470,7 +475,7 @@ class Client:
         try:
             self.vpn_manager.disconnect()
             if verbose:
-                print("Disconnected from VPN")
+                pass
         except Exception as e:
             raise ConnectionError(f"Failed to disconnect: {e}")
 

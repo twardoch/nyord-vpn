@@ -10,7 +10,7 @@ from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 
 @pytest.mark.integration
-async def test_file_loading(temp_dir):
+async def test_file_loading(temp_dir) -> None:
     """Test configuration loading from file."""
     # Create config file with all options
     config_file = temp_dir / "config.json"
@@ -47,7 +47,7 @@ async def test_file_loading(temp_dir):
 
 
 @pytest.mark.integration
-async def test_environment_loading_unprefixed(monkeypatch):
+async def test_environment_loading_unprefixed(monkeypatch) -> None:
     """Test configuration loading from unprefixed environment variables."""
     # Set environment variables
     monkeypatch.setenv("NORD_USER", TEST_USERNAME)
@@ -64,7 +64,7 @@ async def test_environment_loading_unprefixed(monkeypatch):
 
 
 @pytest.mark.integration
-async def test_environment_loading_prefixed(monkeypatch):
+async def test_environment_loading_prefixed(monkeypatch) -> None:
     """Test configuration loading from prefixed environment variables."""
     # Set environment variables
     monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
@@ -81,7 +81,7 @@ async def test_environment_loading_prefixed(monkeypatch):
 
 
 @pytest.mark.integration
-async def test_environment_loading_precedence(monkeypatch):
+async def test_environment_loading_precedence(monkeypatch) -> None:
     """Test precedence between prefixed and unprefixed environment variables."""
     # Set both prefixed and unprefixed variables
     monkeypatch.setenv("NORD_USER", "unprefixed_user")
@@ -96,7 +96,7 @@ async def test_environment_loading_precedence(monkeypatch):
 
 
 @pytest.mark.integration
-async def test_default_values():
+async def test_default_values() -> None:
     """Test configuration default values."""
     # Test with minimal configuration
     config = VPNConfig(username="test", password="test")
@@ -120,7 +120,7 @@ async def test_default_values():
 
 
 @pytest.mark.integration
-async def test_config_file_precedence(temp_dir, monkeypatch):
+async def test_config_file_precedence(temp_dir, monkeypatch) -> None:
     """Test configuration loading precedence between file and environment."""
     # Create config file
     config_file = temp_dir / "config.json"
@@ -166,7 +166,7 @@ async def test_config_file_precedence(temp_dir, monkeypatch):
 
 
 @pytest.mark.integration
-async def test_config_validation(temp_dir):
+async def test_config_validation(temp_dir) -> None:
     """Test configuration validation."""
     # Test invalid retry attempts
     config_file = temp_dir / "invalid_retry.json"
@@ -212,7 +212,7 @@ async def test_config_validation(temp_dir):
         VPNConfig.from_file(config_file)
 
 
-def test_load_from_file(tmp_path: Path):
+def test_load_from_file(tmp_path: Path) -> None:
     """Test loading configuration from file."""
     # Create config file
     config_path = tmp_path / "config.json"
@@ -239,7 +239,7 @@ def test_load_from_file(tmp_path: Path):
     assert config.retry_attempts == 5
 
 
-def test_load_from_env(monkeypatch):
+def test_load_from_env(monkeypatch) -> None:
     """Test loading configuration from environment variables."""
     # Set environment variables
     monkeypatch.setenv("NORDVPN_USERNAME", TEST_USERNAME)
@@ -262,24 +262,26 @@ def test_load_from_env(monkeypatch):
     assert config.retry_attempts == 5
 
 
-def test_direct_initialization():
+def test_direct_initialization() -> None:
     """Test direct initialization with parameters."""
     # Test config initialization
     config = VPNConfig(
-        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
     )
     assert config.username == TEST_USERNAME
     assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
 
     # Test client initialization
     client = VPNClient(
-        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
     )
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
 
 
-def test_invalid_config_file(tmp_path: Path):
+def test_invalid_config_file(tmp_path: Path) -> None:
     """Test handling of invalid configuration files."""
     # Test non-existent file
     with pytest.raises(FileNotFoundError):
@@ -298,7 +300,7 @@ def test_invalid_config_file(tmp_path: Path):
         VPNConfig.from_file(empty_path)
 
 
-def test_invalid_environment(monkeypatch):
+def test_invalid_environment(monkeypatch) -> None:
     """Test handling of invalid environment variables."""
     # Test missing required variables
     with pytest.raises(ValueError):

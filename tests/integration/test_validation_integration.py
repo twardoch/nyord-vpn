@@ -18,19 +18,19 @@ def clear_env():
     os.environ.pop("NORD_PASSWORD", None)
 
 
-def test_invalid_credentials_njord():
+def test_invalid_credentials_njord() -> None:
     """Test invalid credentials with Njord API."""
     with pytest.raises(VPNError, match="Missing credentials"):
         NjordVPNClient()
 
 
-def test_invalid_credentials_legacy():
+def test_invalid_credentials_legacy() -> None:
     """Test invalid credentials with Legacy API."""
     with pytest.raises(VPNError, match="Missing credentials"):
         LegacyVPNClient()
 
 
-def test_invalid_country_njord():
+def test_invalid_country_njord() -> None:
     """Test invalid country with Njord API."""
     os.environ["NORD_USER"] = "test_user"
     os.environ["NORD_PASSWORD"] = "test_pass"
@@ -39,7 +39,7 @@ def test_invalid_country_njord():
         client.connect("Invalid Country")
 
 
-def test_invalid_country_legacy():
+def test_invalid_country_legacy() -> None:
     """Test invalid country with Legacy API."""
     os.environ["NORD_USER"] = "test_user"
     os.environ["NORD_PASSWORD"] = "test_pass"

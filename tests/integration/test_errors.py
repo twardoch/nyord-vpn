@@ -20,7 +20,7 @@ async def test_network_errors(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test handling of network-related errors."""
     # Test connection timeout
     mock_aiohttp_session.get.side_effect = asyncio.TimeoutError()
@@ -55,7 +55,7 @@ async def test_subprocess_errors(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test handling of subprocess-related errors."""
     # Test OpenVPN not found
     mock_subprocess.side_effect = FileNotFoundError("openvpn not found")
@@ -78,7 +78,7 @@ async def test_configuration_errors(
     mock_subprocess,
     mock_pycountry,
     temp_dir,
-):
+) -> None:
     """Test handling of configuration-related errors."""
     # Test missing credentials
     with pytest.raises(VPNConfigError, match="Field required"):
@@ -101,7 +101,7 @@ async def test_configuration_errors(
         username = "test_user"
         password = "test_pass"
         config_dir = "/nonexistent/dir"
-        """
+        """,
     )
     with pytest.raises(VPNConfigError, match="Failed to setup config directory"):
         VPNClient(config_file=config_file)
@@ -115,11 +115,11 @@ async def test_api_errors(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test handling of API-related errors."""
     # Test API error response
     mock_aiohttp_session.get.return_value.__aenter__.return_value.json.return_value = {
-        "error": "API error"
+        "error": "API error",
     }
     with pytest.raises(VPNConnectionError):
         async with mock_client as client:
@@ -141,7 +141,7 @@ async def test_error_recovery(
     mock_aiohttp_session,
     mock_subprocess,
     mock_pycountry,
-):
+) -> None:
     """Test error recovery behavior."""
     # Test recovery after network error
     mock_aiohttp_session.get.side_effect = [
@@ -153,7 +153,7 @@ async def test_error_recovery(
                     "ip": "1.2.3.4",
                     "country": "Test Country",
                     "hostname": "test.server.com",
-                }
+                },
             ),
         ),
     ]
@@ -185,7 +185,7 @@ async def test_error_recovery(
 
 
 @pytest.mark.asyncio
-async def test_invalid_credentials():
+async def test_invalid_credentials() -> None:
     """Test handling of invalid credentials."""
     client = VPNClient(username="invalid", password=TEST_PASSWORD.get_secret_value())
     with pytest.raises(VPNConnectionError):
@@ -193,10 +193,11 @@ async def test_invalid_credentials():
 
 
 @pytest.mark.asyncio
-async def test_network_errors():
+async def test_network_errors() -> None:
     """Test handling of network errors."""
     client = VPNClient(
-        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
     )
 
     # Test connection with network error
@@ -213,7 +214,7 @@ async def test_network_errors():
 
 
 @pytest.mark.asyncio
-async def test_timeout_handling(tmp_path: Path):
+async def test_timeout_handling(tmp_path: Path) -> None:
     """Test handling of timeouts."""
     # Create config with short timeout
     config_path = tmp_path / "timeout_config.json"
@@ -236,7 +237,7 @@ async def test_timeout_handling(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_retry_behavior(tmp_path: Path):
+async def test_retry_behavior(tmp_path: Path) -> None:
     """Test retry behavior on failures."""
     # Create config with retry settings
     config_path = tmp_path / "retry_config.json"
@@ -259,7 +260,7 @@ async def test_retry_behavior(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_fallback_behavior():
+async def test_fallback_behavior() -> None:
     """Test fallback to legacy API."""
     client = VPNClient(
         username=TEST_USERNAME,
@@ -277,10 +278,11 @@ async def test_fallback_behavior():
 
 
 @pytest.mark.asyncio
-async def test_invalid_country():
+async def test_invalid_country() -> None:
     """Test handling of invalid country names."""
     client = VPNClient(
-        username=TEST_USERNAME, password=TEST_PASSWORD.get_secret_value()
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD.get_secret_value(),
     )
 
     # Test connection with invalid country
@@ -300,7 +302,7 @@ async def test_cleanup_after_error(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test cleanup after errors."""
     # Test cleanup after connection error
     mock_client.primary_api.connect.side_effect = VPNError("Connection failed")

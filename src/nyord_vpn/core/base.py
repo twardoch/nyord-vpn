@@ -33,7 +33,7 @@ FALLBACK_DATA: CountryCache = {
                     "longitude": -74.0063889,
                     "name": "New York",
                     "serverCount": 529,
-                }
+                },
             ],
             "code": "US",
             "id": 228,
@@ -50,7 +50,7 @@ FALLBACK_DATA: CountryCache = {
                     "longitude": -0.093689,
                     "name": "London",
                     "serverCount": 785,
-                }
+                },
             ],
             "code": "GB",
             "id": 227,
@@ -67,7 +67,7 @@ FALLBACK_DATA: CountryCache = {
                     "longitude": 8.683333,
                     "name": "Frankfurt",
                     "serverCount": 301,
-                }
+                },
             ],
             "code": "DE",
             "id": 81,
@@ -84,13 +84,14 @@ class NordVPNClient:
 
     BASE_API_URL: str = "https://api.nordvpn.com/v1"
 
-    def __init__(self, username: str, password: str, verbose: bool = False):
+    def __init__(self, username: str, password: str, verbose: bool = False) -> None:
         """Initialize NordVPN client.
 
         Args:
             username: NordVPN username
             password: NordVPN password
             verbose: Whether to enable verbose logging
+
         """
         self.username = username
         self.password = password
@@ -115,6 +116,7 @@ class NordVPNClient:
 
         Args:
             code: Two-letter country code (e.g. 'us', 'uk')
+
         """
         code = code.upper()
         for country in self.countries:
@@ -127,6 +129,7 @@ class NordVPNClient:
 
         Args:
             name: Country name (case-insensitive)
+
         """
         name = name.lower()
         for country in self.countries:
@@ -140,7 +143,7 @@ class NordVPNClient:
         for country in sorted(self.countries, key=lambda x: x["name"]):
             total_servers = country["serverCount"]
             locations.append(
-                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers"
+                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers",
             )
             for city in sorted(country["cities"], key=lambda x: x["name"]):
                 locations.append(f"  {city['name']} - {city['serverCount']} servers")
@@ -151,6 +154,7 @@ class NordVPNClient:
 
         Args:
             country_code: Two-letter country code
+
         """
         country = self.get_country_by_code(country_code)
         if not country:
@@ -173,6 +177,7 @@ class NordVPNClient:
 
         Returns:
             List of dictionaries containing country information
+
         """
         try:
             url = f"{self.BASE_API_URL}/servers/countries"

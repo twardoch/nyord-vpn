@@ -90,7 +90,7 @@ OPENVPN_LOG = CACHE_DIR / "openvpn.log"
 CACHE_EXPIRY = 24 * 60 * 60  # 24 hours in seconds
 
 
-def is_process_running(process_id):
+def is_process_running(process_id) -> bool | None:
     """Check if a process is running using its PID.
 
     Uses sudo to check process existence since OpenVPN
@@ -106,6 +106,7 @@ def is_process_running(process_id):
     Note:
         This function requires sudo access and is specifically
         designed for checking OpenVPN processes.
+
     """
     try:
         os.system("sudo kill -0 " + str(process_id))
@@ -179,6 +180,7 @@ def save_vpn_state(state: dict) -> None:
         and status monitoring. Failed saves are logged
         but don't raise exceptions to prevent disrupting
         VPN operations.
+
     """
     try:
         STATE_FILE.write_text(json.dumps(state, indent=2))
@@ -207,6 +209,7 @@ def load_vpn_state() -> dict:
         The state is considered stale after 5 minutes
         to prevent using outdated connection information.
         Failed loads return a safe default state.
+
     """
     try:
         if STATE_FILE.exists():

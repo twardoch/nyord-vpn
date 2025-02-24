@@ -9,6 +9,7 @@ def save_vpn_state(state: dict) -> None:
 
     Args:
         state: Dictionary with VPN state information.
+
     """
     try:
         STATE_FILE.write_text(json.dumps(state, indent=2))
@@ -21,6 +22,7 @@ def load_vpn_state() -> dict:
 
     Returns:
         Dictionary with VPN state; defaults if state is missing or expired.
+
     """
     try:
         if STATE_FILE.exists():

@@ -5,7 +5,7 @@ import pytest
 from nyord_vpn.core.exceptions import VPNError
 
 
-def test_client_connect(mock_client):
+def test_client_connect(mock_client) -> None:
     """Test VPN client connect."""
     # Test successful connection
     result = mock_client.connect("Test Country")
@@ -19,7 +19,7 @@ def test_client_connect(mock_client):
     assert status["server"] == "test.server.com"
 
 
-def test_client_disconnect(mock_client):
+def test_client_disconnect(mock_client) -> None:
     """Test VPN client disconnect."""
     # Connect first
     mock_client.connect("Test Country")
@@ -33,7 +33,7 @@ def test_client_disconnect(mock_client):
     assert status["connected"] is False
 
 
-def test_client_list_countries(mock_client):
+def test_client_list_countries(mock_client) -> None:
     """Test VPN client country listing."""
     countries = mock_client.list_countries()
     assert isinstance(countries, list)
@@ -42,7 +42,7 @@ def test_client_list_countries(mock_client):
     assert all("name" in c and "code" in c for c in countries)
 
 
-def test_client_error_handling(mock_client, mocker):
+def test_client_error_handling(mock_client, mocker) -> None:
     """Test VPN client error handling."""
     # Mock API to raise error
     mocker.patch.object(
@@ -57,7 +57,7 @@ def test_client_error_handling(mock_client, mocker):
 
 
 @pytest.mark.asyncio
-async def test_client_context_manager(mock_client):
+async def test_client_context_manager(mock_client) -> None:
     """Test VPN client context manager."""
     async with mock_client as client:
         # Test connection inside context

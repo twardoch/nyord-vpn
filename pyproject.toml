@@ -75,6 +75,8 @@ dev = [
     "ruff>=0.9.7",
     "mypy>=1.0.0",
     "pyupgrade>=3.19.0",
+    "autoflake>=2.0.0",
+    "isort>=5.10.1",
 ]
 
 test = [
@@ -194,34 +196,62 @@ target-version = "py310"
 line-length = 88
 
 [tool.ruff.lint]
-extend-select = [
+select = [
     "A",
+    "ANN",
     "ARG",
+    "ASYNC",
     "B",
     "C",
+    "C4",
+    "C90",
+    "COM",
+    "D",
+    "DOC",
     "DTZ",
     "E",
-    "EM",
+    "ERA",
+    "EXE",
     "F",
+    "FA",
     "FBT",
+    "FIX",
+    "FLY",
+    "FURB",
     "I",
     "ICN",
+    "INP",
     "ISC",
     "N",
+    "NPY",
+    "PD",
+    "PERF",
+    "PIE",
+    "PL",
     "PLC",
     "PLE",
     "PLR",
     "PLW",
+    "PT",
+    "PTH",
+    "PYI",
     "Q",
+    "RET",
+    "RSE",
     "RUF",
     "S",
+    "SIM",
+    "SLF",
     "T",
+    "TC",
+    "TD",
     "TID",
+    "TRY",
     "UP",
     "W",
     "YTT",
 ]
-ignore = ["ARG001", "E501", "I001", "RUF001", "PLR2004", "EXE003", "ISC001"]
+ignore = ["ARG001", "COM812", "D203", "D213", "E501", "I001", "RUF001", "PLR2004", "EXE003", "ISC001"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]

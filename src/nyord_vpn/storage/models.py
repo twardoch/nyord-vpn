@@ -37,7 +37,7 @@ the codebase, while the exception hierarchy provides clear
 error handling patterns and user-friendly error messages.
 """
 
-from typing import List, TypedDict
+from typing import TypedDict
 
 
 class City(TypedDict):
@@ -56,6 +56,7 @@ class City(TypedDict):
         longitude: Geographic longitude
         name: Human-readable city name
         serverCount: Number of available servers
+
     """
 
     dns_name: str
@@ -85,9 +86,10 @@ class Country(TypedDict):
     Note:
         The serverCount is the sum of all servers across cities,
         providing a quick way to assess server availability.
+
     """
 
-    cities: List[City]
+    cities: list[City]
     code: str
     id: int
     name: str
@@ -108,9 +110,10 @@ class CountryCache(TypedDict):
     Note:
         This structure is used for both file storage and memory
         caching, ensuring consistent data representation.
+
     """
 
-    countries: List[Country]
+    countries: list[Country]
     last_updated: str
 
 
@@ -126,12 +129,13 @@ class VPNError(Exception):
     to ensure consistent error handling throughout the client.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize base VPN error.
 
         Args:
             message: Optional custom error message
                     Falls back to generic message if None
+
         """
         super().__init__(message or "An unknown VPN error occurred")
 
@@ -149,16 +153,17 @@ class ServerError(VPNError):
     such as trying a different country or server.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize server error with helpful message.
 
         Args:
             message: Optional specific error details
                     Falls back to guidance message if None
+
         """
         super().__init__(
             message
-            or "Failed to select a server. Please try again or choose a different country."
+            or "Failed to select a server. Please try again or choose a different country.",
         )
 
 
@@ -175,16 +180,17 @@ class ConnectionError(VPNError):
     in the error message.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize connection error with diagnostics.
 
         Args:
             message: Optional connection failure details
                     Falls back to troubleshooting steps if None
+
         """
         super().__init__(
             message
-            or "Failed to establish VPN connection. Please check your internet connection and try again."
+            or "Failed to establish VPN connection. Please check your internet connection and try again.",
         )
 
 
@@ -201,15 +207,16 @@ class AuthenticationError(VPNError):
     and account status checking.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize authentication error with guidance.
 
         Args:
             message: Optional auth failure details
                     Falls back to credential check message if None
+
         """
         super().__init__(
-            message or "Authentication failed. Please check your NordVPN credentials."
+            message or "Authentication failed. Please check your NordVPN credentials.",
         )
 
 
@@ -226,12 +233,13 @@ class CredentialsError(VPNError):
     including environment variables and file locations.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize credentials error with setup instructions.
 
         Args:
             message: Optional specific error details
                     Falls back to setup instructions if None
+
         """
         super().__init__(
             message
@@ -241,7 +249,7 @@ class CredentialsError(VPNError):
                 "  export NORD_PASSWORD='your-password'\n"
                 "\nOr provide them directly when running the command:\n"
                 "  NORD_USER='your-username' NORD_PASSWORD='your-password' nyord-vpn <command>"
-            )
+            ),
         )
 
 
@@ -258,16 +266,17 @@ class StateError(VPNError):
     through disconnection and reconnection.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize state error with recovery steps.
 
         Args:
             message: Optional state error details
                     Falls back to recovery instructions if None
+
         """
         super().__init__(
             message
-            or "Failed to manage VPN state. Please try disconnecting and reconnecting."
+            or "Failed to manage VPN state. Please try disconnecting and reconnecting.",
         )
 
 
@@ -284,14 +293,15 @@ class CacheError(VPNError):
     manual cache management when needed.
     """
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None) -> None:
         """Initialize cache error with refresh instructions.
 
         Args:
             message: Optional cache error details
                     Falls back to refresh instructions if None
+
         """
         super().__init__(
             message
-            or "Failed to manage cache. Try running 'nyord-vpn update' to refresh the cache."
+            or "Failed to manage cache. Try running 'nyord-vpn update' to refresh the cache.",
         )

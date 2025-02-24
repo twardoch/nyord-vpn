@@ -1367,7 +1367,10 @@ Server: pl158.nordvpn.com
 $ sudo nyord-vpn bye
 Successfully disconnected from VPN
 Normal IP: 89.64.28.48
-Previous Private IP: 95.214.216.
+Previous Private IP: 95.214.216.77
+```
+
+Let me know if you'd like any further refinements to the interface or behavior!
 
 ---
 

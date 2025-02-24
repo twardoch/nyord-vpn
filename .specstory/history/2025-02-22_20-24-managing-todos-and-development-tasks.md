@@ -4576,7 +4576,1919 @@ First, let's create a test file for njord.py:
 
 _****_
 
+```diff
+- 
++ """Tests for NjordAPI implementation."""
++ 
++ import pytest
++ 
++ from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNStatusError
++ from nyord_vpn.api.njord import NjordAPI
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_get_recommended_server(mock_pycountry, mock_aiohttp_session):
++     """Test server recommendation functionality."""
++     api = NjordAPI(username="test", password="test")
++ 
++     # Test successful server recommendation
++     server = await api.get_recommended_server("United States")
++     assert isinstance(server, str)
++     assert server == "test.server.com"
++ 
++     # Test country not found
++     mock_pycountry.countries.get.return_value = None
++     mock_pycountry.countries.search_fuzzy.return_value = []
++     with pytest.raises(VPNError, match="Country not found"):
++         await api.get_recommended_server("Invalid Country")
++ 
++     # Test country not supported
++     mock_pycountry.countries.get.return_value.alpha_2 = "XX"
++     with pytest.raises(VPNError, match="Country not supported"):
++         await api.get_recommended_server("Unsupported Country")
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_connect(mocker, mock_pycountry, mock_aiohttp_session):
++     """Test VPN connection."""
++     api = NjordAPI(username="test", password="test")
++ 
++     # Mock njord client methods
++     mock_connect = mocker.patch.object(api._client, "connect", return_value=True)
++     mock_status = mocker.patch.object(
++         api._client,
++         "status",
++         return_value={"server": "test.server.com"},
++     )
++ 
++     # Test successful connection
++     result = await api.connect("United States")
++     assert result is True
++     assert api._connected is True
++     assert api._current_server == "test.server.com"
++     mock_connect.assert_called_once()
++     mock_status.assert_called_once()
++ 
++     # Test connection failure
++     mock_connect.return_value = False
++     result = await api.connect("United States")
++     assert result is False
++     assert api._connected is False
++ 
++     # Test connection error
++     mock_connect.side_effect = Exception("Connection failed")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         await api.connect("United States")
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_disconnect(mocker):
++     """Test VPN disconnection."""
++     api = NjordAPI(username="test", password="test")
++     api._connected = True
++     api._current_server = "test.server.com"
++ 
++     # Mock njord client disconnect
++     mock_disconnect = mocker.patch.object(api._client, "disconnect")
++ 
++     # Test successful disconnection
++     result = await api.disconnect()
++     assert result is True
++     assert api._connected is False
++     assert api._current_server is None
++     mock_disconnect.assert_called_once()
++ 
++     # Test disconnection error
++     mock_disconnect.side_effect = Exception("Disconnect failed")
++     with pytest.raises(VPNConnectionError, match="Failed to disconnect"):
++         await api.disconnect()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_status(mocker):
++     """Test VPN status check."""
++     api = NjordAPI(username="test", password="test")
++     api._connected = True
++     api._current_server = "test.server.com"
++ 
++     # Mock njord client status
++     mock_status = mocker.patch.object(
++         api._client,
++         "status",
++         return_value={
++             "country": "Test Country",
++             "ip": "1.2.3.4",
++             "server": "test.server.com",
++         },
++     )
++ 
++     # Test successful status check
++     status = await api.status()
++     assert status["connected"] is True
++     assert status["country"] == "Test Country"
++     assert status["ip"] == "1.2.3.4"
++     assert status["server"] == "test.server.com"
++     mock_status.assert_called_once()
++ 
++     # Test status error
++     mock_status.side_effect = Exception("Status check failed")
++     with pytest.raises(VPNStatusError, match="Failed to get status"):
++         await api.status()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_list_countries(mocker):
++     """Test country listing."""
++     api = NjordAPI(username="test", password="test")
++ 
++     # Mock njord client list_countries
++     mock_list = mocker.patch.object(
++         api._client,
++         "list_countries",
++         return_value=[{"name": "Country 1"}, {"name": "Country 2"}],
++     )
++ 
++     # Test successful country listing
++     countries = await api.list_countries()
++     assert isinstance(countries, list)
++     assert len(countries) == 2
++     assert all(isinstance(c, str) for c in countries)
++     assert "Country 1" in countries
++     assert "Country 2" in countries
++     mock_list.assert_called_once()
++ 
++     # Test listing error
++     mock_list.side_effect = Exception("Failed to get countries")
++     with pytest.raises(VPNError, match="Failed to get countries"):
++         await api.list_countries()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_get_credentials():
++     """Test credential retrieval."""
++     api = NjordAPI(username="test_user", password="test_pass")
++     username, password = await api.get_credentials()
++     assert username == "test_user"
++     assert password == "test_pass"
++ 
+```
 
+---
+
+_****_
+
+
+
+Let me fix the linter error in the test file:
+
+---
+
+_****_
+
+```diff
+  
+  import pytest
++ from unittest.mock import MagicMock
+  
+  from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNStatusError
+  
+      # Test country not supported
+-     mock_pycountry.countries.get.return_value.alpha_2 = "XX"
++     mock_country = MagicMock()
++     mock_country.alpha_2 = "XX"
++     mock_pycountry.countries.get.return_value = mock_country
+      with pytest.raises(VPNError, match="Country not supported"):
+          await api.get_recommended_server("Unsupported Country")
+```
+
+---
+
+_****_
+
+
+
+
+
+Now let's create tests for the legacy API:
+
+---
+
+_****_
+
+```diff
+- 
++ """Tests for LegacyAPI implementation."""
++ 
++ import pytest
++ from pathlib import Path
++ 
++ from nyord_vpn.core.exceptions import VPNError
++ from nyord_vpn.api.legacy import LegacyAPI
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_init(mock_shutil):
++     """Test API initialization."""
++     # Test successful initialization
++     api = LegacyAPI(username="test", password="test")
++     assert api.username == "test"
++     assert api.password == "test"
++     assert api.nordvpn_path == Path("/usr/local/bin/nordvpn").resolve()
++ 
++     # Test nordvpn not found
++     mock_shutil.return_value = None
++     with pytest.raises(VPNError, match="nordvpn command not found"):
++         LegacyAPI(username="test", password="test")
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_get_servers(mock_aiohttp_session):
++     """Test server list retrieval."""
++     api = LegacyAPI(username="test", password="test")
++ 
++     # Test successful server list
++     servers = await api._get_servers("US")
++     assert isinstance(servers, list)
++     assert len(servers) > 0
++     assert all(isinstance(s, dict) for s in servers)
++     assert all("name" in s and "id" in s for s in servers)
++ 
++     # Mock error response
++     mock_aiohttp_session.get.side_effect = Exception("Failed to get servers")
++     with pytest.raises(VPNError, match="Failed to get server list"):
++         await api._get_servers("US")
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_connect(mock_subprocess):
++     """Test VPN connection."""
++     api = LegacyAPI(username="test", password="test")
++ 
++     # Test successful connection without country
++     result = await api.connect()
++     assert result is True
++     mock_subprocess.assert_called_once_with(
++         str(api.nordvpn_path),
++         "connect",
++         stdout=mock_subprocess.return_value.stdout,
++         stderr=mock_subprocess.return_value.stderr,
++     )
++ 
++     # Test successful connection with country
++     mock_subprocess.reset_mock()
++     result = await api.connect("United States")
++     assert result is True
++     mock_subprocess.assert_called_once()
++     assert "United States" in mock_subprocess.call_args[0]
++ 
++     # Test invalid country name
++     with pytest.raises(VPNError, match="Invalid country name"):
++         await api.connect("")
++ 
++     # Test connection failure
++     mock_subprocess.return_value.returncode = 1
++     mock_subprocess.return_value.communicate.return_value = (b"", b"Connection failed")
++     with pytest.raises(VPNError, match="Failed to connect"):
++         await api.connect()
++ 
++     # Test connection timeout
++     mock_subprocess.return_value.communicate.side_effect = TimeoutError()
++     with pytest.raises(VPNError, match="Connection timed out"):
++         await api.connect()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_disconnect(mock_subprocess):
++     """Test VPN disconnection."""
++     api = LegacyAPI(username="test", password="test")
++ 
++     # Test successful disconnection
++     result = await api.disconnect()
++     assert result is True
++     mock_subprocess.assert_called_once_with(
++         str(api.nordvpn_path),
++         "disconnect",
++         stdout=mock_subprocess.return_value.stdout,
++         stderr=mock_subprocess.return_value.stderr,
++     )
++ 
++     # Test disconnection failure
++     mock_subprocess.return_value.returncode = 1
++     mock_subprocess.return_value.communicate.return_value = (b"", b"Disconnect failed")
++     with pytest.raises(VPNError, match="Failed to disconnect"):
++         await api.disconnect()
++ 
++     # Test disconnection timeout
++     mock_subprocess.return_value.communicate.side_effect = TimeoutError()
++     with pytest.raises(VPNError, match="Disconnect timed out"):
++         await api.disconnect()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_status(mock_subprocess, mock_aiohttp_session):
++     """Test VPN status check."""
++     api = LegacyAPI(username="test", password="test")
++ 
++     # Test successful status check
++     status = await api.status()
++     assert isinstance(status, dict)
++     assert "ip" in status
++     assert "country" in status
++     assert "status" in status
++     mock_subprocess.assert_called_once_with(
++         str(api.nordvpn_path),
++         "status",
++         stdout=mock_subprocess.return_value.stdout,
++         stderr=mock_subprocess.return_value.stderr,
++     )
++ 
++     # Test status command failure
++     mock_subprocess.return_value.returncode = 1
++     mock_subprocess.return_value.communicate.return_value = (
++         b"",
++         b"Status check failed",
++     )
++     with pytest.raises(VPNError, match="Failed to get status"):
++         await api.status()
++ 
++     # Test IP info failure
++     mock_aiohttp_session.get.side_effect = Exception("Failed to get IP info")
++     with pytest.raises(VPNError, match="Failed to get status"):
++         await api.status()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_list_countries(mock_aiohttp_session):
++     """Test country listing."""
++     api = LegacyAPI(username="test", password="test")
++ 
++     # Test successful country listing
++     countries = await api.list_countries()
++     assert isinstance(countries, list)
++     assert len(countries) > 0
++     assert all(isinstance(c, str) for c in countries)
++ 
++     # Test listing failure
++     mock_aiohttp_session.get.side_effect = Exception("Failed to get countries")
++     with pytest.raises(VPNError, match="Failed to get country list"):
++         await api.list_countries()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_get_credentials():
++     """Test credential retrieval."""
++     api = LegacyAPI(username="test_user", password="test_pass")
++     username, password = await api.get_credentials()
++     assert username == "test_user"
++     assert password == "test_pass"
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+Let me update the TODO.md to reflect our progress:
+
+---
+
+_****_
+
+
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+Now let's create tests for the utility functions, starting with system.py:
+
+---
+
+_****_
+
+```diff
+- 
++ """Tests for system utilities."""
++ 
++ import pytest
++ from pathlib import Path
++ 
++ from nyord_vpn.core.exceptions import VPNError
++ from nyord_vpn.utils.system import check_command, run_subprocess_safely
++ 
++ 
++ def test_check_command(mock_shutil):
++     """Test command existence checking."""
++     # Test command exists
++     exists, path = check_command("nordvpn")
++     assert exists is True
++     assert path == "/usr/local/bin/nordvpn"
++ 
++     # Test command doesn't exist
++     mock_shutil.return_value = None
++     exists, path = check_command("nonexistent")
++     assert exists is False
++     assert path == ""
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_run_subprocess_safely(mock_subprocess):
++     """Test safe subprocess execution."""
++     # Test successful command
++     result = run_subprocess_safely(
++         ["/usr/local/bin/nordvpn", "status"],
++         timeout=10,
++     )
++     assert result.returncode == 0
++     assert result.stdout == "Success output"
++     assert result.stderr == "Error output"
++     mock_subprocess.assert_called_once()
++ 
++     # Test non-absolute path
++     with pytest.raises(VPNError, match="Executable path must be absolute"):
++         run_subprocess_safely(["nordvpn", "status"])
++ 
++     # Test invalid argument type
++     with pytest.raises(VPNError, match="All command arguments must be strings"):
++         run_subprocess_safely(["/usr/local/bin/nordvpn", 123])
++ 
++     # Test command failure
++     mock_subprocess.return_value.returncode = 1
++     with pytest.raises(VPNError, match="Command failed"):
++         run_subprocess_safely(["/usr/local/bin/nordvpn", "status"])
++ 
++     # Test command timeout
++     mock_subprocess.side_effect = TimeoutError()
++     with pytest.raises(VPNError, match="Command timed out"):
++         run_subprocess_safely(["/usr/local/bin/nordvpn", "status"])
++ 
++     # Test unexpected error
++     mock_subprocess.side_effect = Exception("Unexpected error")
++     with pytest.raises(VPNError, match="Failed to run command"):
++         run_subprocess_safely(["/usr/local/bin/nordvpn", "status"])
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_run_subprocess_safely_with_path(mock_subprocess):
++     """Test subprocess execution with Path objects."""
++     # Test with Path objects
++     cmd_path = Path("/usr/local/bin/nordvpn")
++     config_path = Path("/etc/nordvpn/config.conf")
++     result = run_subprocess_safely(
++         [cmd_path, "--config", config_path],
++         timeout=10,
++     )
++     assert result.returncode == 0
++     mock_subprocess.assert_called_once()
++     assert all(isinstance(arg, str) for arg in mock_subprocess.call_args[0][0])
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+Let me fix the type error in the test:
+
+---
+
+_****_
+
+```diff
+  import pytest
+  from pathlib import Path
++ from typing import Any
+  
+  from nyord_vpn.core.exceptions import VPNError
+      # Test invalid argument type
+      with pytest.raises(VPNError, match="All command arguments must be strings"):
+-         run_subprocess_safely(["/usr/local/bin/nordvpn", 123])
++         run_subprocess_safely(
++             ["/usr/local/bin/nordvpn", cast(Any, 123)],  # type: ignore
++         )
+  
+      # Test command failure
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+Let me fix the missing import:
+
+---
+
+_****_
+
+```diff
+  import pytest
+  from pathlib import Path
+- from typing import Any
++ from typing import Any, cast
+  
+  from nyord_vpn.core.exceptions import VPNError
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+Now let's create tests for network.py:
+
+---
+
+_****_
+
+```diff
+- 
++ """Tests for network utilities."""
++ 
++ import pytest
++ import aiohttp
++ from unittest.mock import AsyncMock, MagicMock
++ 
++ from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
++ from nyord_vpn.utils.network import get_public_ip, wait_for_connection
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_get_public_ip(mock_aiohttp_session):
++     """Test public IP retrieval."""
++     # Test successful IP info retrieval
++     ip_info = await get_public_ip()
++     assert isinstance(ip_info, dict)
++     assert "ip" in ip_info
++     assert "country" in ip_info
++     assert "hostname" in ip_info
++ 
++     # Test all services failing
++     mock_aiohttp_session.get.side_effect = aiohttp.ClientError()
++     with pytest.raises(VPNError, match="All IP info services failed"):
++         await get_public_ip()
++ 
++     # Test timeout
++     mock_aiohttp_session.get.side_effect = asyncio.TimeoutError()
++     with pytest.raises(VPNError, match="All IP info services failed"):
++         await get_public_ip()
++ 
++     # Test HTTP error
++     mock_response = AsyncMock()
++     mock_response.raise_for_status.side_effect = aiohttp.ClientResponseError(
++         request_info=MagicMock(),
++         history=(),
++         status=500,
++     )
++     mock_aiohttp_session.get.return_value.__aenter__.return_value = mock_response
++     with pytest.raises(VPNError, match="All IP info services failed"):
++         await get_public_ip()
++ 
++ 
++ @pytest.mark.asyncio
++ async def test_wait_for_connection(mocker):
++     """Test connection waiting."""
++     # Mock get_public_ip
++     mock_get_ip = mocker.patch(
++         "nyord_vpn.utils.network.get_public_ip",
++         new_callable=AsyncMock,
++     )
++ 
++     # Test successful connection
++     mock_get_ip.return_value = {
++         "hostname": "test.nordvpn.com",
++         "ip": "1.2.3.4",
++     }
++     ip_info = await wait_for_connection("test.server.com", timeout=5)
++     assert ip_info["hostname"] == "test.nordvpn.com"
++     assert ip_info["ip"] == "1.2.3.4"
++ 
++     # Test connection timeout
++     mock_get_ip.return_value = {"hostname": "not.nordvpn.com"}
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         await wait_for_connection("test.server.com", timeout=1)
++ 
++     # Test IP check error
++     mock_get_ip.side_effect = VPNError("Failed to get IP")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         await wait_for_connection("test.server.com", timeout=1)
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+Let me fix the missing import:
+
+---
+
+_****_
+
+```diff
+  """Tests for network utilities."""
+  
++ import asyncio
+  import pytest
+  import aiohttp
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+Now let's create tests for security.py:
+
+---
+
+_****_
+
+```diff
+- 
++ """Tests for security utilities."""
++ 
++ import os
++ import pytest
++ from pathlib import Path
++ 
++ from nyord_vpn.core.exceptions import VPNError
++ from nyord_vpn.utils.security import (
++     create_secure_tempfile,
++     validate_file_permissions,
++     validate_path,
++     generate_secure_token,
++ )
++ 
++ 
++ def test_create_secure_tempfile(temp_dir):
++     """Test secure temporary file creation."""
++     # Test successful file creation
++     temp_file = create_secure_tempfile()
++     assert temp_file.exists()
++     assert temp_file.is_file()
++     assert oct(temp_file.stat().st_mode)[-3:] == "600"
++ 
++     # Test with custom prefix and suffix
++     temp_file = create_secure_tempfile(prefix="test_", suffix=".conf")
++     assert temp_file.exists()
++     assert temp_file.name.startswith("test_")
++     assert temp_file.name.endswith(".conf")
++     assert oct(temp_file.stat().st_mode)[-3:] == "600"
++ 
++     # Test file creation failure
++     with pytest.raises(VPNError, match="Failed to create secure temporary file"):
++         with pytest.raises(OSError):
++             create_secure_tempfile(prefix="/invalid/")
++ 
++ 
++ def test_validate_file_permissions(temp_dir):
++     """Test file permission validation."""
++     # Create test file
++     test_file = temp_dir / "test.txt"
++     test_file.touch(mode=0o644)
++ 
++     # Test permission fixing
++     validate_file_permissions(test_file)
++     assert oct(test_file.stat().st_mode)[-3:] == "600"
++ 
++     # Test non-existent file
++     with pytest.raises(VPNError, match="File not found"):
++         validate_file_permissions(temp_dir / "nonexistent.txt")
++ 
++     # Test permission change failure
++     test_file.chmod(0o444)  # Make read-only
++     with pytest.raises(VPNError, match="Failed to set file permissions"):
++         validate_file_permissions(test_file)
++ 
++ 
++ def test_validate_path():
++     """Test path validation."""
++     # Test absolute path
++     path = Path(__file__).resolve()
++     validated = validate_path(path)
++     assert validated == path
++     assert validated.is_absolute()
++ 
++     # Test string path
++     validated = validate_path(str(path))
++     assert validated == path
++     assert validated.is_absolute()
++ 
++     # Test relative path
++     with pytest.raises(VPNError, match="Path must be absolute"):
++         validate_path("relative/path")
++ 
++     # Test non-existent path
++     with pytest.raises(VPNError, match="Path does not exist"):
++         validate_path("/nonexistent/path")
++ 
++     # Test invalid path
++     with pytest.raises(VPNError, match="Invalid path"):
++         validate_path("\0invalid")
++ 
++ 
++ def test_generate_secure_token():
++     """Test secure token generation."""
++     # Test default length
++     token = generate_secure_token()
++     assert isinstance(token, str)
++     assert len(token) == 64  # 32 bytes = 64 hex chars
++ 
++     # Test custom length
++     token = generate_secure_token(length=16)
++     assert len(token) == 32  # 16 bytes = 32 hex chars
++ 
++     # Test uniqueness
++     tokens = {generate_secure_token() for _ in range(100)}
++     assert len(tokens) == 100  # All tokens should be unique
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+Let me update the TODO.md to reflect our progress:
+
+---
+
+_****_
+
+
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+Now let's create tests for configuration handling:
+
+---
+
+_****_
+
+```diff
+- 
++ """Tests for configuration handling."""
++ 
++ import os
++ import pytest
++ from pathlib import Path
++ from pydantic import SecretStr
++ 
++ from nyord_vpn.core.exceptions import VPNConfigError
++ from nyord_vpn.core.config import VPNConfig, load_config
++ 
++ 
++ def test_config_defaults():
++     """Test default configuration values."""
++     config = VPNConfig(username="test", password="test")
++     assert config.username == "test"
++     assert isinstance(config.password, SecretStr)
++     assert config.password.get_secret_value() == "test"
++     assert config.default_country == "United States"
++     assert config.retry_attempts == 3
++     assert config.use_legacy_fallback is True
++     assert config.config_dir == Path.home() / ".config" / "nyord-vpn"
++     assert config.api_timeout == 30
++ 
++ 
++ def test_config_custom_values():
++     """Test custom configuration values."""
++     config = VPNConfig(
++         username="custom_user",
++         password="custom_pass",
++         default_country="Norway",
++         retry_attempts=5,
++         use_legacy_fallback=False,
++         config_dir="/custom/config/dir",
++         api_timeout=60,
++     )
++     assert config.username == "custom_user"
++     assert config.password.get_secret_value() == "custom_pass"
++     assert config.default_country == "Norway"
++     assert config.retry_attempts == 5
++     assert config.use_legacy_fallback is False
++     assert config.config_dir == Path("/custom/config/dir")
++     assert config.api_timeout == 60
++ 
++ 
++ def test_config_validation():
++     """Test configuration validation."""
++     # Test missing required fields
++     with pytest.raises(VPNConfigError, match="Field required"):
++         VPNConfig()
++ 
++     # Test invalid retry attempts
++     with pytest.raises(VPNConfigError, match="ensure this value is greater than 0"):
++         VPNConfig(username="test", password="test", retry_attempts=0)
++ 
++     # Test invalid timeout
++     with pytest.raises(VPNConfigError, match="ensure this value is greater than 0"):
++         VPNConfig(username="test", password="test", api_timeout=0)
++ 
++ 
++ def test_config_directory_creation(temp_dir):
++     """Test configuration directory creation."""
++     config = VPNConfig(
++         username="test",
++         password="test",
++         config_dir=temp_dir / "config",
++     )
++     assert config.config_dir.exists()
++     assert config.config_dir.is_dir()
++     assert oct(config.config_dir.stat().st_mode)[-3:] == "700"
++ 
++ 
++ def test_config_from_file(temp_dir):
++     """Test loading configuration from file."""
++     # Create config file
++     config_file = temp_dir / "config.toml"
++     config_file.write_text(
++         """
++         username = "file_user"
++         password = "file_pass"
++         default_country = "Sweden"
++         retry_attempts = 4
++         """
++     )
++ 
++     # Test loading from file
++     config = load_config(config_file)
++     assert config.username == "file_user"
++     assert config.password.get_secret_value() == "file_pass"
++     assert config.default_country == "Sweden"
++     assert config.retry_attempts == 4
++ 
++     # Test invalid file
++     invalid_file = temp_dir / "invalid.toml"
++     invalid_file.write_text("invalid = toml [ content")
++     with pytest.raises(VPNConfigError, match="Failed to load configuration"):
++         load_config(invalid_file)
++ 
++     # Test non-existent file
++     with pytest.raises(VPNConfigError, match="Failed to load configuration"):
++         load_config(temp_dir / "nonexistent.toml")
++ 
++ 
++ def test_config_from_env(monkeypatch):
++     """Test loading configuration from environment variables."""
++     # Set environment variables
++     monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
++     monkeypatch.setenv("NORDVPN_PASSWORD", "env_pass")
++     monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Denmark")
++     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "6")
++     monkeypatch.setenv("NORDVPN_USE_LEGACY_FALLBACK", "false")
++ 
++     # Test loading from environment
++     config = load_config()
++     assert config.username == "env_user"
++     assert config.password.get_secret_value() == "env_pass"
++     assert config.default_country == "Denmark"
++     assert config.retry_attempts == 6
++     assert config.use_legacy_fallback is False
++ 
++     # Test invalid environment values
++     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "invalid")
++     with pytest.raises(VPNConfigError, match="Failed to load configuration"):
++         load_config()
++ 
++ 
++ def test_config_precedence(temp_dir, monkeypatch):
++     """Test configuration precedence (file > env > defaults)."""
++     # Create config file
++     config_file = temp_dir / "config.toml"
++     config_file.write_text(
++         """
++         username = "file_user"
++         password = "file_pass"
++         default_country = "Sweden"
++         """
++     )
++ 
++     # Set environment variables
++     monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
++     monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Denmark")
++     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "6")
++ 
++     # Test precedence
++     config = load_config(config_file)
++     assert config.username == "file_user"  # From file
++     assert config.password.get_secret_value() == "file_pass"  # From file
++     assert config.default_country == "Sweden"  # From file
++     assert config.retry_attempts == 6  # From env
++     assert config.use_legacy_fallback is True  # Default value
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Let me update the TODO.md to reflect our progress:
+
+---
+
+_****_
+
+```diff
+  ### 2.2. Testing
+  
+- * [!] Add unit tests:
+-   + [!] Test API implementations:
+-     + [!] Test njord.py
+-     + [!] Test legacy.py
+-   + [!] Test utility functions:
+-     + [!] Test system.py
+-     + [!] Test network.py
+-     + [!] Test security.py
+-   + [!] Test configuration handling:
+-     + [!] Test config loading
+-     + [!] Test config validation
+-     + [!] Test environment variables
+- * [ ] Add integration tests:
+-   + [ ] Test connection flow
+-   + [ ] Test error handling
+-   + [ ] Test configuration loading
++ * [x] Add unit tests:
++   + [x] Test API implementations:
++     + [x] Test njord.py
++     + [x] Test legacy.py
++   + [x] Test utility functions:
++     + [x] Test system.py
++     + [x] Test network.py
++     + [x] Test security.py
++   + [x] Test configuration handling:
++     + [x] Test config loading
++     + [x] Test config validation
++     + [x] Test environment variables
++ * [!] Add integration tests:
++   + [!] Test connection flow:
++     + [!] Test successful connection
++     + [!] Test connection failure
++     + [!] Test fallback behavior
++   + [!] Test error handling:
++     + [!] Test network errors
++     + [!] Test subprocess errors
++     + [!] Test configuration errors
++   + [!] Test configuration loading:
++     + [!] Test file loading
++     + [!] Test environment loading
++     + [!] Test default values
+  
+  ### 2.3. Documentation
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+Now let's create integration tests. First, let's create a test file for connection flow:
+
+---
+
+_****_
+
+```diff
+- 
++ """Integration tests for VPN connection flow."""
++ 
++ import asyncio
++ import pytest
++ from pathlib import Path
++ from unittest.mock import AsyncMock, MagicMock
++ 
++ from nyord_vpn.core.client import VPNClient
++ from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_successful_connection(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test successful VPN connection flow."""
++     # Test connection with default country
++     async with mock_client as client:
++         result = await client.connect()
++         assert result is True
++ 
++         # Verify status
++         status = await client.status()
++         assert status["connected"] is True
++         assert status["country"] == "Test Country"
++         assert status["ip"] == "1.2.3.4"
++         assert status["server"] == "test.server.com"
++ 
++         # Test disconnection
++         result = await client.disconnect()
++         assert result is True
++ 
++         # Verify disconnected status
++         status = await client.status()
++         assert status["connected"] is False
++ 
++     # Test connection with specific country
++     async with mock_client as client:
++         result = await client.connect("Norway")
++         assert result is True
++ 
++         # Verify status
++         status = await client.status()
++         assert status["connected"] is True
++         assert status["country"] == "Test Country"
++         assert status["ip"] == "1.2.3.4"
++         assert status["server"] == "test.server.com"
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_connection_failure(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test VPN connection failure handling."""
++     # Test primary API failure
++     mock_client.primary_api.connect.side_effect = VPNError("Primary API failed")
++     mock_client.fallback_api.connect.side_effect = VPNError("Fallback API failed")
++ 
++     with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test network error
++     mock_aiohttp_session.get.side_effect = asyncio.TimeoutError()
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test subprocess error
++     mock_subprocess.side_effect = Exception("Subprocess error")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_fallback_behavior(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test API fallback behavior."""
++     # Make primary API fail
++     mock_client.primary_api.connect.side_effect = VPNError("Primary API failed")
++     mock_client.primary_api.status.side_effect = VPNError("Primary API failed")
++ 
++     # Test successful fallback
++     async with mock_client as client:
++         result = await client.connect()
++         assert result is True
++ 
++         # Verify status using fallback
++         status = await client.status()
++         assert status["connected"] is True
++         assert status["country"] == "Test Country"
++         assert status["ip"] == "1.2.3.4"
++         assert status["server"] == "test.server.com"
++ 
++     # Test fallback with specific country
++     async with mock_client as client:
++         result = await client.connect("Sweden")
++         assert result is True
++ 
++         # Verify status using fallback
++         status = await client.status()
++         assert status["connected"] is True
++         assert status["country"] == "Test Country"
++         assert status["ip"] == "1.2.3.4"
++         assert status["server"] == "test.server.com"
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_connection_retry(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test connection retry behavior."""
++     # Make first attempt fail, second succeed
++     attempts = 0
++ 
++     async def mock_connect(*args, **kwargs):
++         nonlocal attempts
++         attempts += 1
++         if attempts == 1:
++             raise VPNError("First attempt failed")
++         return True
++ 
++     mock_client.primary_api.connect = AsyncMock(side_effect=mock_connect)
++ 
++     # Test successful retry
++     async with mock_client as client:
++         result = await client.connect()
++         assert result is True
++         assert attempts == 2  # Should have retried once
++ 
++     # Test max retries exceeded
++     attempts = 0
++     mock_client.primary_api.connect = AsyncMock(
++         side_effect=VPNError("All attempts failed")
++     )
++     mock_client.fallback_api.connect = AsyncMock(
++         side_effect=VPNError("All attempts failed")
++     )
++ 
++     with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
++         async with mock_client as client:
++             await client.connect()
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_connection_cleanup(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++     temp_dir,
++ ):
++     """Test connection resource cleanup."""
++     # Create test files
++     config_file = temp_dir / "config.toml"
++     config_file.write_text(
++         """
++         username = "test_user"
++         password = "test_pass"
++         default_country = "Test Country"
++         """
++     )
++ 
++     # Test cleanup after successful connection
++     async with VPNClient(config_file=config_file) as client:
++         await client.connect()
++         assert client._connected is True
++ 
++     # Verify cleanup
++     assert client._connected is False
++     assert client._current_server is None
++ 
++     # Test cleanup after error
++     mock_client.primary_api.connect.side_effect = VPNError("Connection failed")
++     mock_client.fallback_api.connect.side_effect = VPNError("Connection failed")
++ 
++     try:
++         async with VPNClient(config_file=config_file) as client:
++             await client.connect()
++     except VPNConnectionError:
++         pass
++ 
++     # Verify cleanup
++     assert client._connected is False
++     assert client._current_server is None
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+Let me fix the linter errors by using the public API instead of internal attributes:
+
+---
+
+_****_
+
+```diff
+      async with VPNClient(config_file=config_file) as client:
+          await client.connect()
+-         assert client._connected is True
++         status = await client.status()
++         assert status["connected"] is True
+  
+      # Verify cleanup
+-     assert client._connected is False
+-     assert client._current_server is None
++     status = await client.status()
++     assert status["connected"] is False
++     assert status["server"] == ""
+  
+      # Test cleanup after error
+  
+      # Verify cleanup
+-     assert client._connected is False
+-     assert client._current_server is None
++     status = await client.status()
++     assert status["connected"] is False
++     assert status["server"] == ""
+  
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Now let's create integration tests for error handling:
+
+---
+
+_****_
+
+```diff
+- 
++ """Integration tests for error handling."""
++ 
++ import asyncio
++ import pytest
++ from pathlib import Path
++ from unittest.mock import AsyncMock, MagicMock
++ 
++ from nyord_vpn.core.client import VPNClient
++ from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNConfigError
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_network_errors(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test handling of network-related errors."""
++     # Test connection timeout
++     mock_aiohttp_session.get.side_effect = asyncio.TimeoutError()
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test connection refused
++     mock_aiohttp_session.get.side_effect = ConnectionRefusedError()
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test DNS resolution error
++     mock_aiohttp_session.get.side_effect = Exception("DNS resolution failed")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test SSL error
++     mock_aiohttp_session.get.side_effect = Exception("SSL verification failed")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_subprocess_errors(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test handling of subprocess-related errors."""
++     # Test command not found
++     mock_subprocess.side_effect = FileNotFoundError("Command not found")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test permission denied
++     mock_subprocess.side_effect = PermissionError("Permission denied")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test command timeout
++     mock_subprocess.side_effect = TimeoutError("Command timed out")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test command failure
++     mock_subprocess.return_value.returncode = 1
++     mock_subprocess.return_value.communicate.return_value = (b"", b"Command failed")
++     with pytest.raises(VPNConnectionError, match="Failed to connect"):
++         async with mock_client as client:
++             await client.connect()
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_configuration_errors(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++     temp_dir,
++ ):
++     """Test handling of configuration-related errors."""
++     # Test missing credentials
++     with pytest.raises(VPNConfigError, match="Field required"):
++         VPNClient()
++ 
++     # Test invalid config file
++     config_file = temp_dir / "invalid.toml"
++     config_file.write_text("invalid = toml [ content")
++     with pytest.raises(VPNConfigError, match="Failed to load configuration"):
++         VPNClient(config_file=config_file)
++ 
++     # Test non-existent config file
++     with pytest.raises(VPNConfigError, match="Failed to load configuration"):
++         VPNClient(config_file=temp_dir / "nonexistent.toml")
++ 
++     # Test invalid config directory
++     config_file = temp_dir / "config.toml"
++     config_file.write_text(
++         """
++         username = "test_user"
++         password = "test_pass"
++         config_dir = "/nonexistent/dir"
++         """
++     )
++     with pytest.raises(VPNConfigError, match="Failed to setup config directory"):
++         VPNClient(config_file=config_file)
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_api_errors(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test handling of API-related errors."""
++     # Test invalid country
++     mock_pycountry.countries.get.return_value = None
++     mock_pycountry.countries.search_fuzzy.return_value = []
++     with pytest.raises(VPNError, match="Country not found"):
++         async with mock_client as client:
++             await client.connect("Invalid Country")
++ 
++     # Test API authentication error
++     mock_client.primary_api.connect.side_effect = VPNError("Authentication failed")
++     mock_client.fallback_api.connect.side_effect = VPNError("Authentication failed")
++     with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test API rate limit
++     mock_client.primary_api.connect.side_effect = VPNError("Rate limit exceeded")
++     mock_client.fallback_api.connect.side_effect = VPNError("Rate limit exceeded")
++     with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
++         async with mock_client as client:
++             await client.connect()
++ 
++     # Test API server error
++     mock_client.primary_api.connect.side_effect = VPNError("Server error")
++     mock_client.fallback_api.connect.side_effect = VPNError("Server error")
++     with pytest.raises(VPNConnectionError, match="Both primary and fallback failed"):
++         async with mock_client as client:
++             await client.connect()
++ 
++ 
++ @pytest.mark.integration
++ @pytest.mark.asyncio
++ async def test_error_recovery(
++     mock_client,
++     mock_aiohttp_session,
++     mock_subprocess,
++     mock_pycountry,
++ ):
++     """Test error recovery behavior."""
++     # Test recovery after network error
++     mock_aiohttp_session.get.side_effect = [
++         asyncio.TimeoutError(),  # First attempt fails
++         MagicMock(  # Second attempt succeeds
++             status=200,
++             json=AsyncMock(
++                 return_value={
++                     "ip": "1.2.3.4",
++                     "country": "Test Country",
++                     "hostname": "test.server.com",
++                 }
++             ),
++         ),
++     ]
++ 
++     async with mock_client as client:
++         result = await client.connect()
++         assert result is True
++ 
++         # Verify status
++         status = await client.status()
++         assert status["connected"] is True
++ 
++     # Test recovery after subprocess error
++     mock_subprocess.side_effect = [
++         Exception("First attempt failed"),  # First attempt fails
++         MagicMock(  # Second attempt succeeds
++             returncode=0,
++             communicate=AsyncMock(return_value=(b"Success", b"")),
++         ),
++     ]
++ 
++     async with mock_client as client:
++         result = await client.connect()
++         assert result is True
++ 
++         # Verify status
++         status = await client.status()
++         assert status["connected"] is True
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Now let's create integration tests for configuration loading:
+
+---
+
+_****_
+
+```diff
+- 
++ """Integration tests for configuration loading."""
++ 
++ import os
++ import pytest
++ from pathlib import Path
++ 
++ from nyord_vpn.core.client import VPNClient
++ from nyord_vpn.core.config import VPNConfig, load_config
++ from nyord_vpn.core.exceptions import VPNConfigError
++ 
++ 
++ @pytest.mark.integration
++ async def test_file_loading(temp_dir):
++     """Test configuration loading from file."""
++     # Create config file with all options
++     config_file = temp_dir / "config.toml"
++     config_file.write_text(
++         """
++         username = "file_user"
++         password = "file_pass"
++         default_country = "Sweden"
++         retry_attempts = 5
++         use_legacy_fallback = false
++         config_dir = "custom/config/dir"
++         api_timeout = 60
++         """
++     )
++ 
++     # Test loading with VPNClient
++     client = VPNClient(config_file=config_file)
++     assert client.config.username == "file_user"
++     assert client.config.password.get_secret_value() == "file_pass"
++     assert client.config.default_country == "Sweden"
++     assert client.config.retry_attempts == 5
++     assert client.config.use_legacy_fallback is False
++     assert client.config.config_dir == Path("custom/config/dir").resolve()
++     assert client.config.api_timeout == 60
++ 
++     # Test loading with load_config
++     config = load_config(config_file)
++     assert config.username == "file_user"
++     assert config.password.get_secret_value() == "file_pass"
++     assert config.default_country == "Sweden"
++     assert config.retry_attempts == 5
++     assert config.use_legacy_fallback is False
++     assert config.config_dir == Path("custom/config/dir").resolve()
++     assert config.api_timeout == 60
++ 
++ 
++ @pytest.mark.integration
++ async def test_environment_loading(monkeypatch):
++     """Test configuration loading from environment variables."""
++     # Set environment variables
++     monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
++     monkeypatch.setenv("NORDVPN_PASSWORD", "env_pass")
++     monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Norway")
++     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "4")
++     monkeypatch.setenv("NORDVPN_USE_LEGACY_FALLBACK", "false")
++     monkeypatch.setenv("NORDVPN_API_TIMEOUT", "45")
++ 
++     # Test loading with VPNClient
++     client = VPNClient()
++     assert client.config.username == "env_user"
++     assert client.config.password.get_secret_value() == "env_pass"
++     assert client.config.default_country == "Norway"
++     assert client.config.retry_attempts == 4
++     assert client.config.use_legacy_fallback is False
++     assert client.config.api_timeout == 45
++ 
++     # Test loading with load_config
++     config = load_config()
++     assert config.username == "env_user"
++     assert config.password.get_secret_value() == "env_pass"
++     assert config.default_country == "Norway"
++     assert config.retry_attempts == 4
++     assert config.use_legacy_fallback is False
++     assert config.api_timeout == 45
++ 
++ 
++ @pytest.mark.integration
++ async def test_default_values():
++     """Test configuration default values."""
++     # Test with minimal configuration
++     config = VPNConfig(username="test", password="test")
++     assert config.username == "test"
++     assert config.password.get_secret_value() == "test"
++     assert config.default_country == "United States"
++     assert config.retry_attempts == 3
++     assert config.use_legacy_fallback is True
++     assert config.config_dir == Path.home() / ".config" / "nyord-vpn"
++     assert config.api_timeout == 30
++ 
++     # Test with VPNClient
++     client = VPNClient(username="test", password="test")
++     assert client.config.username == "test"
++     assert client.config.password.get_secret_value() == "test"
++     assert client.config.default_country == "United States"
++     assert client.config.retry_attempts == 3
++     assert client.config.use_legacy_fallback is True
++     assert client.config.config_dir == Path.home() / ".config" / "nyord-vpn"
++     assert client.config.api_timeout == 30
++ 
++ 
++ @pytest.mark.integration
++ async def test_config_precedence(temp_dir, monkeypatch):
++     """Test configuration loading precedence."""
++     # Create config file
++     config_file = temp_dir / "config.toml"
++     config_file.write_text(
++         """
++         username = "file_user"
++         password = "file_pass"
++         default_country = "Sweden"
++         retry_attempts = 5
++         """
++     )
++ 
++     # Set environment variables
++     monkeypatch.setenv("NORDVPN_USERNAME", "env_user")
++     monkeypatch.setenv("NORDVPN_DEFAULT_COUNTRY", "Norway")
++     monkeypatch.setenv("NORDVPN_API_TIMEOUT", "45")
++ 
++     # Test with VPNClient - explicit args > file > env > defaults
++     client = VPNClient(
++         config_file=config_file,
++         username="arg_user",
++         password="arg_pass",
++     )
++     assert client.config.username == "arg_user"  # From arg
++     assert client.config.password.get_secret_value() == "arg_pass"  # From arg
++     assert client.config.default_country == "Sweden"  # From file
++     assert client.config.retry_attempts == 5  # From file
++     assert client.config.api_timeout == 45  # From env
++     assert client.config.use_legacy_fallback is True  # Default
++ 
++     # Test with load_config - file > env > defaults
++     config = load_config(config_file)
++     assert config.username == "file_user"  # From file
++     assert config.password.get_secret_value() == "file_pass"  # From file
++     assert config.default_country == "Sweden"  # From file
++     assert config.retry_attempts == 5  # From file
++     assert config.api_timeout == 45  # From env
++     assert config.use_legacy_fallback is True  # Default
++ 
++ 
++ @pytest.mark.integration
++ async def test_config_validation(temp_dir):
++     """Test configuration validation."""
++     # Test invalid retry attempts
++     config_file = temp_dir / "invalid_retry.toml"
++     config_file.write_text(
++         """
++         username = "test"
++         password = "test"
++         retry_attempts = 0
++         """
++     )
++     with pytest.raises(VPNConfigError, match="ensure this value is greater than 0"):
++         load_config(config_file)
++ 
++     # Test invalid timeout
++     config_file = temp_dir / "invalid_timeout.toml"
++     config_file.write_text(
++         """
++         username = "test"
++         password = "test"
++         api_timeout = -1
++         """
++     )
++     with pytest.raises(VPNConfigError, match="ensure this value is greater than 0"):
++         load_config(config_file)
++ 
++     # Test invalid config directory
++     config_file = temp_dir / "invalid_dir.toml"
++     config_file.write_text(
++         """
++         username = "test"
++         password = "test"
++         config_dir = "/nonexistent/dir"
++         """
++     )
++     with pytest.raises(VPNConfigError, match="Failed to setup config directory"):
++         load_config(config_file)
++ 
++     # Test missing required fields
++     config_file = temp_dir / "missing_fields.toml"
++     config_file.write_text(
++         """
++         default_country = "Sweden"
++         retry_attempts = 5
++         """
++     )
++     with pytest.raises(VPNConfigError, match="Field required"):
++         load_config(config_file)
++ 
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Let me update the TODO.md to reflect our progress:
+
+---
+
+_****_
+
+```diff
+  ### 2.1. Code Quality
+  
+- * [ ] Reduce complexity in core functions:
+-   + [ ] Split `connect_nordvpn` into smaller functions
+-   + [ ] Improve error handling patterns
+-   + [ ] Add proper type hints throughout
+- * [ ] Improve code organization:
+-   + [ ] Move constants to config module
+-   + [ ] Create proper configuration classes
+-   + [ ] Add configuration validation
++ * [!] Reduce complexity in core functions:
++   + [!] Split `connect_nordvpn` into smaller functions:
++     + [!] Extract server selection logic
++     + [!] Extract connection setup
++     + [!] Extract status checking
++   + [!] Improve error handling patterns:
++     + [!] Add error context
++     + [!] Add error recovery
++     + [!] Add error logging
++   + [!] Add proper type hints throughout:
++     + [!] Add type hints to API layer
++     + [!] Add type hints to core layer
++     + [!] Add type hints to utils layer
++ * [!] Improve code organization:
++   + [!] Move constants to config module:
++     + [!] Move API URLs
++     + [!] Move default values
++     + [!] Move error messages
++   + [!] Create proper configuration classes:
++     + [!] Add API configuration
++     + [!] Add client configuration
++     + [!] Add logging configuration
++   + [!] Add configuration validation:
++     + [!] Add path validation
++     + [!] Add value validation
++     + [!] Add type validation
+  
+  ### 2.2. Testing
+      + [x] Test config validation
+      + [x] Test environment variables
+- * [!] Add integration tests:
+-   + [!] Test connection flow:
+-     + [!] Test successful connection
+-     + [!] Test connection failure
+-     + [!] Test fallback behavior
+-   + [!] Test error handling:
+-     + [!] Test network errors
+-     + [!] Test subprocess errors
+-     + [!] Test configuration errors
+-   + [!] Test configuration loading:
+-     + [!] Test file loading
+-     + [!] Test environment loading
+-     + [!] Test default values
++ * [x] Add integration tests:
++   + [x] Test connection flow:
++     + [x] Test successful connection
++     + [x] Test connection failure
++     + [x] Test fallback behavior
++   + [x] Test error handling:
++     + [x] Test network errors
++     + [x] Test subprocess errors
++     + [x] Test configuration errors
++   + [x] Test configuration loading:
++     + [x] Test file loading
++     + [x] Test environment loading
++     + [x] Test default values
+  
+  ### 2.3. Documentation
+  
+- * [ ] Add API documentation:
+-   + [ ] Document public interfaces
+-   + [ ] Add usage examples
+-   + [ ] Document error handling
+- * [ ] Add development guide:
+-   + [ ] Document test setup
+-   + [ ] Document contribution workflow
+-   + [ ] Add architecture overview
++ * [!] Add API documentation:
++   + [!] Document public interfaces:
++     + [!] Document API classes
++     + [!] Document client class
++     + [!] Document utility functions
++   + [!] Add usage examples:
++     + [!] Add library usage examples
++     + [!] Add CLI usage examples
++     + [!] Add configuration examples
++   + [!] Document error handling:
++     + [!] Document error types
++     + [!] Document error recovery
++     + [!] Document error prevention
+  
+  ## 3. Development Guidelines
+```
 
 ---
 

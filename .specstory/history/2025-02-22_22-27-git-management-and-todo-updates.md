@@ -9276,6 +9276,250 @@ Let me update the priorities in TODO.md to reflect these findings:
 
 ---
 
+_****_
+
+```diff
+      - [x] Add comprehensive validation tests
+  * [!] Fix Code Quality Issues (Based on Latest Tests):
+-   + [x] Fix TRY301 violations (Abstract raise to inner function):
+-     - [x] Fix in legacy.py
+-     - [x] Fix in njord.py
+-     - [x] Fix in client.py
+-     - [x] Fix in nyord_vpn.py
+-     - [x] Fix in security.py
++   + [x] Fix TRY301 violations
+    + [!] Fix TRY300 violations (Move statements to else blocks):
+-     - [!] Fix in legacy.py
+-     - [!] Fix in njord.py
+-     - [!] Fix in client.py
+-     - [!] Fix in system.py
+-     - [!] Fix in security.py
++     - [!] Fix in legacy.py (Lines 134, 165)
++     - [!] Fix in njord.py (Lines 161, 187, 208)
++     - [!] Fix in client.py (Lines 142, 154, 167, 180)
++     - [!] Fix in system.py (Lines 24, 47, 96)
++     - [!] Fix in security.py (Lines 35, 110)
+    + [!] Fix BLE001 violations (Blind exception catches):
+-     - [!] Fix in commands.py
+-     - [!] Fix in nyord_vpn.py
+-     - [!] Fix in retry.py
++     - [!] Fix in legacy.py (Lines 137, 168, 217)
++     - [!] Fix in njord.py (Lines 164, 169, 188, 209, 226)
++     - [!] Fix in commands.py (Line 195)
++     - [!] Fix in security.py (Line 88)
+    + [!] Fix S603 violations (Subprocess security):
+-     - [!] Fix in nyord_vpn.py
+-     - [!] Fix in system.py
++     - [!] Fix in system.py (Line 84)
++ * [!] Fix Complex Functions:
++   + [!] Refactor `get_recommended_server` in njord.py (complexity: 12 > 10)
++ * [!] Test Quality Improvements:
++   + [!] Fix test duplication issues:
++     - [!] test_config_loading.py (Line 262)
++     - [!] test_connection.py (Line 178)
++     - [!] test_errors.py (Line 217)
++   + [!] Fix test security:
++     - [!] Remove hardcoded passwords (test_config_loading.py, test_legacy_api.py, test_njord_api.py)
++     - [!] Fix broad exception catches (test_config_loading.py Lines 314, 321, 328)
++   + [!] Fix private member access:
++     - [!] test_validation_integration.py (Line 37)
++     - [!] test_client.py (Line 52)
++     - [!] test_legacy_api.py (Lines 26, 35)
++     - [!] test_njord_api.py (Multiple lines)
+  * [!] Fix Package Structure:
+    + [x] Add missing __init__.py files
+```
+
+---
+
+_****_
+
+
+
+Wait, but let me improve the organization further:
+
+1. The test quality issues should be moved to the "Essential Testing" section
+2. We should add specific line numbers for all violations
+3. We should prioritize the most critical issues first
+
+---
+
+_****_
+
+```diff
+  ## 1. Core Functionality (Highest Priority)
+  
+- ### 1.1. Simplify and Remove Superfluous Code
++ ### 1.1. Critical Code Quality Issues
++ * [!] Fix Security Violations:
++   + [!] Fix S603 (Subprocess security):
++     - [!] system.py:84 - Check for execution of untrusted input
++   + [!] Remove hardcoded passwords:
++     - [!] test_config_loading.py:83,93 - Password in test arguments
++     - [!] test_legacy_api.py:23 - Password in API initialization
++     - [!] test_njord_api.py:16,40,73,96,128 - Multiple instances
++     - [!] test_validation.py:36 - Hardcoded password assignment
++ 
++ * [!] Fix Exception Handling:
++   + [!] Fix TRY300 (Move to else blocks):
++     - [!] legacy.py:134,165 - Connection handling
++     - [!] njord.py:161,187,208 - Server and status handling
++     - [!] client.py:142,154,167,180 - Core operations
++     - [!] system.py:24,47,96 - System operations
++     - [!] security.py:35,110 - Security operations
++   + [!] Fix BLE001 (Blind exception catches):
++     - [!] legacy.py:137,168,217 - API operations
++     - [!] njord.py:164,169,188,209,226 - Multiple catches
++     - [!] commands.py:195 - Command handling
++     - [!] security.py:88 - Security operations
++ 
++ * [!] Fix Complex Functions:
++   + [!] njord.py:43 - Refactor get_recommended_server (complexity: 12 > 10)
++ 
++ ### 1.2. Test Quality Improvements
++ * [!] Fix Test Architecture:
++   + [!] Remove test duplication (F811):
++     - [!] test_config_loading.py:262 - test_config_precedence
++     - [!] test_connection.py:178 - test_connection_failure
++     - [!] test_errors.py:217 - test_network_errors
++   + [!] Fix private member access (SLF001):
++     - [!] test_validation_integration.py:37 - _get_servers
++     - [!] test_client.py:52 - _connect
++     - [!] test_legacy_api.py:26,35 - _get_servers
++     - [!] test_njord_api.py - Multiple private accesses
++   + [!] Improve exception testing:
++     - [!] test_config_loading.py:314,321,328 - Add match parameters
++     - [!] test_security.py:32 - Specify OSError cases
++ 
++ ### 1.3. Type System Improvements
++ * [!] Fix stub file issues:
++   + [!] pycountry.pyi - Remove docstrings (PYI021)
++   + [!] pycountry.pyi - Fix function bodies (PYI048)
++   + [!] Remove unused TypeVar _DB (PYI018)
++ 
++ ### 1.4. Simplify and Remove Superfluous Code
+  * [x] Fix Security Issues:
+    + [x] Create secure test credentials configuration
+    + [!] Clean up private member access in tests
+  
+- ### 1.2. Stabilize Core VPN Functionality
++ ### 1.5. Stabilize Core VPN Functionality
+  * [!] Focus on NjordAPI:
+    + [!] KEEP LegacyAPI implementation!!! But don't spend much effort in perfectioning it. 
+    + [!] Add network reachability checks
+  
+- ### 1.3. Essential Testing
++ ### 1.6. Essential Testing
+  * [!] Core functionality tests:
+    + [x] Connection establishment and teardown
+```
+
+---
+
+_****_
+
+
+
+Wait, but let me make one final improvement to clarify the immediate next steps:
+
+---
+
+_****_
+
+```diff
+  # NordVPN Client Implementation TODO
+  
+- ## 1. Core Functionality (Highest Priority)
++ ## 1. Immediate Next Steps
++ 
++ 1. Fix critical security violations:
++    - [ ] system.py:84 - Add input validation for subprocess calls
++    - [ ] Remove all hardcoded passwords from tests
++ 
++ 2. Fix exception handling:
++    - [ ] Fix TRY300 violations in legacy.py and njord.py
++    - [ ] Fix BLE001 violations in legacy.py and njord.py
++    - [ ] Fix remaining TRY300/BLE001 in other files
++ 
++ 3. Improve test quality:
++    - [ ] Remove test duplication (F811 violations)
++    - [ ] Add match parameters to pytest.raises()
++    - [ ] Fix private member access in tests
++ 
++ ## 2. Core Functionality (Highest Priority)
+  
+- ### 1.1. Critical Code Quality Issues
++ ### 2.1. Critical Code Quality Issues
+  * [!] Fix Security Violations:
+    + [!] Fix S603 (Subprocess security):
+    + [!] njord.py:43 - Refactor get_recommended_server (complexity: 12 > 10)
+  
+- ### 1.2. Test Quality Improvements
++ ### 2.2. Test Quality Improvements
+  * [!] Fix Test Architecture:
+    + [!] Remove test duplication (F811):
+      - [!] test_security.py:32 - Specify OSError cases
+  
+- ### 1.3. Type System Improvements
++ ### 2.3. Type System Improvements
+  * [!] Fix stub file issues:
+    + [!] pycountry.pyi - Remove docstrings (PYI021)
+    + [!] pycountry.pyi - Fix function bodies (PYI048)
+    + [!] Remove unused TypeVar _DB (PYI018)
+  
+- ### 1.4. Simplify and Remove Superfluous Code
++ ### 2.4. Simplify and Remove Superfluous Code
+  * [x] Fix Security Issues:
+    + [x] Create secure test credentials configuration
+    + [!] Clean up private member access in tests
+  
+- ### 1.5. Stabilize Core VPN Functionality
++ ### 2.5. Stabilize Core VPN Functionality
+  * [!] Focus on NjordAPI:
+    + [!] KEEP LegacyAPI implementation!!! But don't spend much effort in perfectioning it. 
+    + [!] Add network reachability checks
+  
+- ### 1.6. Essential Testing
++ ### 2.6. Essential Testing
+  * [!] Core functionality tests:
+    + [x] Connection establishment and teardown
+      - [!] Add proper test isolation
+  
+- ## 2. Documentation and Polish (After Core Functionality)
++ ## 3. Documentation and Polish (After Core Functionality)
+  
+- ### 2.1. User Documentation
++ ### 3.1. User Documentation
+  * [ ] Add clear installation instructions
+  * [ ] Document basic usage patterns
+  * [ ] Provide configuration examples
+  
+- ### 2.2. API Documentation
++ ### 3.2. API Documentation
+  * [ ] Add docstrings to public interfaces
+  * [ ] Include usage examples in docstrings
+  * [ ] Document error handling patterns
+  
+- ### 2.3. Code Quality Improvements
++ ### 3.3. Code Quality Improvements
+  * [!] Fix Complex Functions:
+    + [!] Refactor `get_recommended_server` in njord.py (complexity: 12 > 10)
+    + [!] Remove all hardcoded test credentials
+  
+- ## 3. Development Guidelines
++ ## 4. Development Guidelines
+  
+  1. Before making changes:
+```
+
+---
+
+_****_
+
+
+
+---
+
 
 
 ---

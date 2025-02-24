@@ -9,7 +9,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, TypedDict, Union
+from typing import TypedDict
 
 import requests
 from rich import print as rprint
@@ -31,7 +31,7 @@ class City(TypedDict):
 class Country(TypedDict):
     """Country information from NordVPN API."""
 
-    cities: List[City]
+    cities: list[City]
     code: str
     id: int
     name: str
@@ -41,11 +41,11 @@ class Country(TypedDict):
 class CountryCache(TypedDict):
     """Cache file structure."""
 
-    countries: List[Country]
+    countries: list[Country]
     last_updated: str
 
 
-def fetch_countries() -> List[Country]:
+def fetch_countries() -> list[Country]:
     """Fetch countries from NordVPN API."""
     url = "https://api.nordvpn.com/v1/servers/countries"
 
@@ -55,13 +55,14 @@ def fetch_countries() -> List[Country]:
         transient=True,
     ) as progress:
         progress.add_task(
-            description="Fetching country list from NordVPN API...", total=None
+            description="Fetching country list from NordVPN API...",
+            total=None,
         )
         response = requests.get(url, timeout=10)
         response.raise_for_status()
 
     # The API already returns the exact structure we want
-    countries: List[Country] = response.json()
+    countries: list[Country] = response.json()
     return sorted(countries, key=lambda x: x["name"])
 
 
@@ -94,7 +95,7 @@ def main() -> None:
             json.dump(cache_data, f, indent=2, sort_keys=True)
         cache_file.chmod(0o644)
 
-        rprint(f"[green]✓ Updated country list cache with:[/green]")
+        rprint("[green]✓ Updated country list cache with:[/green]")
         rprint(f"  • [cyan]{len(countries)}[/cyan] countries")
         rprint(f"  • [cyan]{total_cities}[/cyan] cities")
         rprint(f"  • [cyan]{total_servers}[/cyan] servers")

@@ -34,7 +34,7 @@ Command-Line Interface:
 
 Python Library Usage:
     from nyord_vpn import Client
-    
+
     client = Client(username="user", password="pass")
     client.go("us")  # Connect to US server
     client.status()  # Check connection
@@ -83,6 +83,7 @@ from nyord_vpn.storage.models import (
     VPNError,
 )
 
+__version__ = "0.1.0"
 __all__ = [
     "Client",
     "ConnectionError",

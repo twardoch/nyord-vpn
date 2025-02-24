@@ -9,7 +9,7 @@ from nyord_vpn.core.client import VPNClient
 
 
 @pytest.fixture
-def mock_env_credentials(monkeypatch):
+def mock_env_credentials(monkeypatch) -> None:
     """Mock environment variables for testing."""
     monkeypatch.setenv("NORD_USER", "test_user")
     monkeypatch.setenv("NORD_PASSWORD", "test_pass")
@@ -29,7 +29,7 @@ def mock_requests():
     with patch("requests.get") as mock_get:
         # Mock server recommendations
         mock_get.return_value.json.return_value = [
-            {"hostname": "test.server.com", "load": 10, "status": "online"}
+            {"hostname": "test.server.com", "load": 10, "status": "online"},
         ]
         mock_get.return_value.status_code = 200
         yield mock_get

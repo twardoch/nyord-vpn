@@ -1045,6 +1045,385 @@ _****_
 
 
 
+
+
+<aside>
+I see several TRY301 violations in njord.py that need to be fixed. I'll fix them method by method, following the same pattern we used in legacy.py. Let me start with the `get_recommended_server` method, which has multiple raise statements that need to be abstracted.
+</aside>
+
+---
+
+_****_
+
+```diff
+              VPNError: If no server is found
+          """
++ 
++         def handle_country_error(msg: str) -> str:
++             raise VPNError(msg)
++ 
++         def handle_request_error(e: Exception) -> str:
++             msg = f"Failed to get server recommendations: {e}"
++             raise VPNError(msg) from e
++ 
+          # Validate country
+          country = validate_country(country)
+                  country_obj = matches[0]
+              else:
+-                 msg = f"Country not found: {country}"
+-                 raise VPNError(msg)
++                 return handle_country_error(f"Country not found: {country}")
+  
+          # Get alpha_2 code safely
+          alpha_2 = getattr(country_obj, "alpha_2", None)
+          if not alpha_2:
+-             msg = f"Invalid country object: {country_obj}"
+-             raise VPNError(msg)
++             return handle_country_error(f"Invalid country object: {country_obj}")
+  
+          country_id = get_country_id(alpha_2)
+          if not country_id:
+-             msg = f"Country not supported: {country}"
+-             raise VPNError(msg)
++             return handle_country_error(f"Country not supported: {country}")
+  
+          try:
+  
+              if not servers:
+-                 msg = f"No servers found for country: {country}"
+-                 raise VPNError(msg)
++                 return handle_country_error(f"No servers found for country: {country}")
+  
+              # Use cryptographically secure random choice
+  
+          except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+-             msg = f"Failed to get server recommendations: {e}"
+-             raise VPNError(msg) from e
++             return handle_request_error(e)
+  
+      async def connect(self, country: str) -> bool:
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+<aside>
+Now I'll fix the `connect` method, which has a slightly different error handling pattern with multiple exception types.
+</aside>
+
+---
+
+_****_
+
+```diff
+              VPNConnectionError: If connection fails
+          """
++ 
++         def handle_connection_error(e: Exception) -> bool:
++             if isinstance(e, VPNError):
++                 # Re-raise VPN errors as-is
++                 raise e
++             msg = f"Failed to connect: {e}"
++             raise VPNConnectionError(msg) from e
++ 
+          try:
+              # Validate country
+              return self._connected
+  
+-         except VPNError:
+-             # Re-raise VPN errors as-is
+-             raise
+          except Exception as e:
+-             msg = f"Failed to connect: {e}"
+-             raise VPNConnectionError(msg) from e
++             return handle_connection_error(e)
+  
+      async def disconnect(self) -> bool:
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+<aside>
+Now I'll fix the `disconnect` method, which has a simpler error handling pattern.
+</aside>
+
+---
+
+_****_
+
+```diff
+      async def disconnect(self) -> bool:
+          """Disconnect from VPN using njord."""
++ 
++         def handle_error(e: Exception) -> bool:
++             msg = f"Failed to disconnect: {e}"
++             raise VPNConnectionError(msg) from e
++ 
+          try:
+              # Run disconnect in thread pool
+  
+          except Exception as e:
+-             msg = f"Failed to disconnect: {e}"
+-             raise VPNConnectionError(msg) from e
++             return handle_error(e)
+  
+      async def status(self) -> dict[str, Any]:
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+<aside>
+Now I'll fix the `status` method, which also has a simple error handling pattern.
+</aside>
+
+---
+
+_****_
+
+```diff
+      async def status(self) -> dict[str, Any]:
+          """Get VPN connection status."""
++ 
++         def handle_error(e: Exception) -> dict[str, Any]:
++             msg = f"Failed to get status: {e}"
++             raise VPNStatusError(msg) from e
++ 
+          try:
+              # Run status check in thread pool
+  
+          except Exception as e:
+-             msg = f"Failed to get status: {e}"
+-             raise VPNStatusError(msg) from e
++             return handle_error(e)
+  
+      async def list_countries(self) -> list[str]:
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+
+
+
+
+<aside>
+Finally, I'll fix the `list_countries` method to complete the TRY301 fixes in njord.py.
+</aside>
+
+---
+
+_****_
+
+```diff
+      async def list_countries(self) -> list[str]:
+          """Get available countries from njord."""
++ 
++         def handle_error(e: Exception) -> list[str]:
++             msg = f"Failed to get countries: {e}"
++             raise VPNError(msg) from e
++ 
+          try:
+              # Run list_countries in thread pool
+  
+          except Exception as e:
+-             msg = f"Failed to get countries: {e}"
+-             raise VPNError(msg) from e
++             return handle_error(e)
+  
+      async def get_credentials(self) -> tuple[str, str]:
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+<aside>
+Now that I've fixed all TRY301 violations in njord.py, I'll update the TODO.md to reflect this progress.
+</aside>
+
+---
+
+_****_
+
+```diff
+    + [!] Fix TRY301 violations (Abstract raise to inner function):
+      - [x] Fix in legacy.py
+-     - [ ] Fix in njord.py
++     - [x] Fix in njord.py
+      - [ ] Fix in client.py
+      - [ ] Fix in nyord_vpn.py
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+<output>
+I've completed the following tasks:
+
+1. Fixed all TRY301 violations in njord.py by:
+   - Abstracting error handling to inner functions in all methods
+   - Ensuring proper return types for error handlers
+   - Maintaining consistent error message formatting
+   - Preserving exception chaining with `raise ... from e`
+   - Handling special cases like re-raising VPNError in connect()
+
+2. Updated TODO.md to reflect progress:
+   - Marked njord.py TRY301 fixes as completed
+   - Kept other tasks prioritized for next steps
+
+The next priority should be fixing TRY301 violations in client.py.
+</output>
+
+Wait, but... I notice that some of the error handling functions could be improved by making them more specific to their error types. Let me enhance the error handling in njord.py further.
+
+---
+
+_****_
+
+```diff
+          """
+  
+-         def handle_country_error(msg: str) -> str:
+-             raise VPNError(msg)
++         def handle_country_not_found(country: str) -> str:
++             raise VPNError(f"Country not found: {country}")
++ 
++         def handle_invalid_country(country_obj: Any) -> str:
++             raise VPNError(f"Invalid country object: {country_obj}")
++ 
++         def handle_unsupported_country(country: str) -> str:
++             raise VPNError(f"Country not supported: {country}")
++ 
++         def handle_no_servers(country: str) -> str:
++             raise VPNError(f"No servers found for country: {country}")
+  
+          def handle_request_error(e: Exception) -> str:
+                  country_obj = matches[0]
+              else:
+-                 return handle_country_error(f"Country not found: {country}")
++                 return handle_country_not_found(country)
+  
+          # Get alpha_2 code safely
+          alpha_2 = getattr(country_obj, "alpha_2", None)
+          if not alpha_2:
+-             return handle_country_error(f"Invalid country object: {country_obj}")
++             return handle_invalid_country(country_obj)
+  
+          country_id = get_country_id(alpha_2)
+          if not country_id:
+-             return handle_country_error(f"Country not supported: {country}")
++             return handle_unsupported_country(country)
+  
+          try:
+  
+              if not servers:
+-                 return handle_country_error(f"No servers found for country: {country}")
++                 return handle_no_servers(country)
+  
+              # Use cryptographically secure random choice
+          """
+  
+-         def handle_connection_error(e: Exception) -> bool:
+-             if isinstance(e, VPNError):
++         def handle_vpn_error(e: VPNError) -> bool:
+              # Re-raise VPN errors as-is
+              raise e
+-             msg = f"Failed to connect: {e}"
++ 
++         def handle_connection_error(e: Exception, context: str | None = None) -> bool:
++             msg = f"Failed to connect{f' - {context}' if context else ''}: {e}"
+              raise VPNConnectionError(msg) from e
+  
+              return self._connected
+  
++         except VPNError as e:
++             return handle_vpn_error(e)
+          except Exception as e:
+              return handle_connection_error(e)
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+
+
+<output>
+I've improved the error handling in njord.py by:
+
+1. Breaking down the generic `handle_country_error` into specific handlers:
+   - `handle_country_not_found`
+   - `handle_invalid_country`
+   - `handle_unsupported_country`
+   - `handle_no_servers`
+
+2. Enhanced the connection error handling:
+   - Separated VPN errors into their own handler
+   - Added context support to connection errors
+   - Made error messages more descriptive
+
+These changes make the error handling more specific and maintainable, while still satisfying the TRY301 requirements.
+</output>
+
 ---
 
 

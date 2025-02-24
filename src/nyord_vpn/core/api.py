@@ -64,13 +64,14 @@ class NordVPNAPIClient:
         BASE_API_URL: Base URL for NordVPN API
         BASE_API_V1_URL: Base URL for v1 API endpoints
         BASE_API_V2_URL: Base URL for v2 API endpoints
+
     """
 
     BASE_API_URL: str = "https://api.nordvpn.com"
     BASE_API_V1_URL: str = f"{BASE_API_URL}/v1"
     BASE_API_V2_URL: str = f"{BASE_API_URL}/v2"
 
-    def __init__(self, username: str, password: str, verbose: bool = False):
+    def __init__(self, username: str, password: str, verbose: bool = False) -> None:
         """Initialize the NordVPN API client.
 
         Sets up the client with authentication and configuration:
@@ -87,6 +88,7 @@ class NordVPNAPIClient:
         Note:
             The client doesn't validate credentials on initialization.
             Validation occurs on first API interaction.
+
         """
         self.username = username
         self.password = password
@@ -118,6 +120,7 @@ class NordVPNAPIClient:
             The method automatically updates the cache with fresh data
             on successful API requests. Cache format matches API response
             to ensure consistency.
+
         """
         try:
             url = f"{self.BASE_API_URL}/servers/countries"
@@ -162,6 +165,7 @@ class NordVPNAPIClient:
         Note:
             This method uses list_countries() internally, so it may
             trigger an API request if no cached data is available.
+
         """
         code = code.upper()
         for country in self.list_countries():
@@ -183,7 +187,7 @@ class NordVPNAPIClient:
         for country in sorted(self.list_countries(), key=lambda x: x["name"]):
             total_servers = country["serverCount"]
             locations.append(
-                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers"
+                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers",
             )
             for city in sorted(country["cities"], key=lambda x: x["name"]):
                 locations.append(f"  {city['name']} - {city['serverCount']} servers")
@@ -214,6 +218,7 @@ class NordVPNAPIClient:
             The hub score is a NordVPN metric combining various
             factors like infrastructure quality, server capacity,
             and network performance.
+
         """
         country = self.get_country_by_code(country_code)
         if not country:
@@ -242,14 +247,17 @@ class NordVPNAPIClient:
             This method is used during initialization and can be
             called periodically to verify API health. It uses a
             short timeout to quickly detect connectivity issues.
+
         """
         try:
             response = get(
-                f"{self.BASE_API_V2_URL}/servers", headers=API_HEADERS, timeout=5
+                f"{self.BASE_API_V2_URL}/servers",
+                headers=API_HEADERS,
+                timeout=5,
             )
             response.raise_for_status()
             return True
         except Exception as e:
             if self.verbose:
-                self.logger.error(f"API connectivity test failed: {e}")
+                self.logger.exception(f"API connectivity test failed: {e}")
             return False

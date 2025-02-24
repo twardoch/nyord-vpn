@@ -14,7 +14,7 @@ async def test_connection_success(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test successful VPN connection."""
     # Test primary API
     async with mock_client as client:
@@ -44,7 +44,7 @@ async def test_connection_failure(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test VPN connection failure handling."""
     # Test primary API failure
     mock_client.primary_api.connect.side_effect = VPNError("Primary API failed")
@@ -75,7 +75,7 @@ async def test_country_selection(
     mock_subprocess,
     mock_pycountry,
     mock_env_credentials,
-):
+) -> None:
     """Test VPN country selection."""
     # Test valid country
     async with mock_client as client:

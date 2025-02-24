@@ -4427,7 +4427,94 @@ ImportError: cannot import name 'logger' from 'nyord_vpn.utils' (/Users/adam/Dev
 
 _**Assistant**_
 
+I see the issue. The `logger` variable is not defined in `utils.py`, but we're trying to import it. Let's fix this by creating a logger instance in `utils.py` and exporting it:
 
+---
+
+_****_
+
+```diff
+      return logger
+  
++ 
++ # Create default logger instance
++ logger = get_logger()
+  
+  # Load country IDs from JSON file
+```
+
+---
+
+_****_
+
+
+
+Now let's update the `client.py` file to use the logger correctly:
+
+---
+
+_****_
+
+```diff
+      OPENVPN_CONFIG,
+      OPENVPN_LOG,
+-     logger,
++     get_logger,
+      load_vpn_state,
+      save_vpn_state,
+```
+
+---
+
+_****_
+
+
+
+The changes I've made:
+
+1. In `utils.py`:
+   - Added a default logger instance using `get_logger()`
+   - Exported the logger instance
+
+2. In `client.py`:
+   - Changed the import from `logger` to `get_logger`
+   - The remaining linter errors are unrelated to the logger issue
+
+These changes should resolve the ImportError you were seeing. The code should now be able to import and use the logger correctly.
+
+Wait, but let's also update the `Client` class to use the logger correctly:
+
+---
+
+_****_
+
+```diff
+          self._server: Optional[str] = None
+          self._country_name: Optional[str] = None
++         self.logger = get_logger(verbose)
+  
+          # Load saved state
+```
+
+---
+
+_****_
+
+
+
+The changes I've made:
+
+1. In `utils.py`:
+   - Added a default logger instance
+   - Exported both the logger instance and the `get_logger` function
+
+2. In `client.py`:
+   - Changed the import to use `get_logger` instead of `logger`
+   - Updated the `Client` class to create its own logger instance with the correct verbosity level
+
+The remaining linter errors are unrelated to the logging functionality and are about type checking in the OpenVPN process handling. The code should now work correctly with proper logging.
+
+Try running the code again - the ImportError should be resolved, and logging should work as expected.
 
 ---
 

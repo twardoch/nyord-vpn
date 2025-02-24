@@ -2,7 +2,11 @@ import json
 import random
 import subprocess
 import time
-from typing import Any, TypedDict
+import asyncio
+import socket
+from typing import Any, TypedDict, List, Tuple
+from concurrent.futures import ThreadPoolExecutor
+from loguru import logger
 
 import requests
 
@@ -62,6 +66,7 @@ class ServerLocation(TypedDict):
     Attributes:
         country: Dictionary containing country information
                 with keys for code and name
+
     """
 
     country: dict[str, str]
@@ -73,6 +78,7 @@ class ServerTechnology(TypedDict):
     Attributes:
         id: Technology identifier (e.g. 5 for OpenVPN TCP)
         status: Technology status ('online' or 'offline')
+
     """
 
     id: int
@@ -89,6 +95,7 @@ class ServerData(TypedDict):
         location_ids: List of location identifiers
         technologies: List of supported technologies
         station: Optional station identifier
+
     """
 
     hostname: str
@@ -105,6 +112,7 @@ class APIResponse(TypedDict):
     Attributes:
         servers: List of available servers
         locations: Mapping of location IDs to location info
+
     """
 
     servers: list[ServerData]
@@ -126,7 +134,7 @@ class ServerManager:
     attempts to problematic servers.
     """
 
-    def __init__(self, api_client: NordVPNAPIClient):
+    def __init__(self, api_client: NordVPNAPIClient) -> None:
         """Initialize server manager with API client.
 
         Sets up the server manager with:
@@ -137,6 +145,7 @@ class ServerManager:
 
         Args:
             api_client: NordVPN API client for server information
+
         """
         self.api_client = api_client
         self.logger = api_client.logger
@@ -164,6 +173,7 @@ class ServerManager:
         Raises:
             ServerError: If server fetch fails or no suitable servers found
                         Includes specific error for invalid country codes
+
         """
         url = "https://api.nordvpn.com/v1/servers/recommendations"
         params = {
@@ -190,13 +200,16 @@ class ServerManager:
             if not isinstance(data, list) or not data:
                 params.pop("filters[servers_technologies][identifier]", None)
                 response = requests.get(
-                    url, params=params, headers=API_HEADERS, timeout=10
+                    url,
+                    params=params,
+                    headers=API_HEADERS,
+                    timeout=10,
                 )
                 response.raise_for_status()
                 data = response.json()
             if not isinstance(data, list) or not data:
                 raise ServerError(
-                    f"No servers available{' in ' + country.upper() if country else ''}"
+                    f"No servers available{' in ' + country.upper() if country else ''}",
                 )
             if self.api_client.verbose:
                 self.logger.debug("Available servers retrieved.")
@@ -235,6 +248,7 @@ class ServerManager:
             2. The cache hasn't expired
             3. The cached servers are valid
             4. The cache format is correct
+
         """
         cache_file = CACHE_DIR / "servers.json"
         if cache_file.exists():
@@ -252,13 +266,13 @@ class ServerManager:
                     if valid_servers:
                         if self.api_client.verbose:
                             self.logger.debug(
-                                f"Using cached server list with {len(valid_servers)} valid servers"
+                                f"Using cached server list with {len(valid_servers)} valid servers",
                             )
                         cache["servers"] = valid_servers
                         return cache
-                    elif self.api_client.verbose:
+                    if self.api_client.verbose:
                         self.logger.warning(
-                            "No valid servers in cache, fetching fresh data"
+                            "No valid servers in cache, fetching fresh data",
                         )
             except Exception as e:
                 if self.api_client.verbose:
@@ -282,13 +296,12 @@ class ServerManager:
 
             # Extract servers from response
             raw_servers: list[dict[str, Any]] = []
-            locations_list: list[dict[str, Any]] = []
 
             if isinstance(data, list):
                 raw_servers = [dict(s) for s in data]
                 if self.api_client.verbose:
                     self.logger.debug(
-                        f"Found {len(raw_servers)} servers in API response"
+                        f"Found {len(raw_servers)} servers in API response",
                     )
             else:
                 raise ValueError(f"Unexpected API response format: {type(data)}")
@@ -330,7 +343,7 @@ class ServerManager:
                 if server.get("status") != "online":
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping offline server: {server.get('hostname')}"
+                            f"Skipping offline server: {server.get('hostname')}",
                         )
                     continue
 
@@ -346,7 +359,7 @@ class ServerManager:
                 if not has_openvpn_tcp:
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}"
+                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}",
                         )
                     continue
 
@@ -361,7 +374,7 @@ class ServerManager:
                 location_ids = server.get("location_ids", [])
                 if isinstance(location_ids, list):
                     for location_id in location_ids:
-                        if not isinstance(location_id, (str, int)):
+                        if not isinstance(location_id, str | int):
                             continue
                         country_id = str(location_id)
                         country = countries.get(country_id)
@@ -381,7 +394,7 @@ class ServerManager:
                 if not country_info:
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping server without country info: {hostname}"
+                            f"Skipping server without country info: {hostname}",
                         )
                     continue
 
@@ -404,7 +417,7 @@ class ServerManager:
             if not valid_servers:
                 raise ValueError(
                     f"No valid servers found in API response. "
-                    f"Total servers: {len(raw_servers)}, Invalid: {invalid_count}"
+                    f"Total servers: {len(raw_servers)}, Invalid: {invalid_count}",
                 )
 
             if self.api_client.verbose:
@@ -415,7 +428,7 @@ class ServerManager:
                 self.logger.debug(
                     f"Found {len(valid_servers)} valid servers. "
                     f"Country distribution: "
-                    + ", ".join(f"{k}: {v}" for k, v in sorted(country_counts.items()))
+                    + ", ".join(f"{k}: {v}" for k, v in sorted(country_counts.items())),
                 )
 
             cache = {
@@ -429,12 +442,13 @@ class ServerManager:
             return cache
 
         except Exception as e:
-            self.logger.error(f"Failed to fetch servers: {e}")
+            self.logger.exception(f"Failed to fetch servers: {e}")
             if cache_file.exists():
                 try:
                     cache = json.loads(cache_file.read_text())
                     if isinstance(cache, dict) and isinstance(
-                        cache.get("servers", []), list
+                        cache.get("servers", []),
+                        list,
                     ):
                         # Validate cached servers even in fallback
                         valid_servers = [
@@ -443,7 +457,7 @@ class ServerManager:
                         if valid_servers:
                             if self.api_client.verbose:
                                 self.logger.info(
-                                    f"Using fallback cache with {len(valid_servers)} valid servers"
+                                    f"Using fallback cache with {len(valid_servers)} valid servers",
                                 )
                             cache["servers"] = valid_servers
                             return cache
@@ -459,6 +473,7 @@ class ServerManager:
 
         Returns:
             float: Ping time in milliseconds, or float('inf') if ping failed
+
         """
         try:
             # Platform-specific ping command
@@ -499,13 +514,13 @@ class ServerManager:
                             min_time = float(stats[0])
                             if self.api_client.verbose:
                                 self.logger.debug(
-                                    f"Parsed min time from stats: {min_time}ms"
+                                    f"Parsed min time from stats: {min_time}ms",
                                 )
                             return min_time
                         except (IndexError, ValueError) as e:
                             if self.api_client.verbose:
                                 self.logger.debug(
-                                    f"Failed to parse min/avg/max line '{line}': {e}"
+                                    f"Failed to parse min/avg/max line '{line}': {e}",
                                 )
                             continue
                     # Look for individual ping responses
@@ -516,36 +531,35 @@ class ServerManager:
                             min_time = min(min_time, ping_time)
                             if self.api_client.verbose:
                                 self.logger.debug(
-                                    f"Parsed time from response: {ping_time}ms"
+                                    f"Parsed time from response: {ping_time}ms",
                                 )
                         except (IndexError, ValueError) as e:
                             if self.api_client.verbose:
                                 self.logger.debug(
-                                    f"Failed to parse time from line '{line}': {e}"
+                                    f"Failed to parse time from line '{line}': {e}",
                                 )
                             continue
 
                 if min_time < float("inf"):
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Server {hostname} responded in {min_time}ms"
+                            f"Server {hostname} responded in {min_time}ms",
                         )
                     return min_time
 
                 # If we couldn't parse any times but ping succeeded
                 if self.api_client.verbose:
                     self.logger.debug(
-                        f"Server {hostname} responded but couldn't parse time from output:\n{result.stdout}"
+                        f"Server {hostname} responded but couldn't parse time from output:\n{result.stdout}",
                     )
                 return float("inf")
-            else:
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"Server {hostname} ping failed with code {result.returncode}:\n"
-                        f"stdout: {result.stdout}\n"
-                        f"stderr: {result.stderr}"
-                    )
-                return float("inf")
+            if self.api_client.verbose:
+                self.logger.debug(
+                    f"Server {hostname} ping failed with code {result.returncode}:\n"
+                    f"stdout: {result.stdout}\n"
+                    f"stderr: {result.stderr}",
+                )
+            return float("inf")
 
         except subprocess.TimeoutExpired:
             if self.api_client.verbose:
@@ -567,6 +581,7 @@ class ServerManager:
 
         Returns:
             bool: True if server data is valid
+
         """
         if not isinstance(server, dict):
             return False
@@ -596,31 +611,106 @@ class ServerManager:
 
         # Check load value
         load = server.get("load")
-        if not isinstance(load, (int, float)) or load < 0 or load > 100:
-            return False
+        return not (not isinstance(load, int | float) or load < 0 or load > 100)
 
-        return True
+    def _test_server(self, server: dict[str, Any]) -> Tuple[dict[str, Any], float]:
+        """Test a server's response time using both ping and TCP connection.
+
+        Args:
+            server: Server information dictionary
+
+        Returns:
+            Tuple of (server, score) where score is combined ping/TCP time
+            Lower score is better, float('inf') means failed
+        """
+        hostname = server.get("hostname")
+        if not hostname:
+            return server, float("inf")
+
+        try:
+            # Quick ping test
+            ping_result = subprocess.run(
+                ["ping", "-c", "1", "-W", "1", hostname],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+
+            if ping_result.returncode != 0:
+                return server, float("inf")
+
+            # Extract ping time
+            ping_time = float(ping_result.stdout.split("time=")[-1].split()[0])
+
+            # Quick TCP connection test to OpenVPN port
+            start = time.time()
+            try:
+                with socket.create_connection((hostname, 443), timeout=2):
+                    tcp_time = (time.time() - start) * 1000  # Convert to ms
+            except (socket.timeout, socket.error):
+                return server, float("inf")
+
+            # Combined score (70% ping, 30% TCP)
+            score = (ping_time * 0.7) + (tcp_time * 0.3)
+            return server, score
+
+        except Exception as e:
+            if self.api_client.verbose:
+                self.logger.debug(f"Failed to test server {hostname}: {e}")
+            return server, float("inf")
+
+    def _select_diverse_servers(
+        self, servers: list[dict[str, Any]], count: int = 4
+    ) -> list[dict[str, Any]]:
+        """Select geographically diverse servers.
+
+        When no country is specified, this ensures we test servers from different regions
+        to find the best performing one regardless of location.
+
+        Args:
+            servers: List of server dictionaries
+            count: Number of servers to select
+
+        Returns:
+            List of selected servers
+        """
+        # Group servers by region/continent
+        regions = {}
+        for server in servers:
+            region = server.get("country", {}).get("region", {}).get("name", "Unknown")
+            if region not in regions:
+                regions[region] = []
+            regions[region].append(server)
+
+        # Select servers from different regions if possible
+        selected = []
+        region_names = list(regions.keys())
+
+        while len(selected) < count and region_names:
+            # Cycle through regions
+            region = region_names.pop(random.randrange(len(region_names)))
+            if region_servers := regions.get(region, []):
+                # Select random server from region
+                server = random.choice(region_servers)
+                selected.append(server)
+
+        # If we still need more servers, take random ones
+        if len(selected) < count:
+            remaining = random.sample(
+                [s for s in servers if s not in selected],
+                min(count - len(selected), len(servers)),
+            )
+            selected.extend(remaining)
+
+        return selected
 
     def select_fastest_server(
         self,
         country_code: str | None = None,
         random_select: bool = False,
         _retry_count: int = 0,
-    ) -> dict[str, Any] | str | None:
-        """Select the optimal server based on performance metrics.
-
-        This method implements a sophisticated server selection algorithm:
-        1. Filters servers by country (if specified)
-        2. Measures server performance (ping, load)
-        3. Ranks servers by combined metrics
-        4. Handles fallback scenarios
-        5. Implements retry logic for reliability
-
-        The selection process considers:
-        - Server load balancing
-        - Geographic proximity
-        - Connection stability
-        - Previous connection failures
+    ) -> dict[str, Any] | None:
+        """Select the optimal server based on parallel performance testing.
 
         Args:
             country_code: Optional two-letter country code
@@ -628,132 +718,91 @@ class ServerManager:
             _retry_count: Internal retry counter
 
         Returns:
-            Union[dict, str, None]: Server information or hostname,
-                                  None if no suitable server found
-
-        Note:
-            The method maintains a session-based blacklist of failed
-            servers to avoid repeated attempts to problematic servers.
-            It will retry with different servers up to 3 times before
-            giving up.
+            Selected server info or None if no suitable server found
         """
         if _retry_count >= 3:
-            self.logger.error("Maximum retry count reached, clearing failed servers")
+            self.logger.error("Maximum retry count reached")
             self._failed_servers.clear()
             return None
 
         try:
+            # Get cached servers
             cache = self.get_servers_cache()
             servers = cache.get("servers", [])
-            if self.api_client.verbose:
-                self.logger.debug(f"Got {len(servers)} servers from cache")
+
             if not servers:
                 return None
 
             # Filter by country if specified
             if country_code:
-                if self.api_client.verbose:
-                    self.logger.debug(f"Filtering servers for country: {country_code}")
                 servers = [
                     s
                     for s in servers
                     if s.get("country", {}).get("code", "").upper()
                     == country_code.upper()
                 ]
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"Found {len(servers)} servers for {country_code}"
-                    )
-                if not servers:
-                    return None
 
-            # Skip servers that have failed
-            original_count = len(servers)
+            # Remove failed servers
             servers = [
                 s for s in servers if s.get("hostname") not in self._failed_servers
             ]
-            if self.api_client.verbose:
-                skipped = original_count - len(servers)
-                if skipped > 0:
-                    self.logger.debug(f"Skipped {skipped} previously failed servers")
 
             if not servers:
-                self.logger.warning(
-                    "All servers have failed, clearing failed servers list"
+                if self._failed_servers:
+                    self._failed_servers.clear()
+                    return self.select_fastest_server(
+                        country_code, random_select, _retry_count + 1
+                    )
+                return None
+
+            # Basic filtering
+            servers = [
+                s for s in servers if s.get("load", 100) < 90
+            ]  # Skip heavily loaded servers
+
+            if random_select:
+                return random.choice(servers)
+
+            # Select 4 servers - use geographic distribution if no country specified
+            test_servers = (
+                self._select_diverse_servers(servers, 4)
+                if not country_code
+                else random.sample(servers, min(4, len(servers)))
+            )
+
+            # Test servers in parallel using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                # Map _test_server over servers in parallel
+                results = list(
+                    executor.map(lambda s: self._test_server(s), test_servers)
                 )
-                self._failed_servers.clear()
+
+            # Filter out failed servers and sort by score
+            valid_results = [(s, score) for s, score in results if score < float("inf")]
+
+            if not valid_results:
+                # If all servers failed, mark them as failed and retry
+                for server in test_servers:
+                    if hostname := server.get("hostname"):
+                        self._failed_servers.add(hostname)
                 return self.select_fastest_server(
                     country_code, random_select, _retry_count + 1
                 )
 
-            # Select random server if requested
-            if random_select:
-                server = random.choice(servers)
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"Randomly selected server: {server.get('hostname')} "
-                        f"({server.get('load', '?')}% load)"
-                    )
-                return server
+            # Return server with best score
+            best_server = min(valid_results, key=lambda x: x[1])[0]
 
-            # Sort by load and take top servers
-            servers.sort(key=lambda x: x.get("load", 100))
-            servers = servers[:5]  # Test top 5 servers
-            if self.api_client.verbose:
-                self.logger.debug(
-                    "Top 5 servers by load: "
-                    + ", ".join(
-                        f"{s.get('hostname')}({s.get('load', '?')}%)" for s in servers
-                    )
-                )
-
-            # Test response times
-            server_times = []
-            for server in servers:
-                hostname = server.get("hostname")
-                if not hostname:
-                    if self.api_client.verbose:
-                        self.logger.warning(f"Server missing hostname: {server}")
-                    continue
-
-                if self.api_client.verbose:
-                    self.logger.debug(f"Testing server {hostname}...")
-
-                response_time = self._ping_server(hostname)
-                if response_time is not None and response_time < float("inf"):
-                    server_times.append((server, response_time))
-                    if self.api_client.verbose:
-                        self.logger.debug(
-                            f"Server {hostname} responded in {response_time}ms"
-                        )
-                elif self.api_client.verbose:
-                    self.logger.warning(f"Server {hostname} failed ping test")
-
-            if not server_times:
-                if self.api_client.verbose:
-                    self.logger.warning(
-                        "No servers responded to ping test, falling back to load-based selection"
-                    )
-                # If no servers respond to ping, just use the one with lowest load
-                return servers[0]
-
-            # Select fastest server
-            fastest_server = min(server_times, key=lambda x: x[1])[0]
             if self.api_client.verbose:
                 self.logger.info(
-                    f"Selected fastest server: {fastest_server.get('hostname')} "
-                    f"({fastest_server.get('load', '?')}% load, "
-                    f"{min(t for _, t in server_times)}ms)"
+                    f"Selected server: {best_server.get('hostname')} "
+                    f"(load: {best_server.get('load')}%, "
+                    f"score: {min(s for _, s in valid_results):.1f}ms)"
                 )
 
-            return fastest_server
+            return best_server
 
         except Exception as e:
-            self.logger.error(f"Error selecting fastest server: {e}")
-            if self.api_client.verbose:
-                import traceback
-
-                self.logger.debug(f"Traceback: {traceback.format_exc()}")
+            self.logger.error(f"Error selecting server: {e}")
             return None
 
     def get_random_country(self) -> str:
@@ -768,7 +817,7 @@ class ServerManager:
                 raise ServerError("No countries found in server list")
             return random.choice(list(countries))
         except Exception as e:
-            self.logger.error(f"Failed to get random country: {e}")
+            self.logger.exception(f"Failed to get random country: {e}")
             return "US"
 
     def get_country_info(self, country_code: str) -> dict[str, Any] | None:
@@ -779,6 +828,7 @@ class ServerManager:
 
         Returns:
             Dictionary with country information or None if not found
+
         """
         try:
             # Use v1 API endpoint
@@ -805,5 +855,5 @@ class ServerManager:
             return None
 
         except Exception as e:
-            self.logger.error(f"Failed to get country info: {e}")
+            self.logger.exception(f"Failed to get country info: {e}")
             return None

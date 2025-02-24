@@ -5399,7 +5399,205 @@ vpn.protected()://github.com/admjs/njord promises
 
 _**Assistant**_
 
+I see the issue - the njord library seems to be having problems. Let me fix the CLI to handle this better and make the legacy API the default since it's more reliable:
 
+---
+
+_****_
+
+
+
+---
+
+_****_
+
+
+
+Let me try again with a more precise edit:
+
+---
+
+_****_
+
+```diff
+          password: str | None = None,
+          log_file: str | None = None,
+-         api: Literal["njord", "legacy"] | None = None,
++         api: Literal["njord", "legacy"] = "legacy",
+          verbose: bool = False,
+      ):
+              password: Optional password
+              log_file: Optional path to log file
+-             api: API to use ('njord' or 'legacy')
++             api: API to use ('njord' or 'legacy', defaults to 'legacy')
+              verbose: Enable verbose output
+          """
+```
+
+---
+
+_****_
+
+
+
+Now let me update the client initialization to handle the API choice better:
+
+---
+
+_****_
+
+```diff
+          """Get VPN client instance."""
+          try:
++             use_legacy = self.api == "legacy"
++             if self.verbose and not use_legacy:
++                 console.print(
++                     "[yellow]Warning: njord API is experimental and may have issues. Use --api legacy for more reliable connection.[/yellow]"
++                 )
+              return VPNClient(
+                  config_file=self.config,
+                  username=self.username,
+                  password=self.password,
+                  log_file=self.log_file,
+-                 use_legacy_api=self.api == "legacy",
++                 use_legacy_api=use_legacy,
+              )
+          except VPNConfigError as e:
+```
+
+---
+
+_****_
+
+
+
+I've made two important changes:
+
+1. Made the legacy API the default by changing the `api` parameter default value to `"legacy"` instead of `None`
+2. Added a warning message when using the njord API in verbose mode to inform users about potential issues
+
+Now when you run the command:
+
+```bash
+nyord-vpn connect de
+```
+
+It will use the legacy API by default, which is more reliable. If you want to try the njord API, you can explicitly specify it:
+
+```bash
+nyord-vpn connect de --api njord --verbose
+```
+
+This will show a warning about potential issues with the njord API.
+
+The legacy API implementation is more robust as it:
+1. Uses the official NordVPN API endpoints directly
+2. Has better error handling
+3. Includes proper connection verification
+4. Provides more detailed status information
+
+I recommend sticking with the legacy API for now, as the njord library seems to have some issues with its API implementation, particularly around JSON response handling.
+
+Wait, but let me also improve the error handling for the njord API specifically:
+
+---
+
+_****_
+
+```diff
+  import sys
+  from typing import NoReturn, Literal
++ import json
+  
+  import fire
+                  try:
+                      await client.connect(country)
++                 except json.JSONDecodeError as e:
++                     if not self.api == "legacy":
++                         console.print("\n[red]Error with njord API response![/red]")
++                         console.print(
++                             "[yellow]Try using --api legacy for more reliable connection[/yellow]"
++                         )
++                     raise VPNError(f"API response error: {e}")
+                  except Exception as e:
+                      console.print("\n[red]Connection failed![/red]")
+```
+
+---
+
+_****_
+
+
+
+Now the CLI will:
+1. Use the legacy API by default
+2. Show a warning if using the experimental njord API
+3. Provide helpful suggestions to switch to legacy API if njord API fails
+4. Handle JSON decode errors gracefully with clear error messages
+
+Wait, but let me also add a check for the njord module availability:
+
+---
+
+_****_
+
+```diff
+          try:
+              use_legacy = self.api == "legacy"
+-             if self.verbose and not use_legacy:
++             if not use_legacy:
++                 try:
++                     import njord  # type: ignore
++                 except ImportError:
++                     console.print(
++                         "[red]Error: njord API requested but njord module not found![/red]"
++                     )
++                     console.print(
++                         "[yellow]Install njord with: pip install njord[/yellow]"
++                     )
++                     console.print(
++                         "[yellow]Or use --api legacy for built-in implementation[/yellow]"
++                     )
++                     raise VPNError("njord module not found")
++ 
++                 if self.verbose:
+                      console.print(
+                          "[yellow]Warning: njord API is experimental and may have issues. Use --api legacy for more reliable connection.[/yellow]"
+                      )
++ 
+              return VPNClient(
+                  config_file=self.config,
+```
+
+---
+
+_****_
+
+
+
+These changes make the CLI much more robust when dealing with the njord API:
+
+1. It checks if the njord module is available when requested
+2. Provides clear instructions if njord is not installed
+3. Suggests using the legacy API as an alternative
+4. Still maintains all the previous improvements for error handling and user feedback
+
+The command-line interface will now be much more user-friendly, especially when dealing with API-related issues. Users will get clear guidance on:
+- Which API to use (legacy by default)
+- What to do if njord is not installed
+- What to do if njord API fails
+- How to switch to the more reliable legacy API
+
+I recommend using the legacy API with:
+```bash
+nyord-vpn connect de
+```
+Or explicitly:
+```bash
+nyord-vpn connect de --api legacy
+```
+
+This will give you the most reliable VPN connection experience.
 
 ---
 
