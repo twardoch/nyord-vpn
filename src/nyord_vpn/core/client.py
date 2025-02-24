@@ -44,14 +44,12 @@ from rich.logging import RichHandler
 from nyord_vpn.storage.models import (
     ConnectionError,
     VPNError,
-    ServerError,
 )
 from nyord_vpn.utils.utils import (
     CACHE_DIR,
     CONFIG_DIR,
     DATA_DIR,
     save_vpn_state,
-    OPENVPN_AUTH,
 )
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.core.api import NordVPNAPIClient
@@ -203,8 +201,16 @@ class Client:
         self.logger = logger
 
         # Get credentials from env vars if not provided
-        self.username = username_str or os.environ.get("NORD_USER") or os.environ.get("NORDVPN_LOGIN")
-        self.password = password_str or os.environ.get("NORD_PASSWORD") or os.environ.get("NORDVPN_PASSWORD")
+        self.username = (
+            username_str
+            or os.environ.get("NORD_USER")
+            or os.environ.get("NORDVPN_LOGIN")
+        )
+        self.password = (
+            password_str
+            or os.environ.get("NORD_PASSWORD")
+            or os.environ.get("NORDVPN_PASSWORD")
+        )
 
         if not self.username or not self.password:
             raise VPNError(
@@ -218,7 +224,7 @@ class Client:
             api_client=self.api_client,
             server_manager=self.server_manager,
             vpn_manager=self,  # This is a bit circular but needed for the current structure
-            verbose=verbose
+            verbose=verbose,
         )
 
         # Set up VPN credentials
@@ -258,6 +264,7 @@ class Client:
 
         Raises:
             VPNError: If connection fails
+
         """
         try:
             # First check if we're already connected
@@ -265,7 +272,9 @@ class Client:
             if status.get("connected", False):
                 # VPN manager will handle disconnection automatically
                 if self.verbose:
-                    self.logger.info("Already connected, will disconnect before connecting to new server")
+                    self.logger.info(
+                        "Already connected, will disconnect before connecting to new server"
+                    )
 
             # Select fastest servers
             servers = self.server_manager.select_fastest_server(country_code)
@@ -285,9 +294,7 @@ class Client:
             # Set up VPN configuration
             if not self.username or not self.password:
                 raise VPNError("Missing VPN credentials")
-            self.vpn_manager.setup_connection(
-                hostname, self.username, self.password
-            )
+            self.vpn_manager.setup_connection(hostname, self.username, self.password)
 
             # Connect to VPN
             if self.verbose:
@@ -371,9 +378,7 @@ class Client:
                 console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
             else:
                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
-                console.print(
-                    f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]"
-                )
+                console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
         except Exception as e:
             raise VPNError(f"Failed to get status: {e}")
 

@@ -28,7 +28,7 @@ def server_manager(mock_api_client):
     return ServerManager(mock_api_client)
 
 
-def test_openvpn_tcp_validation(server_manager):
+def test_openvpn_tcp_validation(server_manager) -> None:
     """Test OpenVPN TCP technology validation."""
     # Test regular OpenVPN TCP
     server = {
@@ -140,7 +140,7 @@ def test_openvpn_tcp_validation(server_manager):
     assert server_manager._is_valid_server(server) is False
 
 
-def test_server_filtering(server_manager, mock_api_client):
+def test_server_filtering(server_manager, mock_api_client) -> None:
     """Test server filtering in get_servers_cache."""
     # Mock API response with various server types
     mock_api_client.get.return_value.json.return_value = [
@@ -192,9 +192,13 @@ def test_server_filtering(server_manager, mock_api_client):
     assert any(s["hostname"] == "tcp2.nordvpn.com" for s in servers)
 
     # Verify logging
-    mock_api_client.logger.debug.assert_any_call("Found OpenVPN TCP support: OpenVPN TCP")
-    mock_api_client.logger.debug.assert_any_call("Found OpenVPN TCP support: OpenVPN TCP Dedicated")
+    mock_api_client.logger.debug.assert_any_call(
+        "Found OpenVPN TCP support: OpenVPN TCP"
+    )
+    mock_api_client.logger.debug.assert_any_call(
+        "Found OpenVPN TCP support: OpenVPN TCP Dedicated"
+    )
     mock_api_client.logger.debug.assert_any_call(
         "Skipping server without OpenVPN TCP: udp1.nordvpn.com. "
         "Available technologies: ['OpenVPN UDP']"
-    ) 
+    )

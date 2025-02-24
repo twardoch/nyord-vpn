@@ -2,10 +2,10 @@
 description: File tree of the project
 globs: 
 ---
-[ 896]  .
+[ 832]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [7.2K]  filetree.mdc
+│       ├── [7.3K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -14,7 +14,7 @@ globs:
 ├── [3.5K]  .gitignore
 ├── [ 532]  .pre-commit-config.yaml
 ├── [ 160]  .specstory
-│   ├── [1.6K]  history
+│   ├── [1.8K]  history
 │   │   ├── [2.0K]  .what-is-this.md
 │   │   ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
 │   │   ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
@@ -64,7 +64,14 @@ globs:
 │   │   ├── [287K]  2025-02-24_06-17-vpn-connection-management-with-nyord-vpn.md
 │   │   ├── [210K]  2025-02-24_06-58-vpn-connection-troubleshooting.md
 │   │   ├── [105K]  2025-02-24_07-15-vpn-connection-troubleshooting-and-improvements.md
-│   │   └── [6.2K]  2025-02-24_07-20-fixing-import-error-in-vpn-module.md
+│   │   ├── [6.2K]  2025-02-24_07-20-fixing-import-error-in-vpn-module.md
+│   │   ├── [1006K]  2025-02-24_07-36-fixing-importerror-in-nyord-vpn-code.md
+│   │   ├── [618K]  2025-02-24_07-57-vpn-server-connection-debugging.md
+│   │   ├── [403K]  2025-02-24_08-01-vpn-server-selection-errors-and-debugging.md
+│   │   ├── [245K]  2025-02-24_08-10-vpn-server-availability-issues.md
+│   │   ├── [244K]  2025-02-24_17-19-vpn-country-resolution-issue.md
+│   │   ├── [164K]  2025-02-24_17-43-vpn-connection-issue-no-servers-in-germany.md
+│   │   └── [ 20K]  2025-02-24_18-03-refining-api-documentation-and-structure.md
 │   └── [5.8M]  history.txt
 ├── [1.0K]  LICENSE
 ├── [5.5K]  README.md
@@ -72,28 +79,47 @@ globs:
 ├── [ 12K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [310K]  nyord_vpn.txt
+├── [871K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
-├── [ 192]  src
+├── [ 160]  src
 │   ├── [   0]  __init__.py
-│   └── [ 416]  nyord_vpn
+│   └── [ 448]  nyord_vpn
 │       ├── [2.3K]  __init__.py
 │       ├── [2.5K]  __main__.py
+│       ├── [ 480]  api
+│       │   ├── [  96]  .specstory
+│       │   │   └── [ 128]  history
+│       │   │       ├── [2.0K]  .what-is-this.md
+│       │   │       └── [ 41K]  2025-02-24_18-15-creating-endpoints-for-json-files.md
+│       │   ├── [7.4K]  api.py
+│       │   ├── [ 27K]  v1_countries.json
+│       │   ├── [4.9K]  v1_countries.py
+│       │   ├── [5.2K]  v1_groups.json
+│       │   ├── [3.9K]  v1_groups.py
+│       │   ├── [ 67K]  v1_recommendations.json
+│       │   ├── [6.5K]  v1_recommendations.py
+│       │   ├── [4.2K]  v1_technologies.json
+│       │   ├── [3.5K]  v1_technologies.py
+│       │   ├── [ 97K]  v2_servers.json
+│       │   └── [9.2K]  v2_servers.py
 │       ├── [ 256]  core
 │       │   ├── [ 178]  __init__.py
 │       │   ├── [9.1K]  api.py
 │       │   ├── [6.4K]  base.py
-│       │   └── [ 13K]  client.py
-│       ├── [ 128]  data
+│       │   └── [ 15K]  client.py
+│       ├── [ 192]  data
+│       │   ├── [  96]  .specstory
+│       │   │   └── [  96]  history
+│       │   │       └── [2.0K]  .what-is-this.md
 │       │   ├── [ 93K]  countries.json
 │       │   └── [ 963]  country_ids.json
 │       ├── [7.2K]  exceptions.py
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 38K]  server.py
-│       │   ├── [ 42K]  vpn.py
+│       │   ├── [ 35K]  server.py
+│       │   ├── [ 47K]  vpn.py
 │       │   └── [4.7K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
@@ -108,7 +134,7 @@ globs:
 │           ├── [  64]  data
 │           ├── [ 12K]  templates.py
 │           └── [9.4K]  utils.py
-├── [ 320]  tests
+├── [ 352]  tests
 │   ├── [  40]  __init__.py
 │   ├── [2.6K]  conftest.py
 │   ├── [ 288]  integration
@@ -119,7 +145,8 @@ globs:
 │   │   └── [1.4K]  test_validation_integration.py
 │   ├── [2.0K]  test_client.py
 │   ├── [3.5K]  test_legacy_api.py
-│   └── [ 159]  test_package.py
+│   ├── [ 159]  test_package.py
+│   └── [6.3K]  test_server_manager.py
 └── [264K]  uv.lock
 
-19 directories, 100 files
+24 directories, 122 files

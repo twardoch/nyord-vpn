@@ -40,7 +40,7 @@ The manager implements robust connection handling with:
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 import requests
 from loguru import logger
 import psutil
@@ -98,7 +98,7 @@ class VPNConnectionManager:
         server_manager: ServerManager,
         vpn_manager: Any,
         verbose: bool = False,
-    ):
+    ) -> None:
         """Initialize VPN connection manager.
 
         Args:
@@ -106,6 +106,7 @@ class VPNConnectionManager:
             server_manager: Server manager instance
             vpn_manager: VPN manager instance
             verbose: Whether to enable verbose logging
+
         """
         self.api_client = api_client
         self.server_manager = server_manager
@@ -445,7 +446,9 @@ class VPNConnectionManager:
                 # Store full country name from server data
                 try:
                     location_ids = server.get("location_ids", [])
-                    locations = self.server_manager.get_servers_cache().get("locations", {})
+                    locations = self.server_manager.get_servers_cache().get(
+                        "locations", {}
+                    )
                     for loc_id in location_ids:
                         location = locations.get(str(loc_id))
                         if location and location.get("country"):
@@ -453,7 +456,9 @@ class VPNConnectionManager:
                             break
                 except Exception as e:
                     if self.verbose:
-                        self.logger.warning(f"Failed to get country name from server data: {e}")
+                        self.logger.warning(
+                            f"Failed to get country name from server data: {e}"
+                        )
                     self._country_name = None
 
                 # Ensure OpenVPN is available
@@ -1013,7 +1018,7 @@ class VPNConnectionManager:
                             # Get location info
                             location_ids = server.get("location_ids", [])
                             locations = cache.get("locations", {})
-                            
+
                             # Find matching location with country info
                             for loc_id in location_ids:
                                 location = locations.get(str(loc_id))
@@ -1024,14 +1029,16 @@ class VPNConnectionManager:
 
                 # Fallback to hostname parsing if server not found in cache
                 if not status["country"]:
-                    country_code = self._server.split('.')[0][:2].upper()
+                    country_code = self._server.split(".")[0][:2].upper()
                     country = self.api_client.get_country_by_code(country_code)
                     if country:
                         status["country"] = country["name"]
 
             except Exception as e:
                 if self.verbose:
-                    self.logger.warning(f"Failed to get country information from server data: {e}")
+                    self.logger.warning(
+                        f"Failed to get country information from server data: {e}"
+                    )
 
         return status
 
@@ -1116,6 +1123,7 @@ class VPNConnectionManager:
 
         Raises:
             VPNError: If connection fails
+
         """
         if not check_root():
             ensure_root()
@@ -1127,7 +1135,9 @@ class VPNConnectionManager:
             if status.get("connected", False):
                 # Automatically disconnect before connecting to new server
                 if self.verbose:
-                    self.logger.info("Disconnecting from current server before connecting to new one")
+                    self.logger.info(
+                        "Disconnecting from current server before connecting to new one"
+                    )
                 self.disconnect()
 
             # Get fastest servers
@@ -1138,7 +1148,9 @@ class VPNConnectionManager:
             if self.verbose:
                 self.logger.info(f"Selected {len(servers)} servers to try")
                 for i, server in enumerate(servers, 1):
-                    self.logger.info(f"{i}. {server.get('hostname')} (load: {server.get('load')}%)")
+                    self.logger.info(
+                        f"{i}. {server.get('hostname')} (load: {server.get('load')}%)"
+                    )
 
             # Try servers in order until one works
             errors = []
@@ -1154,27 +1166,31 @@ class VPNConnectionManager:
                         console.print(f"Trying server: [cyan]{hostname}[/cyan]")
 
                     # Set up VPN configuration
-                    self.setup_connection(hostname, self.api_client.username, self.api_client.password)
+                    self.setup_connection(
+                        hostname, self.api_client.username, self.api_client.password
+                    )
 
                     # Try to connect
                     self.connect([server])  # Pass as list for compatibility
-                    
+
                     # If we get here, connection succeeded
                     if self.verbose:
                         self.logger.info(f"Successfully connected to {hostname}")
                     return
 
                 except Exception as e:
-                    error_msg = f"{hostname if hostname else 'Unknown server'}: {str(e)}"
+                    error_msg = f"{hostname if hostname else 'Unknown server'}: {e!s}"
                     errors.append(error_msg)
                     if self.verbose:
-                        self.logger.warning(f"Failed to connect to {hostname if hostname else 'Unknown server'}: {e}")
+                        self.logger.warning(
+                            f"Failed to connect to {hostname if hostname else 'Unknown server'}: {e}"
+                        )
                     continue
 
             # If we get here, all servers failed
             raise VPNError(
-                f"Failed to connect to any server in {country_code}:\n" + 
-                "\n".join(f"- {e}" for e in errors)
+                f"Failed to connect to any server in {country_code}:\n"
+                + "\n".join(f"- {e}" for e in errors)
             )
 
         except Exception as e:
