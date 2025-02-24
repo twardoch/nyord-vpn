@@ -75,8 +75,8 @@ Environment Variables:
     NORD_PASSWORD: NordVPN password
 """
 
-from src.nyord_vpn.core.client import Client
-from src.nyord_vpn.storage.models import (
+from nyord_vpn.core.client import Client
+from nyord_vpn.storage.models import (
     ConnectionError,
     CredentialsError,
     ServerError,

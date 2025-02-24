@@ -10,8 +10,8 @@ import fire
 from rich.console import Console
 from rich.table import Table
 
-from src.nyord_vpn.core.client import Client, VPNError
-from src.nyord_vpn.scripts.update_countries import fetch_countries
+from nyord_vpn.core.client import Client, VPNError
+from nyord_vpn.scripts.update_countries import fetch_countries
 
 console = Console()
 

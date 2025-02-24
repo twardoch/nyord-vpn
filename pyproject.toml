@@ -72,7 +72,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pre-commit>=3.6.0",
-    "ruff>=0.1.0",
+    "ruff>=0.9.7",
     "mypy>=1.0.0",
     "pyupgrade>=3.19.0",
 ]

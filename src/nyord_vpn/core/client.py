@@ -44,21 +44,21 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 
-from src.nyord_vpn.storage.models import (
+from nyord_vpn.storage.models import (
     ConnectionError,
     CredentialsError,
     VPNError,
 )
-from src.nyord_vpn.utils.utils import (
+from nyord_vpn.utils.utils import (
     API_HEADERS,
     CACHE_DIR,
     CONFIG_DIR,
     DATA_DIR,
     save_vpn_state,
 )
-from src.nyord_vpn.network.server import ServerManager
-from src.nyord_vpn.core.api import NordVPNAPIClient
-from src.nyord_vpn.network.vpn import VPNConnectionManager
+from nyord_vpn.network.server import ServerManager
+from nyord_vpn.core.api import NordVPNAPIClient
+from nyord_vpn.network.vpn import VPNConnectionManager
 
 load_dotenv()
 logger.configure(

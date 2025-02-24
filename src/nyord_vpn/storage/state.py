@@ -1,7 +1,7 @@
 import json
 import time
 
-from src.nyord_vpn.utils.utils import STATE_FILE, logger
+from nyord_vpn.utils.utils import STATE_FILE, logger
 
 
 def save_vpn_state(state: dict) -> None:

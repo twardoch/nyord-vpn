@@ -6,9 +6,9 @@ from typing import Any, TypedDict
 
 import requests
 
-from src.nyord_vpn.core.api import NordVPNAPIClient
-from src.nyord_vpn.storage.models import ServerError
-from src.nyord_vpn.utils.utils import API_HEADERS, CACHE_DIR, CACHE_EXPIRY
+from nyord_vpn.core.api import NordVPNAPIClient
+from nyord_vpn.storage.models import ServerError
+from nyord_vpn.utils.utils import API_HEADERS, CACHE_DIR, CACHE_EXPIRY
 
 
 """Server management and selection for NordVPN.
@@ -171,7 +171,7 @@ class ServerManager:
             "limit": "5",
         }
         if country:
-            from src.nyord_vpn.utils.utils import NORDVPN_COUNTRY_IDS
+            from nyord_vpn.utils.utils import NORDVPN_COUNTRY_IDS
 
             country_id = NORDVPN_COUNTRY_IDS.get(country.upper())
             if not country_id:

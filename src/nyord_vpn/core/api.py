@@ -41,9 +41,9 @@ import time
 from loguru import logger
 from requests import get, RequestException
 
-from src.nyord_vpn.network.country import get_cached_countries, cache_countries
-from src.nyord_vpn.storage.models import City, Country, CountryCache
-from src.nyord_vpn.utils.utils import API_HEADERS, CACHE_FILE
+from nyord_vpn.network.country import get_cached_countries, cache_countries
+from nyord_vpn.storage.models import City, Country, CountryCache
+from nyord_vpn.utils.utils import API_HEADERS, CACHE_FILE
 
 
 class NordVPNAPIClient:

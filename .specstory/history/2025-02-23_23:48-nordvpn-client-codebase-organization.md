@@ -22,8 +22,8 @@ Here's a detailed breakdown of the NordVPN client codebase organization:
 ```1:14:src/nyord_vpn/__init__.py
 """NordVPN client for Python."""
 
-from src.nyord_vpn.client import Client
-from src.nyord_vpn.models import ConnectionError, CredentialsError, ServerError, DisconnectionError, VPNError
+from nyord_vpn.client import Client
+from nyord_vpn.models import ConnectionError, CredentialsError, ServerError, DisconnectionError, VPNError
 
 __all__ = [
     "Client",
@@ -55,8 +55,8 @@ import fire
 from rich.console import Console
 from rich.table import Table
 
-from src.nyord_vpn.client import Client, VPNError
-from src.nyord_vpn.scripts.update_countries import fetch_countries
+from nyord_vpn.client import Client, VPNError
+from nyord_vpn.scripts.update_countries import fetch_countries
 
 console = Console()
 

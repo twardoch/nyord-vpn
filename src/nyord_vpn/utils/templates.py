@@ -1,145 +1,140 @@
-"""OpenVPN configuration templates and utilities.
+"""OpenVPN configuration management utilities.
 
 this_file: src/nyord_vpn/utils/templates.py
 
-This module provides OpenVPN configuration templates optimized for NordVPN.
-The templates implement security best practices and performance tuning.
-
-Template Components:
-1. Client Configuration:
-   - Network interface setup (tun device)
-   - Protocol selection (TCP)
-   - Connection parameters
-   - Security settings
-   - Performance tuning
-
-2. Security Configuration:
-   - Encryption settings (AES-256-GCM)
-   - Authentication (SHA512)
-   - Certificate verification
-   - TLS settings
-
-3. Network Configuration:
-   - DNS settings (leak prevention)
-   - Gateway configuration
-   - Connection persistence
-   - Timeout handling
-
-Integration Points:
-- Used by VPNConnectionManager (network/vpn.py)
-- Supports Client (core/client.py) operations
-- Works with connection.py for setup
-- Implements security best practices
-
-Security Features:
-- Modern encryption algorithms
-- Perfect forward secrecy
-- DNS leak prevention
-- Certificate pinning
-
-The templates are designed for optimal security and performance
-with NordVPN's infrastructure, incorporating best practices
-for VPN configuration and security hardening.
+This module provides OpenVPN configuration management for NordVPN.
+It handles downloading, caching, and managing OpenVPN configurations
+directly from NordVPN's servers.
 """
 
-# OpenVPN client configuration template with security hardening
-# and performance optimization for NordVPN servers
-OPENVPN_TEMPLATE = """client
-dev tun
-proto tcp
-remote {server} 443
-resolv-retry infinite
-remote-random
-nobind
-tun-mtu 1500
-tun-mtu-extra 32
-mssfix 1450
-persist-key
-persist-tun
-ping 10
-ping-restart 60
-ping-timer-rem
-reneg-sec 0
-comp-lzo no
-verify-x509-name CN={server}
+import os
+import shutil
+import tempfile
+from pathlib import Path
+import requests
+import zipfile
+import logging
+from typing import Optional
 
-remote-cert-tls server
+# Constants
+OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
+CONFIG_CACHE_DIR = Path.home() / ".config" / "nyord-vpn" / "configs"
 
-auth-user-pass
-verb 3
-pull
-fast-io
-data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
-data-ciphers-fallback AES-256-GCM
-auth SHA512
-connect-retry 2
-connect-timeout 10
-resolv-retry infinite
+# Browser-like headers to avoid 403
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://nordvpn.com/",
+    "Origin": "https://nordvpn.com",
+}
 
-<ca>
------BEGIN CERTIFICATE-----
-MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ
-MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2
-MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV
-BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI
-hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF
-kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr
-XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU
-eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV
-skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu
-MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA
-37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR
-hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s
-Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy
-WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6
-MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST
-LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG
-SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g
-nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/
-k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S
-DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/
-pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo
-k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp
-+RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd
-NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa
-wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC
-VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S
-PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==
------END CERTIFICATE-----
-</ca>
-key-direction 1
-<tls-auth>
-#
-# 2048 bit OpenVPN static key
-#
------BEGIN OpenVPN Static key V1-----
-e685bdaf659a25a200e2b9e39e51ff03
-0fc72cf1ce07232bd8b2be5e6c670143
-f51e937e670eee09d4f2ea5a6e4e6996
-5db852c275351b86fc4ca892d78ae002
-d6f70d029bd79c4d1c26cf14e9588033
-cf639f8a74809f29f72b9d58f9b8f5fe
-fc7938eade40e9fed6cb92184abb2cc1
-0eb1a296df243b251df0643d53724cdb
-5a92a1d6cb817804c4a9319b57d53be5
-80815bcfcb2df55018cc83fc43bc7ff8
-2d51f9b88364776ee9d12fc85cc7ea5b
-9741c4f598c485316db066d52db4540e
-212e1518a9bd4828219e24b20d88f598
-a196c9de96012090e333519ae18d3509
-9427e7b372d348d352dc4c85e18cd4b9
-3f8a56ddb2e64eb67adfc9b337157ff4
------END OpenVPN Static key V1-----
-</tls-auth>
-redirect-gateway def1
-dhcp-option DNS 103.86.96.100
-dhcp-option DNS 103.86.99.100
-script-security 2"""  # Configuration template for OpenVPN client
-# The template includes:
-# - Modern encryption (AES-256-GCM with ChaCha20 fallback)
-# - Strong authentication (SHA512)
-# - Connection resilience (automatic retry)
-# - DNS leak prevention
-# - NordVPN's root CA certificate
-# - TLS authentication key
-# Format with {server} placeholder for hostname
+
+def setup_config_directory() -> None:
+    """Setup and populate the OpenVPN configuration directory.
+
+    Downloads and extracts the latest OpenVPN configurations from NordVPN
+    if they don't exist or are outdated.
+    """
+    CONFIG_CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Download configurations
+        response = requests.get(OVPN_CONFIG_URL, headers=HEADERS, timeout=30)
+        response.raise_for_status()
+
+        # Create a temporary directory for extraction
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = Path(temp_dir) / "ovpn.zip"
+            zip_path.write_bytes(response.content)
+
+            # Extract only TCP configs
+            with zipfile.ZipFile(zip_path) as zf:
+                for info in zf.infolist():
+                    if "ovpn_tcp" in info.filename:
+                        zf.extract(info, CONFIG_CACHE_DIR)
+
+            # Move TCP configs to the root of CONFIG_CACHE_DIR
+            tcp_dir = CONFIG_CACHE_DIR / "ovpn_tcp"
+            if tcp_dir.exists():
+                for config in tcp_dir.glob("*.ovpn"):
+                    config.rename(CONFIG_CACHE_DIR / config.name)
+                shutil.rmtree(tcp_dir)
+
+    except (requests.RequestException, zipfile.BadZipFile, OSError) as e:
+        logging.error(f"Failed to download/extract OpenVPN configurations: {e}")
+        raise
+
+
+def get_config_path(server: str) -> Optional[Path]:
+    """Get the path to the OpenVPN configuration file for a server.
+
+    Args:
+        server: Server hostname (e.g., 'de1076.nordvpn.com')
+
+    Returns:
+        Path to the configuration file or None if not found
+    """
+    # Ensure configs are downloaded
+    if not CONFIG_CACHE_DIR.exists() or not any(CONFIG_CACHE_DIR.glob("*.ovpn")):
+        setup_config_directory()
+
+    # Look for exact match
+    config_path = CONFIG_CACHE_DIR / f"{server}.tcp.ovpn"
+    if config_path.exists():
+        return config_path
+
+    # Try without .tcp suffix
+    config_path = CONFIG_CACHE_DIR / f"{server}.ovpn"
+    if config_path.exists():
+        return config_path
+
+    return None
+
+
+def refresh_configs() -> None:
+    """Force refresh of OpenVPN configurations."""
+    if CONFIG_CACHE_DIR.exists():
+        shutil.rmtree(CONFIG_CACHE_DIR)
+    setup_config_directory()
+
+
+def get_openvpn_command(
+    config_path: Path, auth_path: Path, log_path: Optional[Path] = None
+) -> list[str]:
+    """Get the OpenVPN command with optimal parameters.
+
+    Args:
+        config_path: Path to the OpenVPN configuration file
+        auth_path: Path to the authentication file
+        log_path: Optional path to log file
+
+    Returns:
+        List of command arguments for OpenVPN
+    """
+    cmd = [
+        "sudo",
+        "openvpn",
+        "--config",
+        str(config_path),
+        "--auth-user-pass",
+        str(auth_path),
+        "--daemon",
+        "--verb",
+        "5",  # Increased verbosity for better debugging
+        "--connect-retry",
+        "2",  # Retry connection twice
+        "--connect-timeout",
+        "10",  # 10 seconds connection timeout
+        "--resolv-retry",
+        "infinite",  # Keep trying to resolve DNS
+        "--ping",
+        "10",  # Send ping every 10 seconds
+        "--ping-restart",
+        "60",  # Restart if no ping response for 60 seconds
+    ]
+
+    if log_path:
+        cmd.extend(["--log", str(log_path)])
+
+    return cmd

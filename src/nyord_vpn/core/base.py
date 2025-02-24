@@ -16,9 +16,9 @@ import time
 import requests
 from loguru import logger
 
-from src.nyord_vpn.network.country import get_cached_countries, cache_countries
-from src.nyord_vpn.storage.models import City, Country, CountryCache
-from src.nyord_vpn.utils.utils import CACHE_FILE, API_HEADERS
+from nyord_vpn.network.country import get_cached_countries, cache_countries
+from nyord_vpn.storage.models import City, Country, CountryCache
+from nyord_vpn.utils.utils import CACHE_FILE, API_HEADERS
 
 # Fallback data in case API is unreachable
 FALLBACK_DATA: CountryCache = {
