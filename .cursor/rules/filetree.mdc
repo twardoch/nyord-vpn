@@ -2,10 +2,10 @@
 description: File tree of the project
 globs: 
 ---
-[ 832]  .
+[ 800]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [9.0K]  filetree.mdc
+│       ├── [8.6K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -80,7 +80,6 @@ globs:
 ├── [ 12K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [131K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
@@ -146,4 +145,4 @@ globs:
 │   └── [6.3K]  test_server_manager.py
 └── [264K]  uv.lock
 
-22 directories, 121 files
+22 directories, 120 files

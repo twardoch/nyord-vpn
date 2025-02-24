@@ -1,11 +1,11 @@
-2025-02-24 18:44:04 - 
+2025-02-24 18:44:38 - 
 === Current Status ===
-2025-02-24 18:44:04 - Error: LOG.md is missing
-2025-02-24 18:44:04 - Error: .cursor/rules/0project.mdc is missing
-2025-02-24 18:44:04 - [ 832]  .
+2025-02-24 18:44:38 - Error: LOG.md is missing
+2025-02-24 18:44:38 - Error: .cursor/rules/0project.mdc is missing
+2025-02-24 18:44:38 - [ 800]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [9.0K]  filetree.mdc
+│       ├── [8.6K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -80,7 +80,6 @@
 ├── [ 12K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [131K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
@@ -146,14 +145,14 @@
 │   └── [6.3K]  test_server_manager.py
 └── [264K]  uv.lock
 
-22 directories, 121 files
+22 directories, 120 files
 
-2025-02-24 18:44:04 - 
+2025-02-24 18:44:38 - 
 Project structure:
-2025-02-24 18:44:04 - [ 832]  .
+2025-02-24 18:44:38 - [ 800]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [9.0K]  filetree.mdc
+│       ├── [8.6K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -228,7 +227,6 @@ Project structure:
 ├── [ 12K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [131K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
@@ -294,63 +292,47 @@ Project structure:
 │   └── [6.3K]  test_server_manager.py
 └── [264K]  uv.lock
 
-22 directories, 121 files
+22 directories, 120 files
 
-2025-02-24 18:44:04 - On branch main
-Your branch is ahead of 'origin/main' by 1 commit.
+2025-02-24 18:44:38 - On branch main
+Your branch is ahead of 'origin/main' by 2 commits.
   (use "git push" to publish your local commits)
 
 Changes not staged for commit:
   (use "git add/rm <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   .cursor/rules/filetree.mdc
-	deleted:    .specstory/history.txt
-	modified:   cleanup.py
-	modified:   nyord_vpn.txt
-	deleted:    src/nyord_vpn/api/.specstory/history/.what-is-this.md
-	deleted:    src/nyord_vpn/api/.specstory/history/2025-02-24_18-15-creating-endpoints-for-json-files.md
-
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	.specstory/history/2025-02-24_18-41-untitled.md
-	CLEANUP.txt
+	modified:   CLEANUP.txt
+	deleted:    nyord_vpn.txt
 
 no changes added to commit (use "git add" and/or "git commit -a")
 
-2025-02-24 18:44:04 - On branch main
-Your branch is ahead of 'origin/main' by 1 commit.
+2025-02-24 18:44:38 - On branch main
+Your branch is ahead of 'origin/main' by 2 commits.
   (use "git push" to publish your local commits)
 
 Changes not staged for commit:
   (use "git add/rm <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   .cursor/rules/filetree.mdc
-	deleted:    .specstory/history.txt
-	modified:   cleanup.py
-	modified:   nyord_vpn.txt
-	deleted:    src/nyord_vpn/api/.specstory/history/.what-is-this.md
-	deleted:    src/nyord_vpn/api/.specstory/history/2025-02-24_18-15-creating-endpoints-for-json-files.md
-
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	.specstory/history/2025-02-24_18-41-untitled.md
-	CLEANUP.txt
+	modified:   CLEANUP.txt
+	deleted:    nyord_vpn.txt
 
 no changes added to commit (use "git add" and/or "git commit -a")
 
-2025-02-24 18:44:04 - 
+2025-02-24 18:44:38 - 
 === Environment Status ===
-2025-02-24 18:44:04 - Setting up virtual environment
-2025-02-24 18:44:05 - Virtual environment created and activated
-2025-02-24 18:44:05 - Installing package with all extras
-2025-02-24 18:44:05 - Setting up virtual environment
-2025-02-24 18:44:05 - Virtual environment created and activated
-2025-02-24 18:44:06 - Package installed successfully
-2025-02-24 18:44:06 - >>>
+2025-02-24 18:44:38 - Setting up virtual environment
+2025-02-24 18:44:38 - Virtual environment created and activated
+2025-02-24 18:44:38 - Installing package with all extras
+2025-02-24 18:44:38 - Setting up virtual environment
+2025-02-24 18:44:38 - Virtual environment created and activated
+2025-02-24 18:44:39 - Package installed successfully
+2025-02-24 18:44:39 - >>>
 >>> Running code fixes...
 >>> TODO: Check the errors!
 >>>
-2025-02-24 18:44:06 - src/__init__.py:1:1: D104 Missing docstring in public package
+2025-02-24 18:44:39 - src/__init__.py:1:1: D104 Missing docstring in public package
 src/nyord_vpn/__init__.py:80:5: A004 Import `ConnectionError` is shadowing a Python builtin
    |
 78 | from nyord_vpn.core.client import Client
@@ -4524,17 +4506,17 @@ tests/test_server_manager.py:143:43: ANN001 Missing type annotation for function
 
 Found 429 errors.
 
-2025-02-24 18:44:06 - 39 files left unchanged
+2025-02-24 18:44:39 - 39 files left unchanged
 
-2025-02-24 18:44:06 - >>>
+2025-02-24 18:44:39 - >>>
 >>> Running type checks...
 >>> TODO: Check the errors!
 >>>
-2025-02-24 18:44:06 - >>>
+2025-02-24 18:44:39 - >>>
 >>> Checking for _potentially_ unused code...
 >>> TODO: Check the errors!
 >>>
-2025-02-24 18:44:07 - src/nyord_vpn/__main__.py:68: unused method 'update' (60% confidence)
+2025-02-24 18:44:39 - src/nyord_vpn/__main__.py:68: unused method 'update' (60% confidence)
 src/nyord_vpn/api/api.py:83: unused method 'get_technologies' (60% confidence)
 src/nyord_vpn/api/v1_countries.py:31: unused variable 'hub_score' (60% confidence)
 src/nyord_vpn/api/v1_groups.py:29: unused variable 'updated_at' (60% confidence)
@@ -4636,28 +4618,28 @@ src/nyord_vpn/utils/utils.py:171: unused function 'is_process_running' (60% conf
 src/nyord_vpn/utils/utils.py:202: unused variable 'NORDVPN_COUNTRY_IDS' (60% confidence)
 src/nyord_vpn/utils/utils.py:205: unused variable 'NORDVPN_COUNTRY_IDS' (60% confidence)
 
-2025-02-24 18:44:07 - >>>
+2025-02-24 18:44:39 - >>>
 >>> Running tests...
 >>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!
 >>>
-2025-02-24 18:44:09 - >>>
+2025-02-24 18:44:41 - >>>
 >>> Running repomix analysis...
 >>> TODO: Check the output!
 >>>
-2025-02-24 18:44:10 - 
+2025-02-24 18:44:43 - 
 📦 Repomix v0.2.29
 
 No custom config found at repomix.config.json or global config at /Users/adam/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
 ⠙ Collecting files...
-[2K[1A[2K[G⠹ Collect file... (40/52) tests/conftest.py
-[2K[1A[2K[G⠸ Running security check... (3/50) .github/workflows/push.yml
+[2K[1A[2K[G⠹ Collect file... (42/52) tests/test_legacy_api.py
+[2K[1A[2K[G⠸ Running security check... (19/50) src/nyord_vpn/network/vpn_commands.py
 [2K[1A[2K[G⠼ Processing files...
-[2K[1A[2K[G⠴ Processing file... (17/50) src/nyord_vpn/network/country.py
+[2K[1A[2K[G⠴ Processing file... (23/50) src/nyord_vpn/storage/models.py
 [2K[1A[2K[G⠦ Calculating metrics...
 [2K[1A[2K[G⠧ Calculating metrics...
 [2K[1A[2K[G⠇ Calculating metrics...
-[2K[1A[2K[G⠏ Calculating metrics... (7/50) src/nyord_vpn/api/v1_groups.py
+[2K[1A[2K[G⠏ Calculating metrics...
 [2K[1A[2K[G✔ Packing completed successfully!
 
 📈 Top 5 Files by Character Count and Token Count:
@@ -4665,7 +4647,7 @@ You can add a config file for additional settings. Please check https://github.c
 1.  src/nyord_vpn/network/vpn.py (12,932 chars, 2,421 tokens)
 2.  src/nyord_vpn/network/server.py (11,504 chars, 2,371 tokens)
 3.  TODO.md (10,952 chars, 2,436 tokens)
-4.  .cursor/rules/filetree.mdc (7,261 chars, 3,281 tokens)
+4.  .cursor/rules/filetree.mdc (7,235 chars, 3,268 tokens)
 5.  pyproject.toml (7,099 chars, 2,437 tokens)
 
 🔎 Security Check:
@@ -4675,8 +4657,8 @@ You can add a config file for additional settings. Please check https://github.c
 📊 Pack Summary:
 ────────────────
   Total Files: 50 files
-  Total Chars: 132,159 chars
- Total Tokens: 31,937 tokens
+  Total Chars: 132,133 chars
+ Total Tokens: 31,924 tokens
        Output: nyord_vpn.txt
      Security: ✔ No suspicious files detected
 
@@ -4685,10 +4667,10 @@ Your repository has been successfully packed.
 
 💡 Repomix is now available in your browser! Try it at https://repomix.com
 
-2025-02-24 18:44:10 - All checks completed
-2025-02-24 18:44:10 - 
+2025-02-24 18:44:43 - All checks completed
+2025-02-24 18:44:43 - 
 === TODO.md ===
-2025-02-24 18:44:10 - # TODO
+2025-02-24 18:44:43 - # TODO
 
 Do it! Remember, keep it simple, effective, eyes on the goal!
 
@@ -4949,13 +4931,8 @@ def wrapped_function(x):
 ```
 
 This solution provides a way to work with existing retry libraries while adding the functionality to try different arguments, though it's not as elegant as the custom decorator approach.
-2025-02-24 18:44:10 -  M .cursor/rules/filetree.mdc
- D .specstory/history.txt
- M cleanup.py
+2025-02-24 18:44:43 -  M .cursor/rules/filetree.mdc
+ M CLEANUP.txt
  M nyord_vpn.txt
- D src/nyord_vpn/api/.specstory/history/.what-is-this.md
- D src/nyord_vpn/api/.specstory/history/2025-02-24_18-15-creating-endpoints-for-json-files.md
-?? .specstory/history/2025-02-24_18-41-untitled.md
-?? CLEANUP.txt
 
-2025-02-24 18:44:10 - Changes detected in repository
+2025-02-24 18:44:43 - Changes detected in repository
