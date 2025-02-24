@@ -409,7 +409,7 @@ class Client:
 
             # Test API connectivity
             try:
-                self.api_client.list_countries()
+                self.api_client.get_countries()
             except Exception as e:
                 raise VPNConnectionError("Failed to connect to NordVPN API") from e
 

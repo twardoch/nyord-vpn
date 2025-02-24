@@ -83,6 +83,8 @@ For CLI Python scripts, use fire & rich, and start the script with
   - [x] Fix type compatibility issues in server.py
   - [x] Address security issues in subprocess calls by validating input
   - [x] Add comprehensive type hints for functions and variables
+- [x] Core Module (`src/nyord_vpn/core/`)
+  - [x] `src/nyord_vpn/core/client.py`: Update to use the new `NordVPNAPI` class
 
 ## Remaining Tasks (Prioritized)
 
@@ -92,9 +94,8 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 ##### `src/nyord_vpn/core/client.py`
 
-**Action**: Refactor to use the new API.
+**Action**: Continue refactoring to improve quality.
 
-- [!] Update to use the new `NordVPNAPI` class
 - [!] Improve error handling and user feedback
 - [!] Break down complex methods into smaller helper functions
 - [!] Fix boolean arguments and other linting issues
@@ -107,7 +108,7 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 **Action**: Refactor for better maintainability.
 
-- [ ] Make boolean arguments keyword-only
+- [!] Make boolean arguments keyword-only
 - [ ] Add comprehensive type hints
 - [ ] Implement retry logic for connection attempts
 - [ ] Break down complex methods

@@ -28,13 +28,14 @@ This progress report tracks the refactoring of the nyord-vpn codebase.
     - [x] Fix return type in get_country_info function
   - [x] Address security issues in subprocess calls by enhancing hostname validation
   - [x] Add comprehensive type hints for return types, parameters and variables
+- [x] Core Module
+  - [x] Refactor `client.py` to use the new `NordVPNAPI` class
 
 ## Current Tasks
 
 ### Medium Priority
 
 #### Core Module
-- [ ] Refactor `client.py` to use the new `NordVPNAPI` class
 - [ ] Improve error handling and user feedback
 - [ ] Break down complex methods into smaller helper functions
 
