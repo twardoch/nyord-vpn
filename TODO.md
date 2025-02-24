@@ -78,6 +78,8 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [x] Network Module - `vpn_commands.py`
   - [x] Create `OpenVPNConfig` dataclass with proper validation
   - [x] Implement `get_openvpn_command` function with proper validation
+- [x] Network Module - `server.py` (partial)
+  - [x] Replace random module with secrets module for secure randomization
 
 ## Remaining Tasks (Prioritized)
 
@@ -93,7 +95,6 @@ For CLI Python scripts, use fire & rich, and start the script with
   - [!] Fix Technology type in server_technologies creation
   - [!] Fix parameter type in _select_diverse_servers function 
   - [!] Fix return type in get_country_info function
-- [!] Replace random module with secrets module for secure randomization
 - [!] Address security issues in subprocess calls by validating input
 - [!] Add comprehensive type hints for functions and variables
 
