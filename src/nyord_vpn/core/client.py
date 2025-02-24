@@ -211,9 +211,15 @@ class Client:
                 "No VPN credentials available. Please set NORD_USER (or NORDVPN_LOGIN) and NORD_PASSWORD (or NORDVPN_PASSWORD) environment variables."
             )
 
+        # Initialize components in the correct order
         self.api_client = NordVPNAPIClient(self.username, self.password, verbose)
-        self.vpn_manager = VPNConnectionManager(verbose=verbose)
         self.server_manager = ServerManager(self.api_client)
+        self.vpn_manager = VPNConnectionManager(
+            api_client=self.api_client,
+            server_manager=self.server_manager,
+            vpn_manager=self,  # This is a bit circular but needed for the current structure
+            verbose=verbose
+        )
 
         # Set up VPN credentials
         try:
@@ -244,132 +250,62 @@ class Client:
         """
         return self.vpn_manager.status()
 
-    def go(
-        self,
-        country_code: str | None = None,
-        *,
-        all_servers: bool = False,
-        verbose: bool = False,
-    ) -> None:
-        """Connect to a NordVPN server, disconnecting first if necessary.
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country.
 
         Args:
-            country_code: Two-letter country code (e.g. 'us', 'de')
-            all_servers: Whether to use random server selection
-            verbose: Whether to enable verbose output
+            country_code: Two-letter country code (e.g. 'US', 'GB')
 
         Raises:
-            VPNError: If connection fails after trying all servers
-
-        The method will:
-        1. Get a list of fastest servers (up to 5)
-        2. Try connecting to each in sequence
-        3. Fall back to next server on ANY failure
-        4. Raise error only if all servers fail
+            VPNError: If connection fails
         """
-        self.verbose = verbose
-        if self.vpn_manager.is_connected():
-            if self.verbose:
-                logger.info("Already connected to VPN, disconnecting first...")
-            self.bye()
-
-        # Get initial list of servers to try
         try:
-            selected_servers = self.server_manager.select_fastest_server(
-                country_code=country_code,
-                random_select=all_servers,
-                max_servers=5  # Limit to 5 fastest servers
+            # First check if we're already connected
+            status = self.status()
+            if status.get("connected", False):
+                # VPN manager will handle disconnection automatically
+                if self.verbose:
+                    self.logger.info("Already connected, will disconnect before connecting to new server")
+
+            # Select fastest servers
+            servers = self.server_manager.select_fastest_server(country_code)
+            if not servers:
+                raise VPNError(f"No servers available in {country_code}")
+
+            # Take the first (fastest) server
+            server = servers[0]
+            hostname = server.get("hostname")
+            if not hostname:
+                raise VPNError("Selected server has no hostname")
+
+            if self.verbose:
+                self.logger.info(f"Selected server: {hostname}")
+                console.print(f"Selected server: [cyan]{hostname}[/cyan]")
+
+            # Set up VPN configuration
+            if not self.username or not self.password:
+                raise VPNError("Missing VPN credentials")
+            self.vpn_manager.setup_connection(
+                hostname, self.username, self.password
             )
-        except ServerError as e:
-            error_msg = str(e)
-            if "No servers available" in error_msg:
-                if country_code:
-                    raise VPNError(
-                        f"No servers available in {country_code.upper()}. "
-                        "Please try another country or check your internet connection."
-                    ) from e
-                raise VPNError(
-                    "No servers available. Please check your internet connection "
-                    "and try again in a few minutes."
-                ) from e
-            raise VPNError(f"Failed to select servers: {error_msg}") from e
 
-        if not selected_servers:
-            raise VPNError(
-                "No servers available. Please check your internet connection "
-                "and try again in a few minutes."
-            )
+            # Connect to VPN
+            if self.verbose:
+                self.logger.info("Establishing VPN connection...")
+                console.print("Establishing VPN connection...")
 
-        if self.verbose:
-            logger.info(f"Selected {len(selected_servers)} servers to try")
-            for i, server in enumerate(selected_servers, 1):
-                logger.info(f"  {i}. {server.get('hostname')} (load: {server.get('load', 'unknown')}%)")
+            # Connect and wait for result
+            self.vpn_manager.connect(servers)  # Pass all servers to try in order
 
-        # Try each server in sequence until one works
-        tried_servers = set()
-        auth_failures = 0
-        connection_errors = []
-        last_auth_error = None
+            # Get status for display
+            status = self.status()
+            console.print("[green]Successfully connected to VPN[/green]")
+            console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+            console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+            console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
 
-        for server in selected_servers:
-            hostname = server.get('hostname')
-            if hostname in tried_servers:
-                continue
-            tried_servers.add(hostname)
-
-            try:
-                if self.verbose:
-                    logger.info(f"Attempting connection to {hostname}")
-                self.vpn_manager.connect([server])
-                if self.verbose:
-                    logger.info(f"Successfully connected to {hostname}")
-                return  # Success!
-            except VPNError as e:
-                error_msg = str(e).lower()
-                if "authentication failed" in error_msg:
-                    auth_failures += 1
-                    last_auth_error = e
-                    if auth_failures >= 2:  # If we get multiple auth failures, credentials are likely wrong
-                        # Check if credentials file exists and is readable
-                        auth_file = Path(OPENVPN_AUTH)
-                        auth_error = None
-                        if not auth_file.exists():
-                            auth_error = "Auth file not found"
-                        elif not os.access(auth_file, os.R_OK):
-                            auth_error = "Auth file not readable"
-                        else:
-                            try:
-                                lines = auth_file.read_text().strip().split("\n")
-                                if len(lines) != 2:
-                                    auth_error = "Auth file format invalid"
-                                elif not lines[0].strip() or not lines[1].strip():
-                                    auth_error = "Empty username or password in auth file"
-                            except Exception:
-                                auth_error = "Failed to read auth file"
-
-                        raise VPNError(
-                            "Authentication failed multiple times. Please check your credentials:\n"
-                            "1. Verify NORD_USER and NORD_PASSWORD environment variables\n"
-                            "2. Ensure your NordVPN subscription is active\n"
-                            "3. Try logging in at https://nordvpn.com to verify your account\n"
-                            + (f"\nAdditional info: {auth_error}" if auth_error else "")
-                        ) from last_auth_error
-                connection_errors.append(f"{hostname}: {str(e)}")
-                if self.verbose:
-                    logger.warning(f"Failed to connect to {hostname}: {e}")
-                continue  # Try next server
-
-        # If we get here, all servers failed
-        error_summary = "\n".join(f"- {err}" for err in connection_errors)
-        raise VPNError(
-            f"Failed to connect after trying {len(tried_servers)} servers:\n{error_summary}\n\n"
-            "Possible solutions:\n"
-            "1. Check your internet connection\n"
-            "2. Try a different country\n"
-            "3. Verify OpenVPN is installed and working\n"
-            "4. Check system firewall settings\n"
-            "5. Verify VPN credentials are correct"
-        )
+        except Exception as e:
+            raise VPNError(f"Failed to connect: {e}")
 
     def bye(self) -> None:
         """Disconnect from the VPN."""
@@ -428,7 +364,7 @@ class Client:
             status = self.status()
             if status.get("connected", False):
                 console.print("[green]VPN Status: Connected[/green]")
-                console.print(f"Current IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
                 console.print(
                     f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
                 )
@@ -436,7 +372,7 @@ class Client:
             else:
                 console.print("[yellow]VPN Status: Not Connected[/yellow]")
                 console.print(
-                    f"Public IP: [cyan]{status.get('normal_ip', 'Unknown')}[/cyan]"
+                    f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]"
                 )
         except Exception as e:
             raise VPNError(f"Failed to get status: {e}")

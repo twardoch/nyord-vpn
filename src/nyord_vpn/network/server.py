@@ -181,7 +181,7 @@ class ServerManager:
     def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
         """Fetch information about recommended servers supporting OpenVPN.
 
-        Queries the NordVPN API for server recommendations based on:
+        Queries the NordVPN v2 API for servers based on:
         1. OpenVPN TCP support
         2. Server load
         3. Country preference (if specified)
@@ -198,295 +198,185 @@ class ServerManager:
         Raises:
             ServerError: If server fetch fails or no suitable servers found
                         Includes specific error for invalid country codes
-
         """
-        url = "https://api.nordvpn.com/v1/servers/recommendations"
-        params = {
-            "filters[servers_technologies][identifier]": "openvpn_tcp",
-            "limit": "5",
-        }
-
         try:
-            # Validate country code first
-            normalized_country = self._validate_country_code(country)
-            if normalized_country:
-                country_info = self.get_country_info(normalized_country)
-                if country_info:
-                    params["filters[country_id]"] = str(country_info["id"])
-                else:
-                    raise ServerError(f"Country code not found: {normalized_country}")
+            # Get all servers from cache or API
+            cache = self.get_servers_cache()
+            if not cache or not cache.get("servers"):
+                raise ServerError("Failed to get server list")
 
-            response = requests.get(url, params=params, headers=API_HEADERS, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            if not isinstance(data, list) or not data:
-                params.pop("filters[servers_technologies][identifier]", None)
-                response = requests.get(
-                    url,
-                    params=params,
-                    headers=API_HEADERS,
-                    timeout=10,
-                )
-                response.raise_for_status()
-                data = response.json()
-            if not isinstance(data, list) or not data:
-                raise ServerError(
-                    f"No servers available{' in ' + country.upper() if country else ''}",
-                )
-            if self.api_client.verbose:
-                self.logger.debug("Available servers retrieved.")
-            server = min(data, key=lambda x: x.get("load", 100))
+            servers = cache["servers"]
+            locations = cache.get("locations", [])
+
+            # Create location lookup by ID
+            location_lookup = {}
+            for location in locations:
+                if isinstance(location, dict):
+                    loc_id = str(location.get("id"))
+                    if loc_id:
+                        location_lookup[loc_id] = location
+
+            # Filter for online servers with OpenVPN TCP support
+            filtered_servers = []
+            for server in servers:
+                # Check if server is online
+                if server.get("status") != "online":
+                    continue
+
+                # Check if server has OpenVPN TCP (id: 5)
+                has_tcp = False
+                for tech in server.get("technologies", []):
+                    if tech.get("id") == 5 and tech.get("status") == "online":
+                        has_tcp = True
+                        break
+                if not has_tcp:
+                    continue
+
+                # Filter by country if specified
+                if country:
+                    normalized_country = self._validate_country_code(country)
+                    server_country = None
+                    for loc_id in server.get("location_ids", []):
+                        location = location_lookup.get(str(loc_id))
+                        if location and location.get("country", {}).get("code") == normalized_country:
+                            server_country = normalized_country
+                            break
+                    if not server_country:
+                        continue
+
+                filtered_servers.append(server)
+
+            if not filtered_servers:
+                # Get list of available countries
+                available_countries = set()
+                for location in locations:
+                    if isinstance(location, dict):
+                        country_info = location.get("country", {})
+                        if country_info:
+                            code = country_info.get("code")
+                            if code:
+                                available_countries.add(code.lower())
+                
+                error_msg = f"No servers available{' in ' + country.upper() if country else ''}"
+                if country:
+                    error_msg += f"\nAvailable countries: {', '.join(sorted(available_countries))}"
+                raise ServerError(error_msg)
+
+            # Sort by load and select the least loaded server
+            server = min(filtered_servers, key=lambda x: x.get("load", 100))
             hostname = server.get("hostname")
             if not isinstance(hostname, str) or not hostname:
-                raise ServerError("Invalid server data received.")
+                raise ServerError("Invalid server data received")
+
+            if self.api_client.verbose:
+                self.logger.debug(f"Selected server {hostname} with load {server.get('load')}%")
+
             return hostname, server.get("station", "")
-        except requests.RequestException as e:
+
+        except Exception as e:
             raise ServerError(f"Failed to fetch server info: {e}")
 
     def get_servers_cache(self) -> dict:
-        """Manage and retrieve server information cache.
-
-        This method handles the complete server cache lifecycle:
-        1. Checks for existing cache file
-        2. Validates cache freshness and content
-        3. Fetches fresh data from API if needed
-        4. Filters and validates server information
-        5. Updates cache with fresh data
-
-        The cache includes:
-        - Server information (hostname, load, status)
-        - Country information
-        - Cache metadata (last update, expiry)
-
+        """Get all servers from NordVPN v2 API or cache.
+        
         Returns:
-            dict: Cache containing:
-                - servers: List of valid server information
-                - expires_at: Cache expiry timestamp
-                - last_updated: Last update timestamp
-
-        Note:
-            The cache is considered valid if:
-            1. The cache file exists
-            2. The cache hasn't expired
-            3. The cached servers are valid
-            4. The cache format is correct
-
+            dict: Cache data with servers, locations and metadata
         """
         cache_file = CACHE_DIR / "servers.json"
-        if cache_file.exists():
-            try:
-                cache = json.loads(cache_file.read_text())
-                if (
-                    isinstance(cache, dict)
-                    and isinstance(cache.get("servers", []), list)
-                    and time.time() < cache.get("expires_at", 0)
-                ):
-                    # Validate cached servers
-                    valid_servers = [
-                        s for s in cache["servers"] if self._is_valid_server(s)
-                    ]
-                    if valid_servers:
-                        if self.api_client.verbose:
-                            self.logger.debug(
-                                f"Using cached server list with {len(valid_servers)} valid servers",
-                            )
-                        cache["servers"] = valid_servers
-                        return cache
-                    if self.api_client.verbose:
-                        self.logger.warning(
-                            "No valid servers in cache, fetching fresh data",
-                        )
-            except Exception as e:
-                if self.api_client.verbose:
-                    self.logger.warning(f"Failed to read cache: {e}")
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
         try:
-            if self.api_client.verbose:
-                self.logger.debug("Fetching server list from API...")
+            # Check cache first
+            if cache_file.exists():
+                try:
+                    cache = json.loads(cache_file.read_text())
+                    expires_at = cache.get("expires_at", 0)
+                    if time.time() < expires_at and cache.get("servers") and cache.get("locations"):
+                        if self.api_client.verbose:
+                            self.logger.debug(f"Using cached server list with {len(cache['servers'])} servers")
+                        return cache
+                except Exception as e:
+                    if self.api_client.verbose:
+                        self.logger.warning(f"Failed to read cache: {e}")
 
-            # Use v2 API which has more detailed server info
+            # Fetch fresh data from v2 API
+            if self.api_client.verbose:
+                self.logger.debug("Fetching fresh server data from API v2")
+
             response = requests.get(
-                "https://api.nordvpn.com/v1/servers",
+                "https://api.nordvpn.com/v2/servers",
                 headers=API_HEADERS,
                 timeout=10,
             )
             response.raise_for_status()
             data = response.json()
 
+            if not isinstance(data, list):
+                raise ValueError("Invalid API response format")
+
+            # Extract servers and locations from the API response
+            servers = []
+            locations = []
+            location_ids = set()
+
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+
+                # Extract server data
+                if "hostname" in item:
+                    servers.append(item)
+
+                # Extract location data
+                if "id" in item and "country" in item:
+                    loc_id = str(item["id"])
+                    if loc_id not in location_ids:
+                        locations.append(item)
+                        location_ids.add(loc_id)
+
+            if not servers:
+                raise ValueError("No servers received from API")
+
             if self.api_client.verbose:
-                self.logger.debug("Successfully fetched server data from API")
+                self.logger.debug(f"Fetched {len(servers)} servers and {len(locations)} locations from API")
 
-            # Extract servers from response
-            raw_servers: list[dict[str, Any]] = []
-
-            if isinstance(data, list):
-                raw_servers = [dict(s) for s in data]
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"Found {len(raw_servers)} servers in API response",
-                    )
-            else:
-                raise ValueError(f"Unexpected API response format: {type(data)}")
-
-            # Get countries info
-            try:
-                countries_response = requests.get(
-                    "https://api.nordvpn.com/v1/servers/countries",
-                    headers=API_HEADERS,
-                    timeout=10,
-                )
-                countries_response.raise_for_status()
-                countries_data = countries_response.json()
-
-                # Create countries lookup
-                countries = {}
-                for country in countries_data:
-                    if isinstance(country, dict):
-                        country_id = str(country.get("id"))
-                        code = country.get("code", "").upper()
-                        if country_id and code:
-                            countries[country_id] = {
-                                "code": code,
-                                "name": country.get("name", "Unknown"),
-                                "id": country_id
-                            }
-            except Exception as e:
-                if self.api_client.verbose:
-                    self.logger.warning(f"Failed to fetch countries: {e}")
-                countries = {}
-
-            # Filter and validate servers
+            # Filter for online servers with OpenVPN TCP support
             valid_servers = []
-            invalid_count = 0
-            for server in raw_servers:
+            for server in servers:
                 if not isinstance(server, dict):
-                    invalid_count += 1
                     continue
 
-                # Check if server is online and supports OpenVPN TCP
                 if server.get("status") != "online":
-                    if self.api_client.verbose:
-                        self.logger.debug(
-                            f"Skipping offline server: {server.get('hostname')}",
-                        )
                     continue
 
+                # Check OpenVPN TCP support (technology id 5)
                 has_openvpn_tcp = False
                 for tech in server.get("technologies", []):
-                    if (
-                        isinstance(tech, dict)
-                        and tech.get("id") == 5
-                        and tech.get("status") == "online"
-                    ):
+                    if tech.get("id") == 5 and tech.get("status") == "online":
                         has_openvpn_tcp = True
                         break
+
                 if not has_openvpn_tcp:
-                    if self.api_client.verbose:
-                        self.logger.debug(
-                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}",
-                        )
                     continue
 
-                # Get hostname and validate
-                hostname = server.get("hostname")
-                if not isinstance(hostname, str) or not hostname:
-                    invalid_count += 1
-                    continue
-
-                # Get country info from server data
-                country_info = None
-                server_country = server.get("country", {})
-                if isinstance(server_country, dict):
-                    country_id = str(server_country.get("id"))
-                    if country_id in countries:
-                        country_info = countries[country_id]
-                    else:
-                        # Try to get country info from server country data
-                        code = server_country.get("code", "").upper()
-                        if code:
-                            country_info = {
-                                "code": code,
-                                "name": server_country.get("name", "Unknown"),
-                                "id": country_id
-                            }
-
-                if not country_info:
-                    if self.api_client.verbose:
-                        self.logger.debug(
-                            f"Skipping server without country info: {hostname}",
-                        )
-                    continue
-
-                # Create normalized server entry
-                valid_server = {
-                    "hostname": hostname,
-                    "load": int(server.get("load", 100)),
-                    "country": country_info,
-                    "status": server.get("status"),
-                    "technologies": server.get("technologies", []),
-                    "station": server.get("station"),
-                }
-
-                # Final validation
-                if self._is_valid_server(valid_server):
-                    valid_servers.append(valid_server)
-                else:
-                    invalid_count += 1
-
-            if not valid_servers:
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"No valid servers found after filtering {len(raw_servers)} total servers"
-                    )
-                raise ValueError(
-                    f"No valid servers found in API response. "
-                    f"Total servers: {len(raw_servers)}, Invalid: {invalid_count}"
-                )
+                valid_servers.append(server)
 
             if self.api_client.verbose:
-                country_counts = {}
-                for server in valid_servers:
-                    code = server["country"]["code"]
-                    country_counts[code] = country_counts.get(code, 0) + 1
-                self.logger.debug(
-                    f"Found {len(valid_servers)} valid servers. "
-                    f"Country distribution: "
-                    + ", ".join(f"{k}: {v}" for k, v in sorted(country_counts.items()))
-                )
+                self.logger.debug(f"Found {len(valid_servers)} valid servers")
 
+            # Save to cache
             cache = {
                 "servers": valid_servers,
+                "locations": locations,
                 "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "expires_at": time.time() + CACHE_EXPIRY,
             }
-
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(json.dumps(cache, indent=2))
+
             return cache
 
         except Exception as e:
-            self.logger.exception(f"Failed to fetch servers: {e}")
-            if cache_file.exists():
-                try:
-                    cache = json.loads(cache_file.read_text())
-                    if isinstance(cache, dict) and isinstance(
-                        cache.get("servers", []),
-                        list,
-                    ):
-                        # Validate cached servers even in fallback
-                        valid_servers = [
-                            s for s in cache["servers"] if self._is_valid_server(s)
-                        ]
-                        if valid_servers:
-                            if self.api_client.verbose:
-                                self.logger.info(
-                                    f"Using fallback cache with {len(valid_servers)} valid servers",
-                                )
-                            cache["servers"] = valid_servers
-                            return cache
-                except Exception:
-                    pass
-            return {"servers": [], "last_updated": "", "expires_at": 0}
+            raise ServerError(f"Failed to get server list: {e}")
 
     def _ping_server(self, hostname: str) -> float:
         """Ping a server and return response time in ms.
@@ -640,12 +530,6 @@ class ServerManager:
         Returns:
             Tuple of (server, score) where score is combined ping/TCP time
             Lower score is better, float('inf') means failed
-
-        The test performs:
-        1. Quick TCP connection test to port 443 (OpenVPN)
-        2. Quick TLS handshake to verify server certificate and auth
-        3. Single ping with short timeout
-        4. Combines scores with TCP weighted more heavily
         """
         hostname = server.get("hostname")
         if not hostname:
@@ -655,19 +539,27 @@ class ServerManager:
             # Quick TCP connection test first (more important for VPN)
             tcp_time = float("inf")
             try:
+                # Create a less strict SSL context for testing
                 context = ssl.create_default_context()
-                context.check_hostname = True
-                context.verify_mode = ssl.CERT_REQUIRED
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
                 
                 start = time.time()
                 with socket.create_connection((hostname, 443), timeout=1) as sock:
-                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                        # Try to start TLS handshake
-                        ssock.do_handshake()
-                        tcp_time = (time.time() - start) * 1000  # Convert to ms
-            except (socket.timeout, socket.error, ssl.SSLError) as e:
+                    # Just test basic TCP connection first
+                    tcp_time = (time.time() - start) * 1000  # Convert to ms
+                    
+                    try:
+                        # Try SSL handshake but don't fail if it doesn't work
+                        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                            ssock.do_handshake()
+                    except ssl.SSLError:
+                        # SSL failed but TCP worked, add penalty to score
+                        tcp_time *= 1.5
+
+            except (socket.timeout, socket.error) as e:
                 if self.api_client.verbose:
-                    self.logger.debug(f"TCP/TLS test failed for {hostname}: {e}")
+                    self.logger.debug(f"TCP test failed for {hostname}: {e}")
                 return server, float("inf")
 
             # Quick single ping test
@@ -784,103 +676,79 @@ class ServerManager:
 
         return selected
 
-    def select_fastest_server(
-        self,
-        country_code: str | None = None,
-        random_select: bool = False,
-        _retry_count: int = 0,
-    ) -> dict | None:
-        """Select the fastest available server.
-
-        Will retry with different servers if initial selection fails.
+    def select_fastest_server(self, country_code: str | None = None) -> list[dict[str, Any]]:
+        """Select fastest servers in a country based on ping times.
 
         Args:
-            country_code: Two-letter country code to filter servers
-            random_select: Whether to randomly select from available servers
-            _retry_count: Internal retry counter
+            country_code: Two-letter country code
 
         Returns:
-            Server info dictionary or None if no servers available
-
-        Raises:
-            ServerError: If no servers are available after retries
+            List of server dicts sorted by speed (fastest first)
         """
         try:
-            # Validate country code if provided
-            if country_code:
-                country_code = country_code.upper()
-                if not isinstance(country_code, str) or len(country_code) != 2:
-                    raise ServerError(
-                        f"Invalid country code '{country_code}'. "
-                        "Please use a two-letter country code (e.g. 'US', 'GB', 'DE')"
-                    )
-
-            # Get cached servers
+            # Get all servers
             cache = self.get_servers_cache()
             servers = cache.get("servers", [])
+            locations = cache.get("locations", [])
 
             if not servers:
-                raise ServerError("No servers available in cache")
+                raise ServerError("No servers available")
 
-            if self.api_client.verbose:
-                self.logger.debug(f"Total servers before filtering: {len(servers)}")
+            # Create location lookup by ID
+            location_lookup = {str(loc["id"]): loc for loc in locations}
 
             # Filter by country if specified
             if country_code:
-                servers = [
-                    s
-                    for s in servers
-                    if s.get("country", {}).get("code", "").upper() == country_code
-                ]
-                if self.api_client.verbose:
-                    self.logger.debug(f"Found {len(servers)} servers for {country_code}")
-                    if servers:
-                        self.logger.debug("Sample server entries:")
-                        for s in servers[:3]:
-                            self.logger.debug(
-                                f"  {s['hostname']}: country={s['country']}"
-                            )
+                country_code = country_code.upper()
+                filtered_servers = []
+                
+                for server in servers:
+                    # Check each location ID
+                    for loc_id in server.get("location_ids", []):
+                        location = location_lookup.get(str(loc_id))
+                        if location and location.get("country", {}).get("code", "").upper() == country_code:
+                            filtered_servers.append(server)
+                            break
+                
+                servers = filtered_servers
 
-            if not servers:
-                if country_code:
+                if not servers:
                     # Get list of available countries
                     available_countries = sorted(list({
-                        s.get("country", {}).get("code", "")
-                        for s in cache.get("servers", [])
-                        if s.get("country", {}).get("code")
+                        loc.get("country", {}).get("code", "").upper()
+                        for loc in locations
+                        if loc.get("country", {}).get("code")
                     }))
                     raise ServerError(
                         f"No servers available in {country_code}. "
                         f"Available countries: {', '.join(available_countries)}"
                     )
-                else:
-                    raise ServerError("No servers available")
 
             # Remove failed servers
-            servers = [
-                s for s in servers if s.get("hostname") not in self._failed_servers
-            ]
-
+            servers = [s for s in servers if s.get("hostname") not in self._failed_servers]
             if not servers:
-                if self._failed_servers and _retry_count < 3:
-                    # If all servers failed, clear failed list and retry
-                    self._failed_servers.clear()
-                    return self.select_fastest_server(
-                        country_code, random_select, _retry_count + 1
-                    )
-                raise ServerError("All available servers have failed")
+                self._failed_servers.clear()  # Reset failed servers if none left
+                return self.select_fastest_server(country_code)  # Try again
 
-            # Basic filtering
-            servers = [s for s in servers if s.get("load", 100) < 90]  # Skip heavily loaded servers
+            # Take 5 servers with lowest load
+            servers.sort(key=lambda x: x.get("load", 100))
+            servers = servers[:5]
 
-            if not servers:
-                raise ServerError("No servers available with acceptable load")
+            # Test response times
+            results = []
+            for server in servers:
+                hostname = server.get("hostname")
+                if not hostname:
+                    continue
 
-            if random_select:
-                return random.choice(servers)
+                # Test server response time
+                server_result, score = self._test_server(server)
+                if score < float("inf"):
+                    results.append((server_result, score))
 
-            # Select fastest server based on load
-            return min(servers, key=lambda x: x.get("load", 100))
+            # Sort by response time
+            results.sort(key=lambda x: x[1])
+            return [r[0] for r in results]  # Return servers only, sorted by speed
 
         except Exception as e:
             if isinstance(e, ServerError):
@@ -895,29 +763,16 @@ class ServerManager:
 
         Returns:
             Country ID or empty string if not found
-
         """
         try:
-            # First check our cache
+            # Check our cache
             cache = self.get_servers_cache()
-            for server in cache.get("servers", []):
-                if (
-                    server.get("country", {}).get("code", "").upper()
-                    == country_code.upper()
-                ) and (country_id := server.get("country", {}).get("id")):
-                    return str(country_id)
-
-            # If not in cache, try API
-            response = requests.get(
-                "https://api.nordvpn.com/v1/servers/countries",
-                headers=API_HEADERS,
-                timeout=10,
-            )
-            response.raise_for_status()
-
-            for country in response.json():
-                if country.get("code", "").upper() == country_code.upper():
-                    return str(country["id"])
+            locations = cache.get("locations", [])
+            
+            # Look through locations for matching country
+            for location in locations:
+                if location.get("country", {}).get("code", "").upper() == country_code.upper():
+                    return str(location.get("country", {}).get("id", ""))
 
         except Exception as e:
             if self.api_client.verbose:

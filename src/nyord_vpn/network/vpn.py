@@ -40,7 +40,7 @@ The manager implements robust connection handling with:
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 import requests
 from loguru import logger
 import psutil
@@ -48,6 +48,8 @@ import os
 import signal
 import sys
 import socket
+
+from rich.console import Console
 
 from nyord_vpn.exceptions import (
     VPNError,
@@ -61,8 +63,13 @@ from nyord_vpn.network.vpn_commands import get_openvpn_command
 from nyord_vpn.utils.utils import (
     OPENVPN_AUTH,
     OPENVPN_LOG,
+    check_root,
+    ensure_root,
 )
 from nyord_vpn.storage.state import save_vpn_state, load_vpn_state
+from nyord_vpn.network.server import ServerManager
+
+console = Console()
 
 # Constants
 OPENVPN_AUTH = Path.home() / ".cache" / "nyord-vpn" / "openvpn.auth"
@@ -85,13 +92,24 @@ class VPNConnectionManager:
     - Connected country information
     """
 
-    def __init__(self, verbose: bool = False) -> None:
+    def __init__(
+        self,
+        api_client: Any,
+        server_manager: ServerManager,
+        vpn_manager: Any,
+        verbose: bool = False,
+    ):
         """Initialize VPN connection manager.
 
         Args:
+            api_client: API client instance
+            server_manager: Server manager instance
+            vpn_manager: VPN manager instance
             verbose: Whether to enable verbose logging
-
         """
+        self.api_client = api_client
+        self.server_manager = server_manager
+        self.vpn_manager = vpn_manager
         self.verbose = verbose
         self.logger = logger
         self.process: subprocess.Popen | None = None
@@ -958,12 +976,12 @@ class VPNConnectionManager:
             dict with:
                 connected (bool): True if connected to VPN
                 server (str): Connected server hostname
-                country (dict): Country info with code and name
+                country (str): Full country name
                 city (str): Server city location
+                ip (str): Current IP address
 
         Raises:
             VPNError: If status check fails
-
         """
         try:
             # Load state once
@@ -985,17 +1003,34 @@ class VPNConnectionManager:
                     if self.verbose:
                         self.logger.debug(f"Failed to read OpenVPN log: {e}")
 
+            # Get current IP
+            current_ip = self.get_current_ip()
+
+            # Get full country name if we have a country code
+            country = state.get("country", "Unknown")
+            if country and len(country) == 2:
+                try:
+                    import pycountry
+                    country_obj = pycountry.countries.get(alpha_2=country.upper())
+                    if country_obj:
+                        country = country_obj.name
+                except ImportError:
+                    if self.verbose:
+                        self.logger.debug("pycountry not available for country name lookup")
+
             if self.verbose:
                 self.logger.debug(
                     f"Connection status: process={process_running}, "
-                    f"initialized={is_connected}"
+                    f"initialized={is_connected}, "
+                    f"ip={current_ip}"
                 )
 
             return {
                 "connected": is_connected,
-                "country": state.get("country", "Unknown"),
+                "country": country,
                 "city": state.get("city", "Unknown"),
                 "server": state.get("server"),
+                "ip": current_ip,
             }
 
         except Exception as e:
@@ -1073,3 +1108,75 @@ class VPNConnectionManager:
         self._cached_ip_time = 0
         if self.verbose:
             self.logger.debug("IP cache invalidated")
+
+    def go(self, country_code: str) -> None:
+        """Connect to VPN in specified country.
+
+        Args:
+            country_code: Two-letter country code (e.g. 'US', 'GB')
+
+        Raises:
+            VPNError: If connection fails
+        """
+        if not check_root():
+            ensure_root()
+            return
+
+        try:
+            # First check if we're already connected
+            status = self.status()
+            if status.get("connected", False):
+                # Automatically disconnect before connecting to new server
+                if self.verbose:
+                    self.logger.info("Disconnecting from current server before connecting to new one")
+                self.disconnect()
+
+            # Get fastest servers
+            servers = self.server_manager.select_fastest_server(country_code)
+            if not servers:
+                raise VPNError(f"No servers available in {country_code}")
+
+            if self.verbose:
+                self.logger.info(f"Selected {len(servers)} servers to try")
+                for i, server in enumerate(servers, 1):
+                    self.logger.info(f"{i}. {server.get('hostname')} (load: {server.get('load')}%)")
+
+            # Try servers in order until one works
+            errors = []
+            for server in servers:
+                hostname = None  # Initialize outside try block
+                try:
+                    hostname = server.get("hostname")
+                    if not hostname:
+                        continue
+
+                    if self.verbose:
+                        self.logger.info(f"Trying server: {hostname}")
+                        console.print(f"Trying server: [cyan]{hostname}[/cyan]")
+
+                    # Set up VPN configuration
+                    self.setup_connection(hostname, self.api_client.username, self.api_client.password)
+
+                    # Try to connect
+                    self.connect([server])  # Pass as list for compatibility
+                    
+                    # If we get here, connection succeeded
+                    if self.verbose:
+                        self.logger.info(f"Successfully connected to {hostname}")
+                    return
+
+                except Exception as e:
+                    error_msg = f"{hostname if hostname else 'Unknown server'}: {str(e)}"
+                    errors.append(error_msg)
+                    if self.verbose:
+                        self.logger.warning(f"Failed to connect to {hostname if hostname else 'Unknown server'}: {e}")
+                    continue
+
+            # If we get here, all servers failed
+            raise VPNError(
+                f"Failed to connect to any server in {country_code}:\n" + 
+                "\n".join(f"- {e}" for e in errors)
+            )
+
+        except Exception as e:
+            raise VPNError(f"Failed to connect: {e}")
