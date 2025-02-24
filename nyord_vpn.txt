@@ -58,6 +58,7 @@ Directory Structure
 src/
   nyord_vpn/
     api/
+      __init__.py
       api.py
       v1_countries.py
       v1_groups.py
@@ -83,6 +84,7 @@ src/
       __init__.py
       update_countries.py
     storage/
+      __init__.py
       models.py
       state.py
     utils/
@@ -102,15 +104,22 @@ tests/
     test_validation_integration.py
   __init__.py
   conftest.py
+  test_api.py
   test_client.py
   test_legacy_api.py
   test_package.py
   test_server_manager.py
+  test_v1_countries.py
+  test_v1_groups.py
+  test_v1_recommendations.py
+  test_v1_technologies.py
+  test_v2_servers.py
 .gitignore
 .pre-commit-config.yaml
 cleanup.py
 LICENSE
 package.toml
+PROGRESS.md
 pyproject.toml
 README.md
 TODO.md
@@ -126,10 +135,10 @@ File: .cursor/rules/filetree.mdc
 description: File tree of the project
 globs: 
 ---
-[ 800]  .
+[ 896]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [8.6K]  filetree.mdc
+│       ├── [8.5K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -138,7 +147,7 @@ globs:
 ├── [3.5K]  .gitignore
 ├── [ 532]  .pre-commit-config.yaml
 ├── [ 128]  .specstory
-│   └── [1.9K]  history
+│   └── [2.0K]  history
 │       ├── [2.0K]  .what-is-this.md
 │       ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
 │       ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
@@ -196,57 +205,64 @@ globs:
 │       ├── [244K]  2025-02-24_17-19-vpn-country-resolution-issue.md
 │       ├── [164K]  2025-02-24_17-43-vpn-connection-issue-no-servers-in-germany.md
 │       ├── [ 20K]  2025-02-24_18-03-refining-api-documentation-and-structure.md
-│       └── [ 25K]  2025-02-24_18-41-untitled.md
+│       ├── [ 25K]  2025-02-24_18-41-script-modification-for-repomix-command.md
+│       ├── [148K]  2025-02-24_19-08-tracking-todo-and-progress-updates.md
+│       ├── [ 39K]  2025-02-24_19-49-review-and-update-project-documentation.md
+│       ├── [ 59K]  2025-02-24_20-10-task-management-for-nyord-vpn-project.md
+│       └── [ 47K]  2025-02-24_20-54-placeholder-message.md
 ├── [ 160]  CLEANUP.txt
 ├── [1.0K]  LICENSE
+├── [4.2K]  PROGRESS.md
 ├── [5.5K]  README.md
-├── [ 11K]  TODO.md
-├── [ 12K]  cleanup.py
+├── [7.5K]  TODO.md
+├── [ 13K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
+├── [131K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
 │   ├── [   0]  __init__.py
 │   └── [ 448]  nyord_vpn
-│       ├── [2.3K]  __init__.py
+│       ├── [2.4K]  __init__.py
 │       ├── [2.5K]  __main__.py
-│       ├── [ 448]  api
-│       │   ├── [7.7K]  api.py
+│       ├── [ 512]  api
+│       │   ├── [ 327]  __init__.py
+│       │   ├── [ 16K]  api.py
 │       │   ├── [ 27K]  v1_countries.json
-│       │   ├── [4.9K]  v1_countries.py
+│       │   ├── [5.4K]  v1_countries.py
 │       │   ├── [5.2K]  v1_groups.json
-│       │   ├── [3.9K]  v1_groups.py
+│       │   ├── [4.6K]  v1_groups.py
 │       │   ├── [ 67K]  v1_recommendations.json
-│       │   ├── [6.6K]  v1_recommendations.py
+│       │   ├── [7.0K]  v1_recommendations.py
 │       │   ├── [4.2K]  v1_technologies.json
-│       │   ├── [3.5K]  v1_technologies.py
+│       │   ├── [3.9K]  v1_technologies.py
 │       │   ├── [ 97K]  v2_servers.json
-│       │   └── [9.3K]  v2_servers.py
+│       │   └── [ 11K]  v2_servers.py
 │       ├── [ 256]  core
 │       │   ├── [ 178]  __init__.py
-│       │   ├── [9.1K]  api.py
-│       │   ├── [6.4K]  base.py
-│       │   └── [ 15K]  client.py
+│       │   ├── [ 12K]  api.py
+│       │   ├── [8.2K]  base.py
+│       │   └── [ 14K]  client.py
 │       ├── [ 192]  data
 │       │   ├── [  96]  .specstory
 │       │   │   └── [  96]  history
 │       │   │       └── [2.0K]  .what-is-this.md
 │       │   ├── [ 93K]  countries.json
 │       │   └── [ 963]  country_ids.json
-│       ├── [7.2K]  exceptions.py
+│       ├── [6.8K]  exceptions.py
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 36K]  server.py
+│       │   ├── [ 37K]  server.py
 │       │   ├── [ 47K]  vpn.py
-│       │   └── [4.7K]  vpn_commands.py
+│       │   └── [ 13K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
 │       │   └── [3.0K]  update_countries.py
 │       ├── [ 224]  storage
-│       │   ├── [   0]  __init__.py
-│       │   ├── [8.8K]  models.py
+│       │   ├── [ 212]  __init__.py
+│       │   ├── [8.0K]  models.py
 │       │   └── [4.0K]  state.py
 │       └── [ 288]  utils
 │           ├── [ 194]  __init__.py
@@ -254,7 +270,7 @@ globs:
 │           ├── [  64]  data
 │           ├── [ 12K]  templates.py
 │           └── [9.4K]  utils.py
-├── [ 352]  tests
+├── [ 544]  tests
 │   ├── [  40]  __init__.py
 │   ├── [2.6K]  conftest.py
 │   ├── [ 288]  integration
@@ -263,13 +279,19 @@ globs:
 │   │   ├── [2.9K]  test_connection.py
 │   │   ├── [9.3K]  test_errors.py
 │   │   └── [1.4K]  test_validation_integration.py
+│   ├── [5.9K]  test_api.py
 │   ├── [2.0K]  test_client.py
 │   ├── [3.5K]  test_legacy_api.py
 │   ├── [ 159]  test_package.py
-│   └── [6.3K]  test_server_manager.py
+│   ├── [6.4K]  test_server_manager.py
+│   ├── [4.2K]  test_v1_countries.py
+│   ├── [4.4K]  test_v1_groups.py
+│   ├── [5.7K]  test_v1_recommendations.py
+│   ├── [3.2K]  test_v1_technologies.py
+│   └── [7.9K]  test_v2_servers.py
 └── [264K]  uv.lock
 
-22 directories, 120 files
+22 directories, 133 files
 
 ================
 File: .cursor/rules/nyord-vpn.mdc
@@ -298,7 +320,7 @@ nyord-vpn disconnect  # Disconnect
 
 ## DEVELOPMENT
 
-After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+After each set of changes, update @PROGRESS.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
 
 Periodically do:
 
@@ -494,8 +516,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 ================
+File: src/nyord_vpn/api/__init__.py
+================
+
+
+================
 File: src/nyord_vpn/api/api.py
 ================
+T = TypeVar("T")
 class NordVPNAPI:
     def __init__(self, timeout: int = 10) -> None:
         self.recommendations = v1_recommendations.NordVPNRecommendationsV1(
@@ -504,65 +532,72 @@ class NordVPNAPI:
         self.countries = v1_countries.NordVPNCountriesV1(timeout=timeout)
         self.servers = v2_servers.NordVPNServersV2(timeout=timeout)
     def get_recommended_servers(
-            self._recommended_servers = self.recommendations.fetch_recommendations()
+        warnings.warn(
+                self._recommended_servers = self.recommendations.fetch_recommendations()
+                logger.error(f"Failed to fetch recommended servers: {e}")
+                    raise VPNAPIError(
     def get_technologies(
-            self._technologies = self.technologies.fetch_technologies()
-    def get_groups(self, refresh: bool = False) -> list[v1_groups.Group]:
-            self._groups = self.groups.fetch_groups()
-    def get_countries(self, refresh: bool = False) -> list[v1_countries.Country]:
-            self._countries = self.countries.fetch_countries()
-    def get_servers(self, refresh: bool = False) -> ServerTuple:
-            result = self.servers.fetch_all()
-            self._servers = cast(ServerTuple, result)
+                self._technologies = self.technologies.fetch_technologies()
+                logger.error(f"Failed to fetch technologies: {e}")
+                    raise VPNAPIError(f"Failed to fetch technologies: {e}") from e
+    def get_groups(self, *, refresh: bool = False) -> list[v1_groups.Group]:
+                self._groups = self.groups.fetch_groups()
+                logger.error(f"Failed to fetch groups: {e}")
+                    raise VPNAPIError(f"Failed to fetch groups: {e}") from e
+    def get_countries(self, *, refresh: bool = False) -> list[v1_countries.Country]:
+                self._countries = self.countries.fetch_countries()
+                logger.error(f"Failed to fetch countries: {e}")
+                    raise VPNAPIError(f"Failed to fetch countries: {e}") from e
+    def get_servers(self, *, refresh: bool = False) -> ServerTuple:
+                result = self.servers.fetch_all()
+                self._servers = cast(ServerTuple, result)
+                logger.error(f"Failed to fetch servers: {e}")
+                    raise VPNAPIError(f"Failed to fetch servers: {e}") from e
     def find_best_server(
-        servers = self.get_recommended_servers()
-                and server.locations[0].country.code.upper() == country_code.upper()
-                if any(group.identifier == group_identifier for group in server.groups)
-            raise ValueError(
-        return min(servers, key=lambda s: s.load)
-    def get_server_stats(self) -> dict:
-        countries = self.get_countries()
-        servers = self.get_servers()[0]
-        groups = self.get_groups()
-            "total_countries": len(countries),
-            "total_servers": len(servers),
-            "total_groups": len(groups),
-                for country in sorted(
-                group.identifier: len(
+                servers = self.get_servers()[0]  # First element is servers
+                        and any(
+                            location.country.code.upper() == country_code.upper()
+                        if any(
+                    return min(filtered_servers, key=lambda s: s.load)
+                logger.warning(
+                logger.warning(f"Failed to use v2 API, falling back to v1: {e}")
+            servers = self.get_recommended_servers()
+                    and server.locations[0].country.code.upper() == country_code.upper()
+                raise ValueError(
+    def get_server_stats(self) -> dict[str, Any]:
+            servers, groups, _, locations, _ = self.get_servers()
+                servers_by_group[group.identifier] = len(
                         if any(g.identifier == group.identifier for g in server.groups)
-    api = NordVPNAPI()
-        stats = api.get_server_stats()
-        logger.info("\nNordVPN Server Statistics:")
-        logger.info(f"Total Countries: {stats['total_countries']}")
-        logger.info(f"Total Servers: {stats['total_servers']}")
-        logger.info(f"Total Groups: {stats['total_groups']}")
-        logger.info("\nTop 5 Countries by Server Count:")
-        for code, count in list(stats["servers_by_country"].items())[:5]:
-            logger.info(f"{code}: {count} servers")
-        logger.info("\nServers by Group:")
-        for group, count in stats["servers_by_group"].items():
-            logger.info(f"{group}: {count} servers")
-            best_us_p2p = api.find_best_server(
-            logger.info("\nBest US P2P Server:")
-            logger.info(f"Name: {best_us_p2p.name}")
-            logger.info(f"Hostname: {best_us_p2p.hostname}")
-            logger.info(f"Load: {best_us_p2p.load}%")
-            logger.error(e)
-        logger.error(f"Error accessing NordVPN API: {e}")
+                "total_countries": len(countries_by_code),
+                "total_servers": len(servers),
+                "total_groups": len(groups),
+                "servers_by_country": dict(
+                    sorted(servers_by_country.items(), key=lambda x: x[1], reverse=True)
+            logger.warning(f"Failed to generate stats from v2 API, trying v1: {e}")
+                countries = self.get_countries()
+                v1_groups = self.get_groups()
+                    "total_countries": len(countries),
+                    "total_servers": sum(country.server_count for country in countries),
+                    "total_groups": len(v1_groups),
+                        for country in sorted(
 
 ================
 File: src/nyord_vpn/api/v1_countries.py
 ================
+warnings.warn(
 class City(BaseModel):
 class Country(BaseModel):
 class NordVPNCountriesV1:
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
     def fetch_countries(self) -> list[Country]:
             response = requests.get(COUNTRIES_V1_ENDPOINT, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             return [Country.model_validate(country) for country in data]
             logger.error(f"Failed to fetch NordVPN countries: {e}")
+            raise VPNAPIError(
+                details=str(e),
+            logger.error(f"Failed to parse NordVPN countries: {e}")
 def get_country_by_code(countries: list[Country], country_code: str) -> Country:
         if country.code.upper() == country_code.upper():
     raise ValueError(f"No country found with code: {country_code}")
@@ -570,57 +605,32 @@ def get_countries_by_min_servers(
 def get_city_by_name(country: Country, city_name: str) -> City:
         if city.name.lower() == city_name.lower():
     raise ValueError(f"No city found with name '{city_name}' in {country.name}")
-    client = NordVPNCountriesV1()
-        countries = client.fetch_countries()
-        logger.info("Server availability by country:")
-        for country in sorted(countries, key=lambda x: x.server_count, reverse=True)[
-            logger.info(
-                logger.info(f"  - {city.name}: {city.server_count} servers")
-        large_countries = get_countries_by_min_servers(countries, 100)
-        logger.info(f"\nCountries with 100+ servers: {len(large_countries)}")
-            logger.info(f"- {country.name}: {country.server_count} servers")
-            us = get_country_by_code(countries, "US")
-            nyc = get_city_by_name(us, "New York")
-            logger.info("\nNew York server details:")
-            logger.info(f"Total servers: {nyc.server_count}")
-            logger.info(f"Location: {nyc.latitude}, {nyc.longitude}")
-            logger.info(f"DNS name: {nyc.dns_name}")
-            logger.error(e)
-        logger.error(f"Failed to fetch countries: {e}")
 
 ================
 File: src/nyord_vpn/api/v1_groups.py
 ================
+warnings.warn(
 class GroupType(BaseModel):
 class Group(BaseModel):
 class NordVPNGroupsV1:
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
     def fetch_groups(self) -> list[Group]:
             response = requests.get(GROUPS_V1_ENDPOINT, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             return [Group.model_validate(group) for group in data]
             logger.error(f"Failed to fetch NordVPN server groups: {e}")
+            raise VPNAPIError(
+                details=str(e),
+            logger.error(f"Failed to parse NordVPN server groups: {e}")
 def get_groups_by_type(groups: list[Group], type_identifier: str) -> list[Group]:
 def get_group_by_identifier(groups: list[Group], identifier: str) -> Group:
     raise ValueError(f"No group found with identifier: {identifier}")
-    client = NordVPNGroupsV1()
-        groups = client.fetch_groups()
-        logger.info("Server groups by type:")
-            type_groups = get_groups_by_type(groups, type_id)
-            logger.info(f"\n{type_groups[0].type.title}:")
-                logger.info(f"- {group.title} ({group.identifier})")
-            p2p_group = get_group_by_identifier(groups, "legacy_p2p")
-            logger.info("\nP2P group details:")
-            logger.info(f"Title: {p2p_group.title}")
-            logger.info(f"Type: {p2p_group.type.title}")
-            logger.info(f"Added: {p2p_group.created_at}")
-            logger.error(e)
-        logger.error(f"Failed to fetch groups: {e}")
 
 ================
 File: src/nyord_vpn/api/v1_recommendations.py
 ================
+warnings.warn(
 class City(BaseModel):
 class Country(BaseModel):
 class Location(BaseModel):
@@ -636,62 +646,44 @@ class IP(BaseModel):
 class ServerIP(BaseModel):
 class RecommendedServer(BaseModel):
 class NordVPNRecommendationsV1:
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
     def fetch_recommendations(self) -> list[RecommendedServer]:
             response = requests.get(RECOMMENDATIONS_V1_ENDPOINT, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             return [RecommendedServer.model_validate(server) for server in data]
             logger.error(f"Failed to fetch NordVPN server recommendations: {e}")
+            raise VPNAPIError(
+                details=str(e),
+            logger.error(f"Failed to parse NordVPN server recommendations: {e}")
 def get_recommendations_by_country(
         and server.locations[0].country.code.upper() == country_code.upper()
 def get_recommendations_by_group(
         if any(group.identifier == group_identifier for group in server.groups)
-    client = NordVPNRecommendationsV1()
-        recommended_servers = client.fetch_recommendations()
-            logger.info(
-                logger.info(f"  Location: {loc.country.name}, {loc.country.city.name}")
-                    f"  Groups: {', '.join(group.title for group in server.groups)}"
-                    f"  Services: {', '.join(service.name for service in server.services)}"
-            logger.info("---")
-        us_servers = get_recommendations_by_country(recommended_servers, "US")
-        logger.info(f"\nNumber of US recommended servers: {len(us_servers)}")
-        p2p_servers = get_recommendations_by_group(recommended_servers, "legacy_p2p")
-        logger.info(f"\nNumber of recommended P2P servers: {len(p2p_servers)}")
-        logger.error(f"Failed to fetch server recommendations: {e}")
 
 ================
 File: src/nyord_vpn/api/v1_technologies.py
 ================
+warnings.warn(
 class Technology(BaseModel):
 class NordVPNTechnologiesV1:
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
     def fetch_technologies(self) -> list[Technology]:
             response = requests.get(TECHNOLOGIES_V1_ENDPOINT, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             return [Technology.model_validate(tech) for tech in data]
             logger.error(f"Failed to fetch NordVPN technologies: {e}")
+            raise VPNAPIError(
+                details=str(e),
+            logger.error(f"Failed to parse NordVPN technologies: {e}")
 def get_technology_by_identifier(
     raise ValueError(f"No technology found with identifier: {identifier}")
-    client = NordVPNTechnologiesV1()
-        technologies = client.fetch_technologies()
-        logger.info("Available VPN technologies:")
-            logger.info(f"- {tech.name} ({tech.identifier})")
-            logger.info(f"  Internal ID: {tech.internal_identifier}")
-            logger.info(f"  Added: {tech.created_at}")
-            logger.info("---")
-            wireguard = get_technology_by_identifier(technologies, "wireguard_udp")
-            logger.info("\nWireGuard details:")
-            logger.info(f"Name: {wireguard.name}")
-            logger.info(f"Internal identifier: {wireguard.internal_identifier}")
-            logger.info(f"Added: {wireguard.created_at}")
-            logger.error(e)
-        logger.error(f"Failed to fetch technologies: {e}")
 
 ================
 File: src/nyord_vpn/api/v2_servers.py
 ================
+T = TypeVar("T")
 class TechnologyMetadata(BaseModel):
 class Technology(BaseModel):
 class IP(BaseModel):
@@ -706,7 +698,7 @@ class Country(BaseModel):
 class Location(BaseModel):
 class Server(BaseModel):
 class NordVPNServersV2:
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
             "servers": TypeAdapter(list[Server]),
             "groups": TypeAdapter(list[Group]),
             "services": TypeAdapter(list[Service]),
@@ -716,31 +708,29 @@ class NordVPNServersV2:
             response = requests.get(SERVERS_V2_ENDPOINT, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
-                key: self._type_adapters[key].validate_python(data[key])
-                self._link_server_relations(server, maps)
-            logger.error(f"Failed to fetch NordVPN server data: {e}")
-    def _link_server_relations(self, server: Server, maps: dict) -> None:
-            for group_id in getattr(server, "group_ids", [])
-            for service_id in getattr(server, "service_ids", [])
-            for location_id in getattr(server, "location_ids", [])
+            for key, adapter in self._type_adapters.items():
+                    parsed_data[key] = adapter.validate_python(data[key])
+                    logger.error(f"Failed to parse {key} data: {err}")
+                    raise VPNAPIError(
+                        details=str(err),
+                self._link_server_relations(server, relationship_maps)
+                cast(list[Server], parsed_data["servers"]),
+                cast(list[Group], parsed_data["groups"]),
+                cast(list[Service], parsed_data["services"]),
+                cast(list[Location], parsed_data["locations"]),
+                cast(list[Technology], parsed_data["technologies"]),
+            logger.error(f"Failed to fetch NordVPN server data: {error}")
+                details=str(error),
+    def _link_server_relations(
+            for group_id in getattr(server, "group_ids", []) or []
+            for service_id in getattr(server, "service_ids", []) or []
+            for location_id in getattr(server, "location_ids", []) or []
             if hasattr(server, attr):
                 delattr(server, attr)
 def get_servers_by_country(servers: list[Server], country_code: str) -> list[Server]:
         and server.locations[0].country.code.upper() == country_code.upper()
 def get_servers_by_group(servers: list[Server], group_identifier: str) -> list[Server]:
         if any(group.identifier == group_identifier for group in server.groups)
-    client = NordVPNServersV2()
-        servers, groups, services, locations, technologies = client.fetch_all()
-            logger.info(
-                logger.info(f"  Location: {loc.country.name}, {loc.country.city.name}")
-                    f"  Groups: {', '.join(group.title for group in server.groups)}"
-                    f"  Services: {', '.join(service.name for service in server.services)}"
-            logger.info("---")
-        us_servers = get_servers_by_country(servers, "US")
-        logger.info(f"\nNumber of US servers: {len(us_servers)}")
-        p2p_servers = get_servers_by_group(servers, "legacy_p2p")
-        logger.info(f"\nNumber of P2P servers: {len(p2p_servers)}")
-        logger.error(f"Failed to fetch server data: {e}")
 
 ================
 File: src/nyord_vpn/core/__init__.py
@@ -750,10 +740,11 @@ File: src/nyord_vpn/core/__init__.py
 ================
 File: src/nyord_vpn/core/api.py
 ================
+warnings.warn(
 class NordVPNAPIClient:
-    def __init__(self, username: str, password: str, verbose: bool = False) -> None:
-    def list_countries(self, use_cache: bool = True) -> list[Country]:
-            response = get(url, headers=API_HEADERS, timeout=10)
+    def __init__(
+    def list_countries(self, *, use_cache: bool = True) -> list[Country]:
+            response = get(url, headers=API_HEADERS, timeout=self.timeout)
             response.raise_for_status()
             countries: list[Country] = response.json()
                 "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -772,9 +763,14 @@ class NordVPNAPIClient:
                 f"{country['name']} ({country['code'].lower()}) - {total_servers} servers",
             for city in sorted(country["cities"], key=lambda x: x["name"]):
                 locations.append(f"  {city['name']} - {city['serverCount']} servers")
-    def get_best_city(self, country_code: str) -> City | None:
+    def get_best_city(
         country = self.get_country_by_code(country_code)
         sorted_cities = sorted(
+    def fetch_countries(
+            return self.list_countries(use_cache=False)
+        return self.list_countries(use_cache=True)
+    def get_cities(self, country_code: str, *, use_cache: bool = True) -> list[City]:
+        return country.get("cities", [])
     def test_api_connectivity(self) -> bool:
             response = get(
                 self.logger.exception(f"API connectivity test failed: {e}")
@@ -782,14 +778,13 @@ class NordVPNAPIClient:
 ================
 File: src/nyord_vpn/core/base.py
 ================
+warnings.warn(
 class NordVPNClient:
-    def __init__(self, username: str, password: str, verbose: bool = False) -> None:
+    def __init__(self, username: str, password: str, *, verbose: bool = False) -> None:
         self.countries = self._load_countries()
         self.logger.add(sys.stdout, level="DEBUG" if self.verbose else "INFO")
     def _load_countries(self) -> list[Country]:
-            with open(self.cache_file) as f:
-                cache_data: CountryCache = json.load(f)
-            self.logger.warning(f"Failed to load cache: {e}. Using fallback data.")
+        cached = get_cached_countries()
     def get_country_by_code(self, code: str) -> Country | None:
         code = code.upper()
     def get_country_by_name(self, name: str) -> Country | None:
@@ -798,20 +793,13 @@ class NordVPNClient:
     def get_available_locations(self) -> list[str]:
         for country in sorted(self.countries, key=lambda x: x["name"]):
             locations.append(
-                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers",
-            for city in sorted(country["cities"], key=lambda x: x["name"]):
-                locations.append(f"  {city['name']} - {city['serverCount']} servers")
+                f"{country['name']} ({country['code'].lower()}) - {total_servers} servers"
+            locations.extend(
+                for city in sorted(country["cities"], key=lambda x: x["name"])
     def get_best_city(self, country_code: str) -> City | None:
         country = self.get_country_by_code(country_code)
         sorted_cities = sorted(
-    def list_countries(self, use_cache: bool = True) -> list[Country]:
-            response = requests.get(url, headers=API_HEADERS, timeout=10)
-            response.raise_for_status()
-            countries: list[Country] = response.json()
-                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            cache_countries(cache_data)
-            self.logger.warning(f"Failed to fetch countries: {e}")
-            cached = get_cached_countries()
+    def list_countries(self, **kwargs) -> list[Country]:
 
 ================
 File: src/nyord_vpn/core/client.py
@@ -831,7 +819,7 @@ class Client:
             or os.environ.get("NORD_PASSWORD")
             or os.environ.get("NORDVPN_PASSWORD")
             raise VPNError(
-        self.api_client = NordVPNAPIClient(self.username, self.password, verbose)
+        self.api_client = NordVPNAPIClient(
         self.server_manager = ServerManager(self.api_client)
         self.vpn_manager = VPNConnectionManager(
             self.vpn_manager.setup_connection("", self.username, self.password)
@@ -886,18 +874,13 @@ class Client:
                 console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
             raise VPNError(f"Failed to get status: {e}")
     def init(self) -> None:
-            openvpn_path = self.vpn_manager.check_openvpn_installation()
-                self.logger.info(f"Found OpenVPN at: {openvpn_path}")
                 directory.mkdir(parents=True, exist_ok=True)
-                    self.logger.info(f"Created directory: {directory}")
-            if not self.api_client.test_api_connectivity():
-                raise ConnectionError("Failed to connect to NordVPN API")
-                self.logger.info("Successfully connected to NordVPN API")
-            initial_ip = self.vpn_manager.get_current_ip()
-                raise ConnectionError("Failed to get initial IP")
-                self.logger.info(f"Initial IP: {initial_ip}")
-                self.logger.info("Client environment initialized successfully")
-            raise ConnectionError(f"Failed to initialize client environment: {e}")
+                self.api_client.list_countries()
+                raise VPNConnectionError("Failed to connect to NordVPN API") from e
+                self.get_current_ip()
+                raise VPNConnectionError("Failed to get initial IP") from e
+            if isinstance(e, VPNConnectionError):
+            raise VPNConnectionError(f"Failed to initialize client environment: {e}")
     def get_current_ip(self) -> str | None:
         return self.vpn_manager.get_current_ip()
     def _save_state(self) -> None:
@@ -1033,77 +1016,82 @@ def get_cached_servers() -> ServerCache | None:
             "servers": cast(list[ServerInfo], _safe_dict_get_list(data, "servers", [])),
             "locations": cast(
                 dict[str, ServerLocation], _safe_dict_get_dict(data, "locations", {})
-        logger.warning(f"Failed to read server cache: {e}")
+        logger.warning(f"Failed to load cached server information: {e}")
 class ServerManager:
-    def __init__(self, api_client: NordVPNAPIClient) -> None:
-        self._failed_servers = set()  # Track failed servers in this session
+    def __init__(self, api_client: NordVPNAPI) -> None:
+        self._failed_servers: set[str] = set()  # Track failed servers in this session
+    def verbose(self) -> bool:
+    def verbose(self, value: bool) -> None:
     def _validate_country_code(self, country_code: str | None) -> str | None:
         normalized = country_code.upper()
         if not isinstance(normalized, str) or len(normalized) != 2:
             raise ServerError(f"Invalid country code format: {country_code}")
-        cache = self.get_servers_cache()
-            raise ServerError("No server information available")
-        for location in cache["locations"].values():
-            if location["country"]["code"].upper() == normalized:
-        available_countries = sorted(
-                loc["country"]["code"].upper()
-                for loc in cache["locations"].values()
-        raise ServerError(
-            f"Available countries: {', '.join(available_countries)}"
+            servers, _, _, locations, _ = self.api_client.get_servers()
+                if location.country and location.country.code.upper() == normalized:
+            available_countries = sorted(
+                    loc.country.code.upper()
+            raise ServerError(
+                f"Available countries: {', '.join(available_countries)}"
+            cache = self.get_servers_cache()
+                raise ServerError("No server information available")
+            for location in cache["locations"].values():
+                if location["country"]["code"].upper() == normalized:
+                    loc["country"]["code"].upper()
+                    for loc in cache["locations"].values()
     def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
-                raise ServerError("Failed to get server list")
-            for loc_id, location in locations.items():
-                if isinstance(location, dict):
-                    location_lookup[str(loc_id)] = location
-                    normalized_country = self._validate_country_code(country)
-                        location = location_lookup.get(str(loc_id))
-                            and location["country"]["code"].upper()
-                filtered_servers.append(server)
-                        for loc in locations.values()
-                    f"No servers available{' in ' + country.upper() if country else ''}"
-                        f"\nAvailable countries: {', '.join(available_countries)}"
-                raise ServerError(error_msg)
-            server = min(filtered_servers, key=lambda x: x["load"])
-                raise ServerError("Invalid server data received")
-                self.logger.debug(
-            return hostname, server.get("station", "")
-            raise ServerError(f"Failed to fetch server info: {e}")
+            country_code = self._validate_country_code(country)
+            best_server = self.api_client.find_best_server(
+            hostname = getattr(best_server, "hostname", None)
+                raise ServerError("Best server has no hostname")
+            station = getattr(best_server, "station", "")
+            if isinstance(e, ServerError):
+            raise ServerError(f"Failed to fetch server information: {e}")
     def get_servers_cache(self) -> ServerCache | None:
                 and time.time() - self._last_cache_update <= SERVERS_CACHE_TTL
             file_cache = get_cached_servers()
                 self._last_cache_update = time.time()
-            response = requests.get(
-            response.raise_for_status()
-            api_data = response.json()
-            if not isinstance(api_data, dict):
-                self.logger.warning(
-                "last_updated": time.time(),
-            for location in api_data.get("locations", []):
-                if not isinstance(location, dict):
-                location_id = str(location.get("id", ""))
-                country_data = location.get("country", {})
-                if isinstance(country_data, dict):
-                        "name": str(country_data.get("name", "")),
-                        "code": str(country_data.get("code", "")),
-            for item in api_data.get("servers", []):
-                if not isinstance(item, dict):
-                for tech in item.get("technologies", []):
-                    if not isinstance(tech, dict):
-                    tech_id = tech.get("id")
-                        "id": int(tech_id),
-                        "status": str(tech.get("status", "")),
-                    if tech.get("metadata"):
-                        technology["metadata"] = cast(
-                    technologies.append(technology)
-                    "hostname": str(item.get("hostname", "")),
-                    "location_ids": [str(lid) for lid in item.get("location_ids", [])],
-                    "status": str(item.get("status", "")),
-                    "load": int(item.get("load", 0)),
-                servers.append(server_info)
-            cache_servers(cast(dict[str, Any], new_cache))
+                    self.api_client.get_servers()
+                    "last_updated": time.time(),
+                        location_id = str(location.id)
+                        if hasattr(tech, "metadata") and tech.metadata:
+                            technology["metadata"] = cast(
+                        server_technologies.append(technology)
+                            str(loc.id) for loc in server.locations if loc.id
+                    new_cache["servers"].append(server_info)
+                cache_servers(cast(dict[str, Any], new_cache))
+                logger.warning(f"Failed to get server information from API: {e}")
+                response = requests.get(
+                response.raise_for_status()
+                api_data = response.json()
+                if not isinstance(api_data, dict):
+                    self.logger.warning(
+                for location in api_data.get("locations", []):
+                    if not isinstance(location, dict):
+                    location_id = str(location.get("id", ""))
+                    country_data = location.get("country", {})
+                    if isinstance(country_data, dict):
+                            "name": str(country_data.get("name", "")),
+                            "code": str(country_data.get("code", "")),
+                for item in api_data.get("servers", []):
+                    if not isinstance(item, dict):
+                    for tech in item.get("technologies", []):
+                        if not isinstance(tech, dict):
+                        tech_id = tech.get("id")
+                            "id": int(tech_id),
+                            "status": str(tech.get("status", "")),
+                        if tech.get("metadata"):
+                        technologies.append(technology)
+                        "hostname": str(item.get("hostname", "")),
+                            str(lid) for lid in item.get("location_ids", [])
+                        "status": str(item.get("status", "")),
+                        "load": int(item.get("load", 0)),
+                    servers.append(server_info)
             self.logger.warning(f"Failed to get server information: {e}")
     def _ping_server(self, hostname: str) -> float:
             system = platform.system().lower()
+            if not self._is_valid_hostname(hostname):
+                self.logger.warning(f"Invalid hostname format: {hostname}")
+                return float("inf")
                 self.logger.debug(f"Running ping command: {' '.join(cmd)}")
             result = subprocess.run(
                 min_time = float("inf")
@@ -1111,109 +1099,148 @@ class ServerManager:
                         self.logger.debug(f"Ping output line: {line}")
                             stats = line.split("=")[1].strip().split("/")
                             min_time = float(stats[0])
+                                self.logger.debug(
                             time_str = line.split("time=")[1].split()[0].rstrip("ms")
                             ping_time = float(time_str)
                             min_time = min(min_time, ping_time)
                 if min_time < float("inf"):
-                return float("inf")
-                self.logger.debug(f"Server {hostname} ping timed out")
-                self.logger.debug(f"Server {hostname} ping error: {e}")
-                self.logger.debug(f"Traceback: {traceback.format_exc()}")
+                self.logger.debug(f"Error pinging {hostname}: {e}")
+    def _is_valid_hostname(self, hostname: str) -> bool:
+        return bool(
+            re.match(r"^[a-zA-Z0-9][a-zA-Z0-9\.-]{1,253}[a-zA-Z0-9]$", hostname)
     def _is_valid_server(self, server: Any) -> bool:
-        if not isinstance(server, dict):
-        hostname = server.get("hostname")
-        if not isinstance(hostname, str) or not hostname:
-        for tech in server.get("technologies", []):
-            tech_name = tech.get("name", "")
-                isinstance(tech, dict)
-                and isinstance(tech_name, str)
+        if not hasattr(server, "get") and not hasattr(server, "__dict__"):
+            server.get("hostname", "")
+            if hasattr(server, "get")
+            else getattr(server, "hostname", "")
+            server.get("status", "")
+            else getattr(server, "status", "")
     def _test_server(self, server: dict[str, Any]) -> tuple[dict[str, Any], float]:
-        hostname = _safe_dict_get(server, "hostname")
+        hostname = server.get("hostname", "")
             return server, float("inf")
-            tcp_time = float("inf")
-                context = ssl.create_default_context()
-                start = time.time()
-                with socket.create_connection((hostname, 443), timeout=1) as sock:
-                    tcp_time = (time.time() - start) * 1000  # Convert to ms
-                        with context.wrap_socket(
-                            ssock.do_handshake()
-                    self.logger.debug(f"TCP test failed for {hostname}: {e}")
-            ping_time = float("inf")
-                                    ping_time = float(
-                                        line.split("=")[1].strip().split("/")[0]
-                        with contextlib.suppress(IndexError, ValueError):
-                                result.stdout.split("time=")[1].split()[0].rstrip("ms")
-                    self.logger.debug(f"Ping failed for {hostname}: {e}")
-                self.logger.debug(f"Failed to test server {hostname}: {e}")
+        load = server.get("load", 100)
+        ping_time = self._ping_server(hostname)
+        server_copy = server.copy()
     def _select_diverse_servers(
-            region = server.get("country", {}).get("region", {}).get("name", "Unknown")
-            regions[region].append(server)
-        region_names = list(regions.keys())
-        while len(selected) < count and region_names:
-            region = region_names.pop(random.randrange(len(region_names)))
-            if region_servers := regions.get(region, []):
-                server = random.choice(region_servers)
-                selected.append(server)
-        if remaining_servers and len(selected) < count:
-            sample_size = min(count - len(selected), len(remaining_servers))
-                remaining = random.sample(remaining_servers, sample_size)
-                selected.extend(remaining)
-                selected.append(random.choice(servers))
+        if len(servers) <= count:
+        servers_by_load = sorted(servers, key=lambda s: s.get("load", 100))
+        low_load = servers_by_load[: len(servers_by_load) // 4]
+            result.append(low_load[secrets.randbelow(len(low_load))])
+        mid_start = len(servers_by_load) // 4
+        mid_end = mid_start + len(servers_by_load) // 2
+            result.append(medium_load[secrets.randbelow(len(medium_load))])
+        remaining = count - len(result)
+            selected_hostnames = {s.get("hostname", "") for s in result}
+                s for s in servers if s.get("hostname", "") not in selected_hostnames
+            for _ in range(min(remaining, len(remaining_servers))):
+                idx = secrets.randbelow(len(remaining_servers))
+                result.append(remaining_servers[idx])
+                remaining_servers.pop(idx)
     def select_fastest_server(
+                    country_code = self._validate_country_code(country_code)
+                logger.warning(
                 raise ServerError("No servers available")
             location_lookup = {str(loc["id"]): loc for loc in locations.values()}
                 country_code = country_code.upper()
+                        location = location_lookup.get(str(loc_id))
                             and location["country"]["code"].upper() == country_code
+                            filtered_servers.append(server)
+                            for loc in locations.values()
                 self._failed_servers.clear()  # Reset failed servers if none left
                 return self.select_fastest_server(country_code)  # Try again
-            servers.sort(key=lambda x: x["load"])
-            logger.debug(servers)
-                server_result, score = self._test_server(cast(dict[str, Any], server))
+            test_servers = self._select_diverse_servers(servers)
+                server_result, score = self._test_server(server)
                 if score < float("inf"):
                     results.append((server_result, score))
             results.sort(key=lambda x: x[1])
-            if isinstance(e, ServerError):
             raise ServerError(f"Failed to select server: {e}")
-    def _get_country_id(self, country_code: str) -> str:
-                if isinstance(location, dict) and isinstance(
-                    location.get("country"), dict
-                    if country.get("code", "").upper() == country_code.upper():
-                        return str(country.get("id", ""))
-                self.logger.warning(f"Failed to get country ID: {e}")
+    def get_country_info(self, country_code: str) -> dict[str, Any]:
+        normalized_code = self._validate_country_code(country_code)
+            raise ServerError(f"Invalid country code: {country_code}")
+            _, _, _, locations, _ = self.api_client.get_servers()
+                    and location.country.code.upper() == normalized_code
+                        "id": getattr(location.country, "id", None),
+            raise ServerError(f"Country not found: {normalized_code}")
+            for loc in cache["locations"].values():
+                if loc["country"]["code"].upper() == normalized_code:
     def get_random_country(self) -> str:
-                raise ServerError("No countries found in server list")
-            selected = random.choice(list(countries))
-                self.logger.debug(f"Selected random country: {selected}")
-            self.logger.warning(f"Failed to get random country: {e}")
-    def get_country_info(self, country_code: str) -> dict[str, Any] | None:
-                self.logger.warning(f"Failed to get country info for {normalized}: {e}")
+                raise ServerError("No countries available")
+            return country_codes[secrets.randbelow(len(country_codes))]
+            country_codes = sorted(
 
 ================
 File: src/nyord_vpn/network/vpn_commands.py
 ================
-def get_openvpn_command(
-    if not config_path.exists():
-        raise VPNConfigError(f"OpenVPN config file not found: {config_path}")
-    if not auth_path.exists():
-        raise VPNConfigError(f"OpenVPN auth file not found: {auth_path}")
-        config_path.read_bytes()
-        auth_path.read_bytes()
-        raise VPNConfigError(f"Cannot read OpenVPN files: {e}")
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        raise VPNConfigError(f"Invalid verbosity level: {verbosity} (must be 1-6)")
-        str(config_path),
-        str(auth_path),
-        str(verbosity),
-        str(connect_retry),
-        str(connect_timeout),
-        str(ping_interval),
-        str(ping_restart),
+class OpenVPNVerbosity(Enum):
+class OpenVPNConfig:
+    ciphers: list[str] = field(
+    tls_ciphers: list[str] = field(
+    dns_servers: list[str] = field(
+    extra_options: dict[str, Any] = field(default_factory=dict)
+    def __post_init__(self) -> None:
+        self._validate_paths()
+        self._validate_verbosity()
+        self._validate_numeric_params()
+    def _validate_paths(self) -> None:
+        if isinstance(self.config_path, str):
+            self.config_path = Path(self.config_path)
+        if isinstance(self.auth_path, str):
+            self.auth_path = Path(self.auth_path)
+        if isinstance(self.log_path, str):
+            self.log_path = Path(self.log_path)
+        if not self.config_path.exists():
+            raise VPNConfigError(f"{CONFIG_FILE_NOT_FOUND}: {self.config_path}")
+        if not self.auth_path.exists():
+            raise VPNConfigError(f"{AUTH_FILE_NOT_FOUND}: {self.auth_path}")
+            self.config_path.read_bytes()
+            self.auth_path.read_bytes()
+            raise VPNConfigError(f"{CANNOT_READ_FILES}: {e}") from e
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+    def _validate_verbosity(self) -> None:
+        if isinstance(self.verbosity, int):
+                raise VPNConfigError(f"{INVALID_VERBOSITY}: {self.verbosity}")
+            with contextlib.suppress(ValueError):
+                self.verbosity = OpenVPNVerbosity(self.verbosity)
+    def _validate_numeric_params(self) -> None:
+            raise VPNConfigError(f"{INVALID_CONNECT_RETRY}: {self.connect_retry}")
+            raise VPNConfigError(f"{INVALID_CONNECT_TIMEOUT}: {self.connect_timeout}")
+            raise VPNConfigError(f"{INVALID_PING_INTERVAL}: {self.ping_interval}")
+            raise VPNConfigError(
+def get_openvpn_command(config: OpenVPNConfig) -> list[str]:
+    if not shutil.which("openvpn"):
+        raise VPNConfigError(f"{OPENVPN_NOT_FOUND}. Please install OpenVPN first.")
+        str(config.config_path),
+        str(config.auth_path),
+        str(
+            if isinstance(config.verbosity, OpenVPNVerbosity)
+        str(config.connect_retry),
+        str(config.connect_timeout),
+        str(config.ping_interval),
+        str(config.ping_restart),
+    cmd.extend(
+            ":".join(config.ciphers),
+            ":".join(config.tls_ciphers),
     system = platform.system().lower()
-        cmd.extend(
-        resolv_conf_script = Path("/etc/openvpn/update-resolv-conf")
-        if resolv_conf_script.exists():
-                    str(resolv_conf_script),
-        cmd.extend(["--log", str(log_path)])
+        _add_macos_options(cmd, config)
+        _add_linux_options(cmd, config)
+        _add_windows_options(cmd, config)
+        logger.warning(f"Unsupported platform: {system}. Using generic options.")
+        _add_generic_options(cmd, config)
+        cmd.extend(["--log", str(config.log_path)])
+    for key, value in config.extra_options.items():
+            cmd.append(f"--{key}")
+            cmd.append(str(value))
+def _add_macos_options(cmd: list[str], config: OpenVPNConfig) -> None:
+        cmd.extend(["--dhcp-option", "DNS", dns_server])
+def _add_linux_options(cmd: list[str], config: OpenVPNConfig) -> None:
+    resolv_conf_script = Path("/etc/openvpn/update-resolv-conf")
+    if resolv_conf_script.exists():
+                str(resolv_conf_script),
+    if not resolv_conf_script.exists():
+def _add_windows_options(cmd: list[str], config: OpenVPNConfig) -> None:
+def _add_generic_options(cmd: list[str], config: OpenVPNConfig) -> None:
+def create_default_config(
+    return OpenVPNConfig(
 
 ================
 File: src/nyord_vpn/network/vpn.py
@@ -1476,6 +1503,11 @@ def main() -> None:
     main()
 
 ================
+File: src/nyord_vpn/storage/__init__.py
+================
+
+
+================
 File: src/nyord_vpn/storage/models.py
 ================
 class City(TypedDict):
@@ -1486,7 +1518,6 @@ class VPNError(Exception):
         super().__init__(message or "An unknown VPN error occurred")
 class ServerError(VPNError):
         super().__init__(
-class ConnectionError(VPNError):
 class AuthenticationError(VPNError):
 class CredentialsError(VPNError):
 class StateError(VPNError):
@@ -1756,8 +1787,6 @@ class NyordVPNError(Exception):
 class VPNError(NyordVPNError):
         super().__init__(message, details, cause)
 class CredentialsError(NyordVPNError):
-class ConnectionError(NyordVPNError):
-class DisconnectionError(NyordVPNError):
 class ServerNotFoundError(NyordVPNError):
 class VPNConfigError(VPNError):
 class VPNServerError(NyordVPNError):
@@ -1766,6 +1795,7 @@ class VPNTimeoutError(NyordVPNError):
 class VPNProcessError(VPNError):
 class VPNConnectionError(VPNError):
 class VPNDisconnectionError(VPNError):
+class VPNAPIError(VPNError):
 
 ================
 File: tests/integration/__init__.py
@@ -1961,10 +1991,37 @@ def mock_process():
     with patch("subprocess.Popen") as mock_popen:
 def mock_client(mock_env_credentials, mock_openvpn, mock_requests, mock_process):
     with patch("nyord_vpn.api.legacy.LegacyVPNClient") as mock_legacy:
-        client = VPNClient()
+        client = Client()
 def temp_config_file(tmp_path):
     config_file.write_text(json.dumps(config))
 def mock_ip_info():
+
+================
+File: tests/test_api.py
+================
+def sample_country() -> dict:
+def sample_group() -> dict:
+def sample_technology() -> dict:
+def sample_server() -> dict:
+def test_get_countries(sample_country) -> None:
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        client = NordVPNAPI()
+        countries = client.get_countries()
+        assert len(countries) == 1
+        assert len(countries[0].cities) == 1
+def test_get_groups(sample_group) -> None:
+        groups = client.get_groups()
+        assert len(groups) == 1
+def test_get_technologies(sample_technology) -> None:
+        technologies = client.get_technologies()
+        assert len(technologies) == 1
+def test_get_servers(sample_server) -> None:
+        servers = client.get_servers()
+        assert len(servers[0]) == 1  # First element is list of servers
+        assert len(server.locations) == 1
+        assert len(server.technologies) == 1
+        assert len(server.groups) == 1
 
 ================
 File: tests/test_client.py
@@ -2049,6 +2106,162 @@ def test_server_filtering(server_manager, mock_api_client) -> None:
     assert any(s["hostname"] == "tcp1.nordvpn.com" for s in servers)
     assert any(s["hostname"] == "tcp2.nordvpn.com" for s in servers)
     mock_api_client.logger.debug.assert_any_call(
+
+================
+File: tests/test_v1_countries.py
+================
+def sample_city() -> dict:
+def sample_country(sample_city) -> dict:
+def sample_countries(sample_country) -> list[dict]:
+def test_fetch_countries(sample_countries) -> None:
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        client = NordVPNCountriesV1()
+        countries = client.fetch_countries()
+        assert len(countries) == 2
+        assert len(countries[0].cities) == 1
+def test_get_country_by_code(sample_countries) -> None:
+    countries = [Country.model_validate(c) for c in sample_countries]
+    us = get_country_by_code(countries, "US")
+    de = get_country_by_code(countries, "de")
+    with pytest.raises(ValueError):
+        get_country_by_code(countries, "XX")
+def test_get_countries_by_min_servers(sample_countries) -> None:
+    large_countries = get_countries_by_min_servers(countries, 90)
+    assert len(large_countries) == 1
+    medium_countries = get_countries_by_min_servers(countries, 70)
+    assert len(medium_countries) == 2
+    no_countries = get_countries_by_min_servers(countries, 200)
+    assert len(no_countries) == 0
+def test_get_city_by_name(sample_countries) -> None:
+    us = Country.model_validate(sample_countries[0])
+    de = Country.model_validate(sample_countries[1])
+    nyc = get_city_by_name(us, "New York")
+    frankfurt = get_city_by_name(de, "Frankfurt")
+    nyc_lower = get_city_by_name(us, "new york")
+        get_city_by_name(us, "Chicago")
+
+================
+File: tests/test_v1_groups.py
+================
+def sample_group_type() -> dict:
+def sample_group(sample_group_type) -> dict:
+def sample_groups(sample_group) -> list[dict]:
+def test_fetch_groups(sample_groups) -> None:
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        client = NordVPNGroupsV1()
+        groups = client.fetch_groups()
+        assert len(groups) == 3
+def test_get_groups_by_type(sample_groups) -> None:
+        legacy_groups = get_groups_by_type(groups, "legacy_group_category")
+        assert len(legacy_groups) == 2
+        assert all(
+        region_groups = get_groups_by_type(groups, "regions")
+        assert len(region_groups) == 1
+        unknown_groups = get_groups_by_type(groups, "unknown")
+        assert len(unknown_groups) == 0
+def test_get_group_by_identifier(sample_groups) -> None:
+        p2p = get_group_by_identifier(groups, "legacy_p2p")
+        europe = get_group_by_identifier(groups, "europe")
+        with pytest.raises(ValueError):
+            get_group_by_identifier(groups, "unknown")
+
+================
+File: tests/test_v1_recommendations.py
+================
+def sample_city() -> dict:
+def sample_country(sample_city) -> dict:
+def sample_location(sample_country) -> dict:
+def sample_group() -> dict:
+def sample_service() -> dict:
+def sample_technology() -> dict:
+def sample_server(
+def test_fetch_recommendations(sample_server) -> None:
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        client = NordVPNRecommendationsV1()
+        servers = client.fetch_recommendations()
+        assert len(servers) == 1
+        assert len(server.locations) == 1
+        assert len(server.groups) == 1
+        assert len(server.services) == 1
+def test_get_recommendations_by_country(sample_server) -> None:
+        us_servers = get_recommendations_by_country(servers, "US")
+        assert len(us_servers) == 1
+        us_servers_lower = get_recommendations_by_country(servers, "us")
+        assert len(us_servers_lower) == 1
+        de_servers = get_recommendations_by_country(servers, "DE")
+        assert len(de_servers) == 0
+def test_get_recommendations_by_group(sample_server) -> None:
+        p2p_servers = get_recommendations_by_group(servers, "legacy_p2p")
+        assert len(p2p_servers) == 1
+        standard_servers = get_recommendations_by_group(servers, "standard")
+        assert len(standard_servers) == 0
+
+================
+File: tests/test_v1_technologies.py
+================
+def sample_technology() -> dict:
+def sample_technologies(sample_technology) -> list[dict]:
+def test_fetch_technologies(sample_technologies) -> None:
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        client = NordVPNTechnologiesV1()
+        technologies = client.fetch_technologies()
+        assert len(technologies) == 3
+def test_get_technology_by_identifier(sample_technologies) -> None:
+        udp = get_technology_by_identifier(technologies, "openvpn_udp")
+        ikev2 = get_technology_by_identifier(technologies, "ikev2")
+        with pytest.raises(ValueError):
+            get_technology_by_identifier(technologies, "unknown")
+
+================
+File: tests/test_v2_servers.py
+================
+def sample_technology_metadata() -> dict:
+def sample_tech() -> dict:
+def sample_ip() -> dict:
+def sample_server_ip(sample_ip) -> dict:
+def sample_specification_value() -> dict:
+def sample_specification(sample_specification_value) -> dict:
+def sample_group_type() -> dict:
+def sample_group(sample_group_type) -> dict:
+def sample_service() -> dict:
+def sample_city() -> dict:
+def sample_country(sample_city) -> dict:
+def sample_location(sample_country) -> dict:
+def sample_server(
+def sample_api_response(
+def test_fetch_all(sample_api_response) -> None:
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        client = NordVPNServersV2()
+        servers, groups, services, locations, technologies = client.fetch_all()
+        assert len(servers) == 1
+        assert len(server.ips) == 1
+        assert len(server.specifications) == 1
+        assert len(server.technologies) == 1
+        assert len(server.groups) == 1
+        assert len(server.services) == 1
+        assert len(server.locations) == 1
+        assert len(groups) == 1
+        assert len(services) == 1
+        assert len(locations) == 1
+        assert len(technologies) == 1
+def test_get_servers_by_country(sample_api_response) -> None:
+        servers, *_ = client.fetch_all()
+        us_servers = get_servers_by_country(servers, "US")
+        assert len(us_servers) == 1
+        us_servers_lower = get_servers_by_country(servers, "us")
+        assert len(us_servers_lower) == 1
+        de_servers = get_servers_by_country(servers, "DE")
+        assert len(de_servers) == 0
+def test_get_servers_by_group(sample_api_response) -> None:
+        p2p_servers = get_servers_by_group(servers, "legacy_p2p")
+        assert len(p2p_servers) == 1
+        standard_servers = get_servers_by_group(servers, "standard")
+        assert len(standard_servers) == 0
 
 ================
 File: .gitignore
@@ -2462,16 +2675,14 @@ class Cleanup:
             log_message("Package installed successfully")
             log_message(f"Failed to install package: {e}")
     def _run_checks(self) -> None:
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Running code fixes")
+            log_message(
+                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
             run_command(
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Running type checks")
             run_command(["python", "-m", "mypy", "src", "tests"], check=False)
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Checking for _potentially_ unused code")
             run_command(["python", "-m", "vulture", "src"], check=False)
-            log_message(">>>\n>>> %s...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!\n>>>" % "Running tests")
+                ">>>\n>>> {}...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!\n>>>".format(
             run_command(["python", "-m", "pytest", "tests"], check=False)
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the output!\n>>>" % "Running repomix analysis")
-            run_command([
+                ">>>\n>>> {}...\n>>> TODO: Check the output!\n>>>".format(
             log_message("All checks completed")
             log_message(f"Failed during checks: {e}")
     def status(self) -> None:
@@ -2521,7 +2732,6 @@ def main() -> NoReturn:
             cleanup.update()
             cleanup.push()
         log_message(f"Error: {e}")
-    print(Path("CLEANUP.txt").read_text())
     sys.exit(0)  # Explicitly exit to satisfy NoReturn type
     main()
 
@@ -2564,6 +2774,143 @@ use_rich = true          # Use Rich for terminal output
 mkdocs = false           # Enable MkDocs documentation
 vcs = true              # Initialize Git repository
 github_actions = true   # Add GitHub Actions workflows
+
+================
+File: PROGRESS.md
+================
+# Progress Report
+
+## Completed Tasks
+
+- [x] Add module docstrings to all files
+  - [x] Created `api/__init__.py` with docstring
+  - [x] Confirmed `network/__init__.py` has docstring
+  - [x] Added docstring to `storage/models.py`
+
+- [x] Rename `ConnectionError` to `VPNConnectionError`
+  - [x] Updated in `exceptions.py`
+  - [x] Updated in `storage/models.py`
+  - [x] Updated in `core/client.py`
+  - [x] Updated in `__init__.py`
+
+- [x] Make boolean parameters keyword-only
+  - [x] Updated in `core/client.py`
+  - [x] Updated in `core/api.py`
+  - [x] Updated in `network/vpn.py`
+
+- [x] Move main blocks to test files
+  - [x] Created `tests/test_v1_recommendations.py`
+  - [x] Created `tests/test_v1_groups.py`
+  - [x] Created `tests/test_v1_technologies.py`
+  - [x] Created `tests/test_api.py`
+  - [x] Created `tests/test_v2_servers.py`
+  - [x] Removed main blocks from corresponding files
+    - [x] Removed from `v1_recommendations.py`
+    - [x] Removed from `v1_groups.py`
+    - [x] Removed from `v1_technologies.py`
+    - [x] Removed from `api.py`
+    - [x] Removed from `v2_servers.py`
+
+- [x] API Module (`src/nyord_vpn/api/`)
+  - [x] `src/nyord_vpn/api/api.py`
+    - [x] Remove shebang and any commented-out code at the top
+    - [x] Implement `NordVPNAPI` class with proper docstrings and type hints
+    - [x] Add `find_best_server` method with v2 API support and v1 fallback
+    - [x] Update v1 methods with deprecation notices and keyword-only arguments
+  
+  - [x] `src/nyord_vpn/api/v1_*.py` files
+    - [x] Add deprecation notices to docstrings
+    - [x] Fix boolean positional arguments
+    - [x] Add proper docstrings to classes and methods
+    - [x] Update error handling to use specific exceptions from exceptions.py
+
+  - [x] `src/nyord_vpn/api/v2_servers.py`
+    - [x] Fix linting issues, particularly ambiguous variable names (E741)
+    - [x] Add proper docstrings to methods
+    - [x] Add comprehensive type hints where missing
+
+- [x] Core Module (`src/nyord_vpn/core/`)
+  - [x] `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`
+    - [x] Add deprecation warnings
+    - [x] Fix boolean positional arguments and other linting issues
+
+## Remaining Tasks
+
+### Core Module (`src/nyord_vpn/core/`)
+
+#### `src/nyord_vpn/core/client.py`
+
+**Action**: Refactor significantly to use the new API.
+
+- [ ] Update to use the new `NordVPNAPI` class
+- [ ] Improve error handling and user feedback
+- [ ] Break down complex methods into smaller helper functions
+- [ ] Fix boolean arguments and other linting issues
+
+### Network Module (`src/nyord_vpn/network/`)
+
+#### `src/nyord_vpn/network/server.py`
+
+**Action**: Refactor to use new API.
+
+- [ ] Add type hints for functions and variables
+- [ ] Replace random.randrange and random.choice with secrets module
+- [ ] Address security issues in subprocess calls by validating input
+- [ ] Reduce complexity by extracting helper functions
+
+#### `src/nyord_vpn/network/vpn.py`
+
+**Action**: Refactor for better maintainability.
+
+- [ ] Make boolean arguments keyword-only
+- [ ] Add type hints
+- [ ] Add retry logic for connection attempts
+- [ ] Break down complex methods
+- [ ] Replace random.uniform with secrets.SystemRandom().uniform
+- [ ] Improve error handling
+
+#### `src/nyord_vpn/network/vpn_commands.py`
+
+**Action**: Refactor for better usability.
+
+- [ ] Create `OpenVPNConfig` dataclass
+- [ ] Implement `get_openvpn_command` function with proper validation
+
+### Utils Module (`src/nyord_vpn/utils/`)
+
+#### `src/nyord_vpn/utils/templates.py`
+
+**Action**: Simplify with tenacity.
+
+- [ ] Implement retry logic with tenacity
+- [ ] Break down complex functions into smaller ones
+- [ ] Improve docstrings and type hints
+
+### Main Module Files
+
+#### `src/nyord_vpn/__main__.py`
+
+**Action**: Update to use new API.
+
+- [ ] Update CLI class to use the updated Client
+- [ ] Improve error handling and user feedback
+
+### Tests
+
+**Action**: Update to reflect code changes.
+
+- [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
+- [ ] Update test fixtures to match model requirements
+- [ ] Fix validation errors in tests
+- [ ] Update integration tests to use correct import paths
+
+### Documentation
+
+**Action**: Update documentation.
+
+- [ ] Update README.md with installation and usage instructions
+- [ ] Add API documentation
+- [ ] Add usage examples
 
 ================
 File: pyproject.toml
@@ -3044,265 +3391,189 @@ File: TODO.md
 ================
 # TODO
 
-Do it! Remember, keep it simple, effective, eyes on the goal!
+A modern Python client for NordVPN with automatic API fallback support, providing both a CLI interface and a Python library.
 
-### 0.1. Enhanced Server Selection
+```bash
+# Install system requirements first
+brew install openvpn  # macOS
+sudo apt install openvpn  # Ubuntu/Debian
+sudo dnf install openvpn  # Fedora/RHEL
 
-- [ ] Switch to v2/servers API for better efficiency:
-  ```python
-  def get_servers_cache() -> dict:
-      """Fetch and cache full server list from v2/servers:
-      1. Single API call to get all servers
-      2. Cache for hour
-      3. Local filtering by country/load/features
-      """
-  ```
-- [ ] Implement fast server selection:
-  ```python
-  def select_fastest_server(country_code: str, servers: dict) -> str:
-      """Select fastest server:
-      1. Filter cached servers by country
-      2. Take top 5 by load
-      3. Parallel ping test
-      4. Return fastest responding server
-      """
-  ```
-
-### 0.2. Simplified Setup
-- [ ] Create one-command initialization:
-  ```bash
-  nyord init  # Sets up everything needed
-  ```
-  - Validate OpenVPN installation
-  - Create config directories
-  - Set up credential storage
-  - Test API connectivity
-  - Generate initial config
-
-### 0.3. API Usage Optimization
-- [ ] Switch to https://api.nordvpn.com/v2/servers for server data fetching (the local "cached" file should be made compatible with the v2 format)
-- [ ] Retire both https://api.nordvpn.com/v1/servers/countries and https://api.nordvpn.com/v1/servers/recommendations — the v2 API is better because we don't want a list of all countries in the world, just the ones that have servers :) 
-  - Single API call instead of multiple v1 endpoints
-  - Local filtering instead of multiple API requests
-  - Simpler error handling (only one endpoint)
-
-Keep it focused on these core improvements that directly enhance user experience.
-
-### 0.4. Retry, switch gears
-
-- [ ] Make sure that if the country is not specified, we choose the country randomly
-- [ ] Implement a bool parameter "random" that chooses a random server (rather than "the fasterst") from the country 
-- [ ] When we're connecting, we should retry connection once and if that's not successful, we should try another random server from the same country. See below for some ideas. 
-
-
-
-### 0.5. ANALYSIS FOR "RETRY, SWITCH GEARS"
-
-Out‐of‐the‐box, both re‑engage and tenacity are designed to re‑invoke your function with the same arguments on each attempt. They don’t automatically “step through” a list of alternative parameter values. 
-
-That said, with tenacity you can customize the retry behavior by using callback hooks (such as the “after” hook) to modify the function’s keyword arguments between attempts. For example, you can write a small helper like this:
-
-```python
-from tenacity import retry, stop_after_attempt, RetryCallState
-
-def update_B(new_value):
-    def after_callback(retry_state: RetryCallState):
-        # Update the value for the parameter "B" for the next attempt
-        retry_state.kwargs['B'] = new_value
-    return after_callback
-
-# First, try with B=5 (the default).
-# After two failures, update B to 7.
-@retry(stop=stop_after_attempt(2), after=update_B(7))
-def func(A, B=5):
-    print(f"Attempt with B={B}")
-    # Example failure condition
-    if B < 11:
-        raise Exception("Not high enough!")
-    return f"Success with B={B}"
-
-try:
-    result = func("some_value")
-except Exception as e:
-    # You might even chain another retry that sets B to 11 after another round
-    print("Initial retry block failed:", e)
-    # You can re‑decorate or call a wrapper that uses the next parameter value.
-    # For example, you could write a loop that tries B from a list [5,7,11]
-    for new_B in [7, 11]:
-        try:
-            result = func("some_value", B=new_B)
-            break
-        except Exception:
-            continue
-    else:
-        result = None
-
-print("Result:", result)
+# Then install and use the package
+pip install nyord-vpn
+export NORD_USER="username" NORD_PASSWORD="password"
+nyord-vpn go de  # Connect to a German VPN
+nyord-vpn info  # Check status
+nyord-vpn bye  # Disconnect
 ```
 
-In this example, the tenacity decorator’s “after” hook is used to modify the value of B for the next attempt. (A similar idea was discussed on Stack Overflow, where an answer demonstrated using an after‑callback to change a parameter dynamically.) citeturn0search0
+## DEVELOPMENT
 
-If you need a more complex sequence (like “try with B=5, if that fails twice then use B=7, then 11”), you might either chain multiple decorators or, more simply, write a custom wrapper that iterates over your list of values and calls your function accordingly.
+After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
 
-In summary, while neither library provides a one‑line decorator that automatically “steps” through alternative argument values, tenacity’s flexible callback hooks let you implement that behavior with a bit of extra code.
+Periodically do:
 
-Both the **Re-Engage** and **Tenacity** libraries provide decorators for retrying functions until success or failure, but they do not natively support the specific use case of trying different arguments upon failure. However, you can implement this functionality using a combination of decorators and custom logic.
-
-## 1. Overview of Libraries
-
-### 1.1. Re-Engage
-- **Re-Engage** is a fork of the original backoff library, designed for retrying function calls with decorators like `@backoff.on_exception` and `@backoff.on_predicate`. These decorators allow you to specify conditions under which to retry a function based on exceptions or return values[1].
-
-### 1.2. Tenacity
-- **Tenacity** is a general-purpose retrying library that simplifies adding retry behavior to functions. It allows for extensive customization through decorators like `@retry`, which can be configured with various parameters such as maximum attempts, delay between retries, and conditions for retrying[2].
-
-## 2. Implementing Dynamic Argument Retrying
-
-To achieve the desired behavior of trying different arguments after failures, you can create a custom decorator that wraps your function and manages the argument variations. Here’s an example implementation:
-
-```python
-from tenacity import retry, stop_after_attempt
-
-def dynamic_retry(args_list):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            for args in args_list:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    print(f"Failed with args {args}: {e}")
-            raise Exception("All attempts failed.")
-        return wrapper
-    return decorator
-
-@dynamic_retry([(5,), (7,), (11,)])  # List of argument tuples
-def my_function(b):
-    # Simulate a function that may fail
-    if b != 11:  # Let's say it fails unless b is 11
-        raise ValueError("Failed!")
-    return "Success!"
-
-# Usage
-result = my_function(5)  # This will try 5, then 7, then 11.
-print(result)  # Outputs: Success!
+```
+uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cache__; hatch fmt --unsafe-fixes; hatch fmt --unsafe-fixes; hatch -e test run test; 
 ```
 
-### 2.1. Explanation:
-- The `dynamic_retry` decorator takes a list of argument tuples.
-- The `wrapper` function iterates over these arguments, attempting to call the target function.
-- If an exception occurs, it catches the error, logs it, and moves on to the next set of arguments.
-- If all attempts fail, it raises an exception.
+and react to the results. Use `uv pip...` instead of `pip...` if needed. 
 
-## 3. Conclusion
+## Working modality
 
-While neither Re-Engage nor Tenacity directly supports dynamically changing function arguments upon failure out-of-the-box, you can implement this functionality using custom decorators. This approach allows you to maintain flexibility in your retry logic while leveraging the robust features provided by existing libraries.
+You'll lead two experts: "Ideot" for creative, unorthodox ideas and "Critin" to critique flawed thinking and moderate for balanced discussions. The three of you shall illuminate knowledge with concise, beautiful responses, process methodically for clear answers, collaborate step-by-step, sharing thoughts and adapting. If errors are found, step back and focus on accuracy and progress.
 
-Based on the search results and your specific question about retrying with different arguments, I'll provide a comprehensive answer about implementing such functionality.
+Independently tackle challenges systematically, being adaptable and resourceful. Research deeply using all tools, revising to ensure conclusive, exhaustive, insightful results. When you're finished, print "Wait, but" to go back, think & reflect, revise & improvement what you've done (but don't invent functionality freely). Repeat this. Focus on minimal viable next versions of the code. Ship often and early. 
 
-Let me break this down step by step:
+## General coding principles
 
-### 3.1. Current State of Retry Libraries
+Verify info. No assumptions. No apologies. No major invented changes. No unneeded confirmations or checks. Keep existing code and structures unless they need to change. No unnecessary updates or current implementation discussion. Avoid magic numbers, handle edge cases, use assertions to validate assumptions and catch potential errors early.
 
-The common retry libraries like `tenacity` and `re-engage` focus primarily on retrying with the same arguments. While they're powerful for basic retry scenarios, they don't directly support changing arguments between retries [0].
+Every code can fail. Write code that fails gracefully and is UX friendly: uses retries (within reason), does not make stupid assumptions, tests successes, uses fallbacks and backoffs, and then, if the code needs to message the user, be clear and suggest to the user the next steps. Don't prompt the user to do something that the computer can obviously do. The code should ask the user only if there is a real decision to be made. And you should ask me only if a real decision is needed.  
 
-### 3.2. Custom Solution Implementation
+## Keep track of paths
 
-Here's a custom decorator implementation that allows retrying with different arguments:
+In every source file you create or edit, always maintain the up-to-date `this_file` record that shows the path of the current file relative to the root of the project. Place the `this_file` record near the top of the file, as a comment after the shebangs, or in the YAML Markdown frontmatter. Use these records for orientation. 
 
-```python
-from functools import wraps
-from typing import List, Any, Callable
-import time
+## Follow this style for Python
 
-def retry_with_different_args(arg_sequences: List[Any], delay: int = 1):
-    """
-    Retry decorator that attempts the function with different argument values.
-    
-    Args:
-        arg_sequences: List of values to try for the decorated function's first argument
-        delay: Delay between retries in seconds
-    """
-    def decorator(func: Callable):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            last_exception = None
-            
-            # Replace the first argument with each value in the sequence
-            for arg_value in arg_sequences:
-                try:
-                    new_args = (arg_value,) + args[1:]
-                    return func(*new_args, **kwargs)
-                except Exception as e:
-                    last_exception = e
-                    print(f"Attempt with value {arg_value} failed: {str(e)}")
-                    time.sleep(delay)
-            
-            # If we get here, all attempts failed
-            raise last_exception or Exception("All retry attempts failed")
-            
-        return wrapper
-    return decorator
+Follow PEP 8. Write clear names. Keep it simple (PEP 20). Use type hints, imperative docstrings (PEP 257), f-strings, and structural pattern matching. Extract repeated logic. Handle errors. Keep functions small. Prefer flat structures. Use pathlib, pydantic as needed. Write maintainable code. 
+
+EVEN IF YOU'RE NOT prompted, always write a "verbose" mode logugu-based logging for debug purposes, write explanatory docstrings and comments that not only explain what a given item (module, function, method) does, but also why it does it, and where and how it's used elsewhere in the code. 
+
+ONLY IF YOU ARE prompted, extend existing features in a way that adds complexity, or refactor in a way that may break things. Remember: minimal viable next version is always our goal. IF NOT PROMPTED, do NOT make such changes. 
+
+For CLI Python scripts, use fire & rich, and start the script with 
+
+```
+#!/usr/bin/env -S uv run -s
+# /// script
+# dependencies = ["PKG1", "PKG2"]
+# ///
+# this_file: PATH_TO_CURRENT_FILE
 ```
 
-Example usage:
+# Nyord VPN Codebase Refactoring Specification
 
-```python
-# Example using the decorator
-@retry_with_different_args([5, 7, 11])
-def divide_number(divisor: int, number: int = 100):
-    if divisor == 7:
-        raise ValueError("Don't like 7")
-    return number / divisor
+## Completed Tasks
+- [x] Add module docstrings to all files
+- [x] Rename `ConnectionError` to `VPNConnectionError`
+- [x] Make boolean parameters keyword-only
+- [x] Move main blocks to test files
 
-# This will try with divisor=5, then 7, then 11
-try:
-    result = divide_number(5, number=100)
-    print(f"Success: {result}")
-except Exception as e:
-    print(f"Final failure: {e}")
-```
+## Remaining Tasks
 
-### 3.3. Key Points to Consider
+### API Module (`src/nyord_vpn/api/`)
 
-1. **Flexibility**: This implementation allows you to specify a sequence of values to try for a specific argument [0].
+#### `src/nyord_vpn/api/api.py`
 
-2. **Error Handling**: Each attempt is wrapped in a try-except block, allowing you to catch and handle specific exceptions [0].
+**Action**: Modify to make this the central API interface.
 
-3. **Delay Control**: You can specify delays between attempts to prevent overwhelming systems [0].
+- [ ] Remove shebang and any commented-out code at the top
+- [ ] Implement `NordVPNAPI` class with proper docstrings and type hints
+- [ ] Add `find_best_server` method with v2 API support and v1 fallback
+- [ ] Update v1 methods with deprecation notices and keyword-only arguments
 
-### 3.4. Best Practices
+#### `src/nyord_vpn/api/v1_*.py` files
 
-1. **Specific Exceptions**: Always catch specific exceptions rather than using a broad Exception catch.
+**Action**: Keep but mark as deprecated and clean up.
 
-2. **Logging**: Include proper logging to track retry attempts and failures.
+- [ ] Add deprecation notices to docstrings
+- [ ] Fix boolean positional arguments
+- [ ] Fix ambiguous variable names
+- [ ] Add proper docstrings to classes and methods
+- [ ] Update error handling to use specific exceptions from exceptions.py
 
-3. **Timeout Consideration**: Consider implementing an overall timeout mechanism.
+#### `src/nyord_vpn/api/v2_servers.py`
 
-4. **State Management**: Be careful with stateful operations when retrying with different arguments.
+**Action**: Refine and improve.
 
-### 3.5. Alternative Approach Using Tenacity
+- [ ] Fix linting issues, particularly ambiguous variable names (E741)
+- [ ] Add proper docstrings to methods
+- [ ] Add comprehensive type hints where missing
 
-While tenacity doesn't directly support changing arguments, you can achieve similar functionality by combining it with a custom retry strategy:
+### Core Module (`src/nyord_vpn/core/`)
 
-```python
-from tenacity import retry, stop_after_attempt
-from functools import partial
+#### `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`
 
-def retry_sequence(func, arg_sequences):
-    for arg in arg_sequences:
-        try:
-            return func(arg)
-        except Exception:
-            continue
-    raise Exception("All attempts failed")
+**Action**: Deprecate and eventually remove.
 
-# Usage example
-@retry(stop=stop_after_attempt(1))
-def wrapped_function(x):
-    return retry_sequence(some_function, [5, 7, 11])
-```
+- [ ] Add deprecation warnings
+- [ ] Fix boolean positional arguments and other linting issues
 
-This solution provides a way to work with existing retry libraries while adding the functionality to try different arguments, though it's not as elegant as the custom decorator approach.
+#### `src/nyord_vpn/core/client.py`
+
+**Action**: Refactor significantly to use the new API.
+
+- [ ] Update to use the new `NordVPNAPI` class
+- [ ] Improve error handling and user feedback
+- [ ] Break down complex methods into smaller helper functions
+- [ ] Fix boolean arguments and other linting issues
+
+### Network Module (`src/nyord_vpn/network/`)
+
+#### `src/nyord_vpn/network/server.py`
+
+**Action**: Refactor to use new API.
+
+- [ ] Add type hints for functions and variables
+- [ ] Replace random.randrange and random.choice with secrets module
+- [ ] Address security issues in subprocess calls by validating input
+- [ ] Reduce complexity by extracting helper functions
+
+#### `src/nyord_vpn/network/vpn.py`
+
+**Action**: Refactor for better maintainability.
+
+- [ ] Make boolean arguments keyword-only
+- [ ] Add type hints
+- [ ] Add retry logic for connection attempts
+- [ ] Break down complex methods
+- [ ] Replace random.uniform with secrets.SystemRandom().uniform
+- [ ] Improve error handling
+
+#### `src/nyord_vpn/network/vpn_commands.py`
+
+**Action**: Refactor for better usability.
+
+- [ ] Create `OpenVPNConfig` dataclass
+- [ ] Implement `get_openvpn_command` function with proper validation
+
+### Utils Module (`src/nyord_vpn/utils/`)
+
+#### `src/nyord_vpn/utils/templates.py`
+
+**Action**: Simplify with tenacity.
+
+- [ ] Implement retry logic with tenacity
+- [ ] Break down complex functions into smaller ones
+- [ ] Improve docstrings and type hints
+
+### Main Module Files
+
+#### `src/nyord_vpn/__main__.py`
+
+**Action**: Update to use new API.
+
+- [ ] Update CLI class to use the updated Client
+- [ ] Improve error handling and user feedback
+
+### Tests
+
+**Action**: Update to reflect code changes.
+
+- [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
+- [ ] Update test fixtures to match model requirements
+- [ ] Fix validation errors in tests
+- [ ] Update integration tests to use correct import paths
+
+### Documentation
+
+**Action**: Update documentation.
+
+- [ ] Update README.md with installation and usage instructions
+- [ ] Add API documentation
+- [ ] Add usage examples
 
 
 

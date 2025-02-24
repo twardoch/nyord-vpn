@@ -1,10 +1,10 @@
-#!/usr/bin/env -S uv run -s
-# /// script
-# dependencies = ["pytest"]
-# ///
-# this_file: tests/test_server_manager.py
+"""Tests for the ServerManager class.
 
-"""Tests for server manager functionality."""
+this_file: tests/test_server_manager.py
+
+This module contains unit tests for the ServerManager class,
+which is responsible for server selection and optimization.
+"""
 
 import pytest
 from unittest.mock import MagicMock

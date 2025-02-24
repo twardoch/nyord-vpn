@@ -1,24 +1,36 @@
-#!/usr/bin/env -S uv run -s
-# /// script
-# dependencies = ["pydantic", "requests", "loguru"]
-# ///
-# this_file: src/nyord_vpn/api/v1-recommendations.py
+"""NordVPN API v1 recommendations endpoint.
 
-"""NordVPN API v1 server recommendations client.
+this_file: src/nyord_vpn/api/v1_recommendations.py
 
-This module provides a clean interface to the NordVPN v1 server recommendations API endpoint.
-The v1 recommendations API provides a list of recommended servers based on current load and status.
+This module is deprecated and will be removed in a future version.
+Please use the v2 API endpoints instead via the NordVPNAPI class.
+
+This module provides access to the v1 recommendations endpoint of the NordVPN API.
+It is used for legacy compatibility and as a fallback when v2 endpoints fail.
+The recommendations API suggests optimal servers based on load and location.
 """
 
+import warnings
 from datetime import datetime
 from loguru import logger
 import requests
 from pydantic import BaseModel
 
+from nyord_vpn.exceptions import VPNAPIError
+
 # Constants
 NORDVPN_API_BASE = "https://api.nordvpn.com"
 RECOMMENDATIONS_V1_ENDPOINT = f"{NORDVPN_API_BASE}/v1/servers/recommendations"
 DEFAULT_TIMEOUT = 10  # seconds
+
+
+# Display deprecation warning when the module is imported
+warnings.warn(
+    "The v1_recommendations module is deprecated and will be removed in a future version. "
+    "Please use the NordVPNAPI class from nyord_vpn.api.api instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class City(BaseModel):
@@ -171,15 +183,25 @@ class NordVPNRecommendationsV1:
 
     This class provides methods to fetch and work with recommended server information
     from the NordVPN v1 API.
+
+    Note:
+        This class is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class from nyord_vpn.api.api instead.
+
     """
 
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
         """Initialize the API client.
 
         Args:
             timeout: Request timeout in seconds.
 
         """
+        warnings.warn(
+            "NordVPNRecommendationsV1 is deprecated. Use NordVPNAPI instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.timeout = timeout
 
     def fetch_recommendations(self) -> list[RecommendedServer]:
@@ -189,7 +211,7 @@ class NordVPNRecommendationsV1:
             List of recommended servers.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            VPNAPIError: If the API request fails or returns invalid data.
 
         """
         try:
@@ -201,13 +223,28 @@ class NordVPNRecommendationsV1:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch NordVPN server recommendations: {e}")
-            raise
+            raise VPNAPIError(
+                "Failed to fetch recommended servers from v1 API",
+                details=str(e),
+                cause=e,
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse NordVPN server recommendations: {e}")
+            raise VPNAPIError(
+                "Failed to parse recommended servers from v1 API",
+                details=str(e),
+                cause=e,
+            )
 
 
 def get_recommendations_by_country(
     servers: list[RecommendedServer], country_code: str
 ) -> list[RecommendedServer]:
     """Filter recommended servers by country code.
+
+    Note:
+        This function is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI.find_best_server method instead.
 
     Args:
         servers: List of servers to filter.
@@ -217,6 +254,11 @@ def get_recommendations_by_country(
         List of recommended servers in the specified country.
 
     """
+    warnings.warn(
+        "get_recommendations_by_country is deprecated. Use NordVPNAPI.find_best_server instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return [
         server
         for server in servers
@@ -230,6 +272,10 @@ def get_recommendations_by_group(
 ) -> list[RecommendedServer]:
     """Filter recommended servers by group identifier.
 
+    Note:
+        This function is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI.find_best_server method instead.
+
     Args:
         servers: List of servers to filter.
         group_identifier: Group identifier (e.g., 'legacy_p2p').
@@ -238,44 +284,13 @@ def get_recommendations_by_group(
         List of recommended servers in the specified group.
 
     """
+    warnings.warn(
+        "get_recommendations_by_group is deprecated. Use NordVPNAPI.find_best_server instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return [
         server
         for server in servers
         if any(group.identifier == group_identifier for group in server.groups)
     ]
-
-
-if __name__ == "__main__":
-    # Example usage
-    client = NordVPNRecommendationsV1()
-    try:
-        recommended_servers = client.fetch_recommendations()
-
-        # Print some server information
-        for server in recommended_servers[:5]:  # First 5 servers
-            logger.info(
-                f"Server: {server.name} ({server.hostname}) - Load: {server.load}%"
-            )
-            if server.locations:
-                loc = server.locations[0]
-                logger.info(f"  Location: {loc.country.name}, {loc.country.city.name}")
-            if server.groups:
-                logger.info(
-                    f"  Groups: {', '.join(group.title for group in server.groups)}"
-                )
-            if server.services:
-                logger.info(
-                    f"  Services: {', '.join(service.name for service in server.services)}"
-                )
-            logger.info("---")
-
-        # Example: Find US servers
-        us_servers = get_recommendations_by_country(recommended_servers, "US")
-        logger.info(f"\nNumber of US recommended servers: {len(us_servers)}")
-
-        # Example: Find P2P servers
-        p2p_servers = get_recommendations_by_group(recommended_servers, "legacy_p2p")
-        logger.info(f"\nNumber of recommended P2P servers: {len(p2p_servers)}")
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch server recommendations: {e}")

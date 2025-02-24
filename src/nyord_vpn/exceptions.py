@@ -14,9 +14,8 @@ The exception hierarchy is:
     - VPNProcessError
     - VPNConnectionError
     - VPNDisconnectionError
+    - VPNAPIError
   - CredentialsError
-  - ConnectionError
-  - DisconnectionError
   - ServerNotFoundError
   - VPNServerError
   - VPNTimeoutError
@@ -83,38 +82,6 @@ class CredentialsError(NyordVPNError):
     def __init__(
         self,
         message: str = "Invalid or missing VPN credentials",
-        details: str | None = None,
-        cause: Exception | None = None,
-    ) -> None:
-        super().__init__(message, details, cause)
-
-
-class ConnectionError(NyordVPNError):
-    """Raised when connection to VPN server fails.
-
-    This exception indicates a failure to establish a connection to the VPN server,
-    which could be due to network issues, server problems, or client configuration.
-    """
-
-    def __init__(
-        self,
-        message: str = "Failed to connect to VPN server",
-        details: str | None = None,
-        cause: Exception | None = None,
-    ) -> None:
-        super().__init__(message, details, cause)
-
-
-class DisconnectionError(NyordVPNError):
-    """Raised when disconnection from VPN fails.
-
-    This exception is raised when there are problems disconnecting from the VPN,
-    such as stuck processes or network issues.
-    """
-
-    def __init__(
-        self,
-        message: str = "Failed to disconnect from VPN",
         details: str | None = None,
         cause: Exception | None = None,
     ) -> None:
@@ -243,6 +210,23 @@ class VPNDisconnectionError(VPNError):
     def __init__(
         self,
         message: str = "Failed to disconnect from VPN",
+        details: str | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        super().__init__(message, details, cause)
+
+
+class VPNAPIError(VPNError):
+    """Raised when API operations fail.
+
+    This exception indicates a failure in communicating with the NordVPN API,
+    which could be due to network issues, authentication problems, or service unavailability.
+    It is used to indicate both v1 and v2 API failures.
+    """
+
+    def __init__(
+        self,
+        message: str = "Failed to communicate with NordVPN API",
         details: str | None = None,
         cause: Exception | None = None,
     ) -> None:

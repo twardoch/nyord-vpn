@@ -97,6 +97,7 @@ class VPNConnectionManager:
         api_client: Any,
         server_manager: ServerManager,
         vpn_manager: Any,
+        *,
         verbose: bool = False,
     ) -> None:
         """Initialize VPN connection manager.
@@ -758,10 +759,8 @@ class VPNConnectionManager:
 
                 # Re-raise with context
                 if isinstance(e, VPNError | VPNAuthenticationError | VPNConfigError):
-                    # raise # No, we try other servers
-                    continue  # Yes, try other servers
-                # raise VPNError(f"Failed to connect to VPN: {e}") # No, we try other servers
-                continue
+                    continue  # Try other servers
+                continue  # Try other servers for any other exception
 
         # If we get here, all attempts failed
         raise VPNError(

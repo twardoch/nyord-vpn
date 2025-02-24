@@ -22,7 +22,7 @@ nyord-vpn disconnect  # Disconnect
 
 ## DEVELOPMENT
 
-After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+After each set of changes, update @PROGRESS.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
 
 Periodically do:
 

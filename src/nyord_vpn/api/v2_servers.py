@@ -1,25 +1,34 @@
-#!/usr/bin/env -S uv run -s
-# /// script
-# dependencies = ["pydantic", "requests", "loguru"]
-# ///
-# this_file: src/nyord_vpn/api/v2-servers.py
+"""NordVPN API v2 servers endpoint.
 
-"""NordVPN API v2 server information client.
+this_file: src/nyord_vpn/api/v2_servers.py
 
-This module provides a clean interface to the NordVPN v2 servers API endpoint.
-The v2 API provides a normalized data structure where server information and related
-data (groups, services, locations, technologies) are separated to avoid redundancy.
+This module provides access to the v2 servers endpoint of the NordVPN API.
+It is the preferred interface for server information and should be used
+instead of the v1 endpoints whenever possible.
+
+The v2 servers API provides comprehensive information about available servers:
+- Server locations and capabilities
+- Current load and status
+- Supported protocols and features
+- Geographic information
 """
 
 from datetime import datetime
+from typing import Any, TypeVar, cast
+
 from loguru import logger
 import requests
 from pydantic import BaseModel, TypeAdapter
+
+from nyord_vpn.exceptions import VPNAPIError
 
 # Constants
 NORDVPN_API_BASE = "https://api.nordvpn.com"
 SERVERS_V2_ENDPOINT = f"{NORDVPN_API_BASE}/v2/servers"
 DEFAULT_TIMEOUT = 10  # seconds
+
+# Type variables for type hints
+T = TypeVar("T")
 
 
 class TechnologyMetadata(BaseModel):
@@ -152,6 +161,24 @@ class Server(BaseModel):
 
     This model represents a complete server entry from the v2 API, including
     all its relationships to other entities like locations, groups, and services.
+
+    Attributes:
+        id: Unique identifier for the server
+        created_at: When the server was first added
+        updated_at: When the server was last updated
+        name: Human-readable name of the server
+        station: Server hostname
+        ipv6_station: IPv6 hostname (if available)
+        hostname: Full hostname of the server
+        status: Current server status (e.g., "online", "maintenance")
+        load: Current server load percentage (0-100)
+        ips: List of IP addresses associated with this server
+        specifications: Technical specifications of the server
+        technologies: VPN technologies supported by this server
+        groups: Server groups this server belongs to
+        services: Services provided by this server
+        locations: Geographic locations of this server
+
     """
 
     id: int
@@ -169,6 +196,9 @@ class Server(BaseModel):
     groups: list[Group] = []
     services: list[Service] = []
     locations: list[Location] = []
+    group_ids: list[int] | None = None
+    service_ids: list[int] | None = None
+    location_ids: list[int] | None = None
 
 
 class NordVPNServersV2:
@@ -177,9 +207,13 @@ class NordVPNServersV2:
     This class provides methods to fetch and work with server information from
     the NordVPN v2 API. The v2 API provides a normalized data structure where
     server information and related data are separated to avoid redundancy.
+
+    Attributes:
+        timeout: Request timeout in seconds for API calls
+
     """
 
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
         """Initialize the API client.
 
         Args:
@@ -187,7 +221,7 @@ class NordVPNServersV2:
 
         """
         self.timeout = timeout
-        self._type_adapters = {
+        self._type_adapters: dict[str, TypeAdapter] = {
             "servers": TypeAdapter(list[Server]),
             "groups": TypeAdapter(list[Group]),
             "services": TypeAdapter(list[Service]),
@@ -202,11 +236,15 @@ class NordVPNServersV2:
     ]:
         """Fetch and parse all server data from the v2 API.
 
+        This method retrieves the full dataset from the v2 servers API and
+        processes it into a structured format. It establishes relationships
+        between servers and their related entities.
+
         Returns:
             A tuple containing lists of (servers, groups, services, locations, technologies).
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            VPNAPIError: If the API request fails or returns invalid data.
 
         """
         try:
@@ -215,61 +253,81 @@ class NordVPNServersV2:
             data = response.json()
 
             # Parse each component using its type adapter
-            parsed_data = {
-                key: self._type_adapters[key].validate_python(data[key])
-                for key in self._type_adapters
-            }
+            parsed_data: dict[str, list[Any]] = {}
+            for key, adapter in self._type_adapters.items():
+                try:
+                    parsed_data[key] = adapter.validate_python(data[key])
+                except (KeyError, ValueError, TypeError) as err:
+                    logger.error(f"Failed to parse {key} data: {err}")
+                    raise VPNAPIError(
+                        f"Failed to parse {key} data from v2 API",
+                        details=str(err),
+                        cause=err,
+                    ) from err
 
             # Create lookup maps for efficient linking
-            maps = {
-                "groups": {g.id: g for g in parsed_data["groups"]},
-                "services": {s.id: s for s in parsed_data["services"]},
-                "locations": {l.id: l for l in parsed_data["locations"]},
+            relationship_maps = {
+                "groups": {group.id: group for group in parsed_data["groups"]},
+                "services": {
+                    service.id: service for service in parsed_data["services"]
+                },
+                "locations": {
+                    location.id: location for location in parsed_data["locations"]
+                },
             }
 
             # Link related objects to servers
             for server in parsed_data["servers"]:
-                self._link_server_relations(server, maps)
+                self._link_server_relations(server, relationship_maps)
 
             return (
-                parsed_data["servers"],
-                parsed_data["groups"],
-                parsed_data["services"],
-                parsed_data["locations"],
-                parsed_data["technologies"],
+                cast(list[Server], parsed_data["servers"]),
+                cast(list[Group], parsed_data["groups"]),
+                cast(list[Service], parsed_data["services"]),
+                cast(list[Location], parsed_data["locations"]),
+                cast(list[Technology], parsed_data["technologies"]),
             )
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to fetch NordVPN server data: {e}")
-            raise
+        except requests.exceptions.RequestException as error:
+            logger.error(f"Failed to fetch NordVPN server data: {error}")
+            raise VPNAPIError(
+                "Failed to fetch server data from v2 API",
+                details=str(error),
+                cause=error,
+            ) from error
 
-    def _link_server_relations(self, server: Server, maps: dict) -> None:
+    def _link_server_relations(
+        self, server: Server, relationship_maps: dict[str, dict[int, Any]]
+    ) -> None:
         """Link related objects (groups, services, locations) to a server.
 
+        This method establishes the relationships between a server and its
+        related entities by replacing the ID references with actual objects.
+
         Args:
-            server: The server object to update.
-            maps: Dictionary containing the lookup maps for related objects.
+            server: The server object to update with relationship links.
+            relationship_maps: Dictionary containing the lookup maps for related objects.
 
         """
         # Link groups
         server.groups = [
-            maps["groups"][group_id]
-            for group_id in getattr(server, "group_ids", [])
-            if group_id in maps["groups"]
+            relationship_maps["groups"][group_id]
+            for group_id in getattr(server, "group_ids", []) or []
+            if group_id in relationship_maps["groups"]
         ]
 
         # Link services
         server.services = [
-            maps["services"][service_id]
-            for service_id in getattr(server, "service_ids", [])
-            if service_id in maps["services"]
+            relationship_maps["services"][service_id]
+            for service_id in getattr(server, "service_ids", []) or []
+            if service_id in relationship_maps["services"]
         ]
 
         # Link locations
         server.locations = [
-            maps["locations"][location_id]
-            for location_id in getattr(server, "location_ids", [])
-            if location_id in maps["locations"]
+            relationship_maps["locations"][location_id]
+            for location_id in getattr(server, "location_ids", []) or []
+            if location_id in relationship_maps["locations"]
         ]
 
         # Clean up ID lists
@@ -280,6 +338,9 @@ class NordVPNServersV2:
 
 def get_servers_by_country(servers: list[Server], country_code: str) -> list[Server]:
     """Filter servers by country code.
+
+    This function filters a list of servers to include only those located
+    in the specified country.
 
     Args:
         servers: List of servers to filter.
@@ -300,6 +361,9 @@ def get_servers_by_country(servers: list[Server], country_code: str) -> list[Ser
 def get_servers_by_group(servers: list[Server], group_identifier: str) -> list[Server]:
     """Filter servers by group identifier.
 
+    This function filters a list of servers to include only those belonging
+    to the specified group.
+
     Args:
         servers: List of servers to filter.
         group_identifier: Group identifier (e.g., 'legacy_p2p').
@@ -313,39 +377,3 @@ def get_servers_by_group(servers: list[Server], group_identifier: str) -> list[S
         for server in servers
         if any(group.identifier == group_identifier for group in server.groups)
     ]
-
-
-if __name__ == "__main__":
-    # Example usage
-    client = NordVPNServersV2()
-    try:
-        servers, groups, services, locations, technologies = client.fetch_all()
-
-        # Print some server information
-        for server in servers[:5]:  # First 5 servers
-            logger.info(
-                f"Server: {server.name} ({server.hostname}) - Load: {server.load}%"
-            )
-            if server.locations:
-                loc = server.locations[0]
-                logger.info(f"  Location: {loc.country.name}, {loc.country.city.name}")
-            if server.groups:
-                logger.info(
-                    f"  Groups: {', '.join(group.title for group in server.groups)}"
-                )
-            if server.services:
-                logger.info(
-                    f"  Services: {', '.join(service.name for service in server.services)}"
-                )
-            logger.info("---")
-
-        # Example: Find US servers
-        us_servers = get_servers_by_country(servers, "US")
-        logger.info(f"\nNumber of US servers: {len(us_servers)}")
-
-        # Example: Find P2P servers
-        p2p_servers = get_servers_by_group(servers, "legacy_p2p")
-        logger.info(f"\nNumber of P2P servers: {len(p2p_servers)}")
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch server data: {e}")

@@ -21,7 +21,6 @@ Exception Hierarchy:
 1. VPNError - Base exception for all client errors
 2. Specific exceptions for different scenarios:
    - ServerError: Server selection issues
-   - ConnectionError: Connection failures
    - AuthenticationError: Credential problems
    - StateError: State management issues
    - CacheError: Cache operation failures
@@ -164,33 +163,6 @@ class ServerError(VPNError):
         super().__init__(
             message
             or "Failed to select a server. Please try again or choose a different country.",
-        )
-
-
-class ConnectionError(VPNError):
-    """Exception for VPN connection establishment failures.
-
-    Raised when:
-    1. OpenVPN process fails to start
-    2. Connection times out
-    3. Network is unreachable
-    4. System configuration prevents connection
-
-    Includes diagnostic information and recovery steps
-    in the error message.
-    """
-
-    def __init__(self, message: str | None = None) -> None:
-        """Initialize connection error with diagnostics.
-
-        Args:
-            message: Optional connection failure details
-                    Falls back to troubleshooting steps if None
-
-        """
-        super().__init__(
-            message
-            or "Failed to establish VPN connection. Please check your internet connection and try again.",
         )
 
 

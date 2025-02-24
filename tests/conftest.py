@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from nyord_vpn.core.client import VPNClient
+from nyord_vpn.core.client import Client
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ def mock_client(mock_env_credentials, mock_openvpn, mock_requests, mock_process)
         ]
 
         # Create client
-        client = VPNClient()
+        client = Client()
         yield client
 
 

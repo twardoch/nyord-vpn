@@ -76,18 +76,14 @@ Environment Variables:
 """
 
 from nyord_vpn.core.client import Client
-from nyord_vpn.storage.models import (
-    ConnectionError,
-    CredentialsError,
-    ServerError,
-    VPNError,
-)
+from nyord_vpn.exceptions import VPNConnectionError, VPNError
+from nyord_vpn.storage.models import ServerError, CredentialsError
 
 __version__ = "1.0.7"
 __all__ = [
     "Client",
-    "ConnectionError",
     "CredentialsError",
     "ServerError",
+    "VPNConnectionError",
     "VPNError",
 ]

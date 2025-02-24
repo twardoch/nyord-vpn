@@ -1,24 +1,36 @@
-#!/usr/bin/env -S uv run -s
-# /// script
-# dependencies = ["pydantic", "requests", "loguru"]
-# ///
-# this_file: src/nyord_vpn/api/v1-technologies.py
+"""NordVPN API v1 technologies endpoint.
 
-"""NordVPN API v1 technologies client.
+this_file: src/nyord_vpn/api/v1_technologies.py
 
-This module provides a clean interface to the NordVPN v1 technologies API endpoint.
-The v1 technologies API provides information about available VPN technologies and protocols.
+This module is deprecated and will be removed in a future version.
+Please use the v2 API endpoints instead via the NordVPNAPI class.
+
+This module provides access to the v1 technologies endpoint of the NordVPN API.
+It is used for legacy compatibility and as a fallback when v2 endpoints fail.
+The technologies API provides information about available VPN protocols and features.
 """
 
+import warnings
 from datetime import datetime
 from loguru import logger
 import requests
 from pydantic import BaseModel
 
+from nyord_vpn.exceptions import VPNAPIError
+
 # Constants
 NORDVPN_API_BASE = "https://api.nordvpn.com"
 TECHNOLOGIES_V1_ENDPOINT = f"{NORDVPN_API_BASE}/v1/technologies"
 DEFAULT_TIMEOUT = 10  # seconds
+
+
+# Display deprecation warning when the module is imported
+warnings.warn(
+    "The v1_technologies module is deprecated and will be removed in a future version. "
+    "Please use the NordVPNAPI class from nyord_vpn.api.api instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class Technology(BaseModel):
@@ -37,15 +49,25 @@ class NordVPNTechnologiesV1:
 
     This class provides methods to fetch and work with VPN technology information
     from the NordVPN v1 API.
+
+    Note:
+        This class is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class from nyord_vpn.api.api instead.
+
     """
 
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
         """Initialize the API client.
 
         Args:
             timeout: Request timeout in seconds.
 
         """
+        warnings.warn(
+            "NordVPNTechnologiesV1 is deprecated. Use NordVPNAPI instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.timeout = timeout
 
     def fetch_technologies(self) -> list[Technology]:
@@ -55,7 +77,7 @@ class NordVPNTechnologiesV1:
             List of VPN technologies.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            VPNAPIError: If the API request fails or returns invalid data.
 
         """
         try:
@@ -67,13 +89,28 @@ class NordVPNTechnologiesV1:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch NordVPN technologies: {e}")
-            raise
+            raise VPNAPIError(
+                "Failed to fetch technologies from v1 API",
+                details=str(e),
+                cause=e,
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse NordVPN technologies: {e}")
+            raise VPNAPIError(
+                "Failed to parse technologies from v1 API",
+                details=str(e),
+                cause=e,
+            )
 
 
 def get_technology_by_identifier(
     technologies: list[Technology], identifier: str
 ) -> Technology:
     """Find a technology by its identifier.
+
+    Note:
+        This function is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
 
     Args:
         technologies: List of technologies to search.
@@ -86,35 +123,12 @@ def get_technology_by_identifier(
         ValueError: If no technology matches the identifier.
 
     """
+    warnings.warn(
+        "get_technology_by_identifier is deprecated. Use NordVPNAPI methods instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     for tech in technologies:
         if tech.identifier == identifier:
             return tech
     raise ValueError(f"No technology found with identifier: {identifier}")
-
-
-if __name__ == "__main__":
-    # Example usage
-    client = NordVPNTechnologiesV1()
-    try:
-        technologies = client.fetch_technologies()
-
-        # Print all available technologies
-        logger.info("Available VPN technologies:")
-        for tech in technologies:
-            logger.info(f"- {tech.name} ({tech.identifier})")
-            logger.info(f"  Internal ID: {tech.internal_identifier}")
-            logger.info(f"  Added: {tech.created_at}")
-            logger.info("---")
-
-        # Example: Find specific technology
-        try:
-            wireguard = get_technology_by_identifier(technologies, "wireguard_udp")
-            logger.info("\nWireGuard details:")
-            logger.info(f"Name: {wireguard.name}")
-            logger.info(f"Internal identifier: {wireguard.internal_identifier}")
-            logger.info(f"Added: {wireguard.created_at}")
-        except ValueError as e:
-            logger.error(e)
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch technologies: {e}")

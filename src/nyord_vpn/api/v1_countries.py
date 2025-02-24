@@ -1,23 +1,34 @@
-#!/usr/bin/env -S uv run -s
-# /// script
-# dependencies = ["pydantic", "requests", "loguru"]
-# ///
-# this_file: src/nyord_vpn/api/v1-countries.py
+"""NordVPN API v1 countries endpoint.
 
-"""NordVPN API v1 countries client.
+this_file: src/nyord_vpn/api/v1_countries.py
 
-This module provides a clean interface to the NordVPN v1 countries API endpoint.
-The v1 countries API provides information about server locations and availability by country.
+This module is deprecated and will be removed in a future version.
+Please use the v2 API endpoints instead via the NordVPNAPI class.
+
+This module provides access to the v1 countries endpoint of the NordVPN API.
+It is used for legacy compatibility and as a fallback when v2 endpoints fail.
 """
 
+import warnings
 from loguru import logger
 import requests
 from pydantic import BaseModel
+
+from nyord_vpn.exceptions import VPNAPIError
 
 # Constants
 NORDVPN_API_BASE = "https://api.nordvpn.com"
 COUNTRIES_V1_ENDPOINT = f"{NORDVPN_API_BASE}/v1/servers/countries"
 DEFAULT_TIMEOUT = 10  # seconds
+
+
+# Display deprecation warning when the module is imported
+warnings.warn(
+    "The v1_countries module is deprecated and will be removed in a future version. "
+    "Please use the NordVPNAPI class from nyord_vpn.api.api instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class City(BaseModel):
@@ -47,15 +58,25 @@ class NordVPNCountriesV1:
 
     This class provides methods to fetch and work with country and server location
     information from the NordVPN v1 API.
+
+    Note:
+        This class is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class from nyord_vpn.api.api instead.
+
     """
 
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT) -> None:
+    def __init__(self, *, timeout: int = DEFAULT_TIMEOUT) -> None:
         """Initialize the API client.
 
         Args:
             timeout: Request timeout in seconds.
 
         """
+        warnings.warn(
+            "NordVPNCountriesV1 is deprecated. Use NordVPNAPI instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.timeout = timeout
 
     def fetch_countries(self) -> list[Country]:
@@ -65,7 +86,7 @@ class NordVPNCountriesV1:
             List of countries with server information.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            VPNAPIError: If the API request fails or returns invalid data.
 
         """
         try:
@@ -77,11 +98,26 @@ class NordVPNCountriesV1:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch NordVPN countries: {e}")
-            raise
+            raise VPNAPIError(
+                "Failed to fetch countries from v1 API",
+                details=str(e),
+                cause=e,
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse NordVPN countries: {e}")
+            raise VPNAPIError(
+                "Failed to parse countries from v1 API",
+                details=str(e),
+                cause=e,
+            )
 
 
 def get_country_by_code(countries: list[Country], country_code: str) -> Country:
     """Find a country by its code.
+
+    Note:
+        This function is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
 
     Args:
         countries: List of countries to search.
@@ -94,6 +130,11 @@ def get_country_by_code(countries: list[Country], country_code: str) -> Country:
         ValueError: If no country matches the code.
 
     """
+    warnings.warn(
+        "get_country_by_code is deprecated. Use NordVPNAPI methods instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     for country in countries:
         if country.code.upper() == country_code.upper():
             return country
@@ -105,6 +146,10 @@ def get_countries_by_min_servers(
 ) -> list[Country]:
     """Filter countries by minimum number of servers.
 
+    Note:
+        This function is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
+
     Args:
         countries: List of countries to filter.
         min_servers: Minimum number of servers required.
@@ -113,11 +158,20 @@ def get_countries_by_min_servers(
         List of countries with at least the specified number of servers.
 
     """
+    warnings.warn(
+        "get_countries_by_min_servers is deprecated. Use NordVPNAPI methods instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return [country for country in countries if country.server_count >= min_servers]
 
 
 def get_city_by_name(country: Country, city_name: str) -> City:
     """Find a city by name within a country.
+
+    Note:
+        This function is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
 
     Args:
         country: Country to search in.
@@ -130,45 +184,12 @@ def get_city_by_name(country: Country, city_name: str) -> City:
         ValueError: If no city matches the name.
 
     """
+    warnings.warn(
+        "get_city_by_name is deprecated. Use NordVPNAPI methods instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     for city in country.cities:
         if city.name.lower() == city_name.lower():
             return city
     raise ValueError(f"No city found with name '{city_name}' in {country.name}")
-
-
-if __name__ == "__main__":
-    # Example usage
-    client = NordVPNCountriesV1()
-    try:
-        countries = client.fetch_countries()
-
-        # Print summary of server availability by country
-        logger.info("Server availability by country:")
-        for country in sorted(countries, key=lambda x: x.server_count, reverse=True)[
-            :10
-        ]:
-            logger.info(
-                f"{country.name} ({country.code}): {country.server_count} servers"
-            )
-            for city in country.cities:
-                logger.info(f"  - {city.name}: {city.server_count} servers")
-
-        # Example: Find countries with many servers
-        large_countries = get_countries_by_min_servers(countries, 100)
-        logger.info(f"\nCountries with 100+ servers: {len(large_countries)}")
-        for country in large_countries:
-            logger.info(f"- {country.name}: {country.server_count} servers")
-
-        # Example: Get specific country and city details
-        try:
-            us = get_country_by_code(countries, "US")
-            nyc = get_city_by_name(us, "New York")
-            logger.info("\nNew York server details:")
-            logger.info(f"Total servers: {nyc.server_count}")
-            logger.info(f"Location: {nyc.latitude}, {nyc.longitude}")
-            logger.info(f"DNS name: {nyc.dns_name}")
-        except ValueError as e:
-            logger.error(e)
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch countries: {e}")

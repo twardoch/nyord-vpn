@@ -5,6 +5,9 @@ this_file: src/nyord_vpn/core/api.py
 This module provides the NordVPNAPIClient class for interacting with NordVPN's API.
 It handles all API-related operations and caching to ensure reliable data access.
 
+DEPRECATED: This module is deprecated and will be removed in a future version.
+Please use the NordVPNAPI class from nyord_vpn.api.api instead.
+
 Core Responsibilities:
 1. Authentication with NordVPN API
 2. Country and server information retrieval
@@ -37,67 +40,72 @@ Error Handling:
 """
 
 import time
+import warnings
 
 from loguru import logger
 from requests import get, RequestException
 
 from nyord_vpn.network.country import get_cached_countries, cache_countries
 from nyord_vpn.storage.models import City, Country, CountryCache
-from nyord_vpn.utils.utils import API_HEADERS, CACHE_FILE
+from nyord_vpn.utils.utils import API_HEADERS
+
+
+# Display deprecation warning when the module is imported
+warnings.warn(
+    "The NordVPNAPIClient class is deprecated and will be removed in a future version. "
+    "Please use the NordVPNAPI class from nyord_vpn.api.api instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class NordVPNAPIClient:
     """Base client for NordVPN API interactions.
 
-    This class provides a comprehensive interface to the NordVPN API:
-    1. Server and country information retrieval
-    2. Location-based server lookup
-    3. Cache management for API responses
-    4. Connectivity testing and monitoring
-
-    The client handles both v1 and v2 API endpoints, with automatic
-    fallback to cached data when API requests fail. It provides
-    methods for both raw data access and formatted information
-    suitable for display.
+    DEPRECATED: This class is deprecated and will be removed in a future version.
+    Please use the NordVPNAPI class from nyord_vpn.api.api instead.
 
     Attributes:
-        BASE_API_URL: Base URL for NordVPN API
-        BASE_API_V1_URL: Base URL for v1 API endpoints
-        BASE_API_V2_URL: Base URL for v2 API endpoints
+        api_url: Base URL for the NordVPN API.
+        timeout: Timeout in seconds for API requests.
+        cache_ttl: Time-to-live for cached data in seconds.
 
     """
 
-    BASE_API_URL: str = "https://api.nordvpn.com"
-    BASE_API_V1_URL: str = f"{BASE_API_URL}/v1"
-    BASE_API_V2_URL: str = f"{BASE_API_URL}/v2"
-
-    def __init__(self, username: str, password: str, verbose: bool = False) -> None:
-        """Initialize the NordVPN API client.
-
-        Sets up the client with authentication and configuration:
-        1. Stores credentials for API authentication
-        2. Configures logging based on verbosity
-        3. Sets up cache file location
-        4. Initializes API interaction settings
+    def __init__(
+        self,
+        api_url: str = "https://api.nordvpn.com/v1",
+        *,
+        timeout: int = 5,
+        cache_ttl: int = 3600,
+        verbose: bool = False,
+    ) -> None:
+        """Initialize the API client.
 
         Args:
-            username: NordVPN account username
-            password: NordVPN account password
-            verbose: Enable detailed logging (default: False)
-
-        Note:
-            The client doesn't validate credentials on initialization.
-            Validation occurs on first API interaction.
+            api_url: Base URL for the NordVPN API.
+            timeout: Timeout in seconds for API requests.
+            cache_ttl: Time-to-live for cached data in seconds.
+            verbose: Whether to enable verbose logging.
 
         """
-        self.username = username
-        self.password = password
+        warnings.warn(
+            "NordVPNAPIClient is deprecated. Use NordVPNAPI from nyord_vpn.api.api instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        self.api_url = api_url
+        self.timeout = timeout
+        self.cache_ttl = cache_ttl
         self.verbose = verbose
         self.logger = logger
-        self.cache_file = CACHE_FILE
 
-    def list_countries(self, use_cache: bool = True) -> list[Country]:
+    def list_countries(self, *, use_cache: bool = True) -> list[Country]:
         """Fetch list of available server countries.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the get_countries method from NordVPNAPI class instead.
 
         Retrieves a comprehensive list of countries with servers:
         1. Attempts to fetch fresh data from API
@@ -122,9 +130,15 @@ class NordVPNAPIClient:
             to ensure consistency.
 
         """
+        warnings.warn(
+            "list_countries is deprecated. Use NordVPNAPI.get_countries instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         try:
-            url = f"{self.BASE_API_URL}/servers/countries"
-            response = get(url, headers=API_HEADERS, timeout=10)
+            url = f"{self.api_url}/servers/countries"
+            response = get(url, headers=API_HEADERS, timeout=self.timeout)
             response.raise_for_status()
             countries: list[Country] = response.json()
 
@@ -144,6 +158,9 @@ class NordVPNAPIClient:
 
     def get_country_by_code(self, code: str) -> Country | None:
         """Find country information by country code.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
 
         Searches for a country using its ISO code:
         1. Converts code to uppercase for consistency
@@ -167,6 +184,12 @@ class NordVPNAPIClient:
             trigger an API request if no cached data is available.
 
         """
+        warnings.warn(
+            "get_country_by_code is deprecated. Use NordVPNAPI methods instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         code = code.upper()
         for country in self.list_countries():
             if country["code"] == code:
@@ -174,7 +197,24 @@ class NordVPNAPIClient:
         return None
 
     def get_country_by_name(self, name: str) -> Country | None:
-        """Get country info by name."""
+        """Get country info by name.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
+
+        Args:
+            name: The name of the country (case insensitive).
+
+        Returns:
+            The country information if found, None otherwise.
+
+        """
+        warnings.warn(
+            "get_country_by_name is deprecated. Use NordVPNAPI methods instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         name = name.lower()
         for country in self.list_countries():
             if country["name"].lower() == name:
@@ -182,7 +222,21 @@ class NordVPNAPIClient:
         return None
 
     def get_available_locations(self) -> list[str]:
-        """Get formatted list of available locations."""
+        """Get formatted list of available locations.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
+
+        Returns:
+            A formatted list of available locations.
+
+        """
+        warnings.warn(
+            "get_available_locations is deprecated. Use NordVPNAPI methods instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         locations = []
         for country in sorted(self.list_countries(), key=lambda x: x["name"]):
             total_servers = country["serverCount"]
@@ -193,33 +247,28 @@ class NordVPNAPIClient:
                 locations.append(f"  {city['name']} - {city['serverCount']} servers")
         return locations
 
-    def get_best_city(self, country_code: str) -> City | None:
-        """Find optimal city for VPN connection in a country.
+    def get_best_city(
+        self, country_code: str, *, use_cache: bool = True
+    ) -> City | None:
+        """Get the best city in a country for VPN connection.
 
-        Selects the best city based on multiple factors:
-        1. Hub score (network infrastructure quality)
-        2. Number of available servers
-        3. Geographic distribution
-        4. Server performance metrics
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the find_best_server method from NordVPNAPI class instead.
 
         Args:
-            country_code: Two-letter country code
+            country_code: The two-letter country code (e.g., 'US').
+            use_cache: Whether to use cached data if available.
 
         Returns:
-            City | None: Best city information if found:
-                - name: City name
-                - dns_name: DNS hostname component
-                - hub_score: Infrastructure quality score
-                - serverCount: Available servers
-                - latitude/longitude: Geographic coordinates
-            Returns None if country not found or has no cities.
-
-        Note:
-            The hub score is a NordVPN metric combining various
-            factors like infrastructure quality, server capacity,
-            and network performance.
+            The best city for connection, or None if no suitable city is found.
 
         """
+        warnings.warn(
+            "get_best_city is deprecated. Use NordVPNAPI.find_best_server instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         country = self.get_country_by_code(country_code)
         if not country:
             return None
@@ -230,8 +279,63 @@ class NordVPNAPIClient:
         )
         return sorted_cities[0] if sorted_cities else None
 
+    def fetch_countries(
+        self, *, use_cache: bool = True, force_refresh: bool = False
+    ) -> list[Country]:
+        """Fetch country data from the API or cache.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the get_countries method from NordVPNAPI class instead.
+
+        Args:
+            use_cache: Whether to use cached data if available.
+            force_refresh: Whether to force a refresh of the cache.
+
+        Returns:
+            List of countries with server information.
+
+        """
+        warnings.warn(
+            "fetch_countries is deprecated. Use NordVPNAPI.get_countries instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        if not use_cache or force_refresh:
+            return self.list_countries(use_cache=False)
+
+        return self.list_countries(use_cache=True)
+
+    def get_cities(self, country_code: str, *, use_cache: bool = True) -> list[City]:
+        """Get cities in a specific country.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
+
+        Args:
+            country_code: The two-letter country code (e.g., 'US').
+            use_cache: Whether to use cached data if available.
+
+        Returns:
+            List of cities in the specified country.
+
+        """
+        warnings.warn(
+            "get_cities is deprecated. Use NordVPNAPI class methods instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        country = self.get_country_by_code(country_code)
+        if not country:
+            return []
+        return country.get("cities", [])
+
     def test_api_connectivity(self) -> bool:
         """Test connectivity to NordVPN API.
+
+        DEPRECATED: This method is deprecated and will be removed in a future version.
+        Please use the NordVPNAPI class methods instead.
 
         Performs a basic health check of the API:
         1. Attempts to fetch server list
@@ -249,11 +353,17 @@ class NordVPNAPIClient:
             short timeout to quickly detect connectivity issues.
 
         """
+        warnings.warn(
+            "test_api_connectivity is deprecated. Use NordVPNAPI methods instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         try:
             response = get(
-                f"{self.BASE_API_V2_URL}/servers",
+                f"{self.api_url}/servers",
                 headers=API_HEADERS,
-                timeout=5,
+                timeout=self.timeout,
             )
             response.raise_for_status()
             return True

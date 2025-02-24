@@ -9,8 +9,7 @@
 # ///
 # this_file: cleanup.py
 
-"""
-Cleanup tool for managing repository tasks and maintaining code quality.
+"""Cleanup tool for managing repository tasks and maintaining code quality.
 
 This script provides a comprehensive set of commands for repository maintenance:
 
@@ -155,7 +154,7 @@ class Cleanup:
         """Generate and display tree structure of the project."""
         if not check_command_exists("tree"):
             log_message("Warning: 'tree' command not found. Skipping tree generation.")
-            return None
+            return
 
         try:
             # Create/overwrite the file with YAML frontmatter
@@ -177,7 +176,7 @@ class Cleanup:
 
         except Exception as e:
             log_message(f"Failed to generate tree: {e}")
-        return None
+        return
 
     def _git_status(self) -> bool:
         """Check git status and return True if there are changes."""
@@ -214,10 +213,13 @@ class Cleanup:
 
     def _run_checks(self) -> None:
         """Run code quality checks using ruff and pytest."""
-
         try:
             # Run ruff checks
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Running code fixes")
+            log_message(
+                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
+                    "Running code fixes"
+                )
+            )
             run_command(
                 [
                     "python",
@@ -245,29 +247,47 @@ class Cleanup:
             )
 
             # Run type checks
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Running type checks")
+            log_message(
+                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
+                    "Running type checks"
+                )
+            )
             run_command(["python", "-m", "mypy", "src", "tests"], check=False)
 
             # Check unused code
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Checking for _potentially_ unused code")
+            log_message(
+                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
+                    "Checking for _potentially_ unused code"
+                )
+            )
             run_command(["python", "-m", "vulture", "src"], check=False)
 
-
             # Run tests
-            log_message(">>>\n>>> %s...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!\n>>>" % "Running tests")
+            log_message(
+                ">>>\n>>> {}...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!\n>>>".format(
+                    "Running tests"
+                )
+            )
             run_command(["python", "-m", "pytest", "tests"], check=False)
 
             # Run repomix to compress and analyze repository
-            log_message(">>>\n>>> %s...\n>>> TODO: Check the output!\n>>>" % "Running repomix analysis")
-            run_command([
-                "repomix",
-                "--compress",
-                "--remove-empty-lines",
-                "-i",
-                ".specstory/**/*.md,.venv/**,_private/**,CLEANUP.txt,**/*.json,*.lock",
-                "-o",
-                "nyord_vpn.txt"
-            ], check=False)
+            log_message(
+                ">>>\n>>> {}...\n>>> TODO: Check the output!\n>>>".format(
+                    "Running repomix analysis"
+                )
+            )
+            run_command(
+                [
+                    "repomix",
+                    "--compress",
+                    "--remove-empty-lines",
+                    "-i",
+                    ".specstory/**/*.md,.venv/**,_private/**,CLEANUP.txt,**/*.json,*.lock",
+                    "-o",
+                    "nyord_vpn.txt",
+                ],
+                check=False,
+            )
 
             log_message("All checks completed")
         except Exception as e:
@@ -373,7 +393,6 @@ def main() -> NoReturn:
     except Exception as e:
         log_message(f"Error: {e}")
 
-    print(Path("CLEANUP.txt").read_text())
     sys.exit(0)  # Explicitly exit to satisfy NoReturn type
 
 

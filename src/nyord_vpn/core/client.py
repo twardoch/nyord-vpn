@@ -41,8 +41,8 @@ from loguru import logger
 from rich.console import Console
 from rich.logging import RichHandler
 
-from nyord_vpn.storage.models import (
-    ConnectionError,
+from nyord_vpn.exceptions import (
+    VPNConnectionError,
     VPNError,
 )
 from nyord_vpn.utils.utils import (
@@ -184,6 +184,7 @@ class Client:
         self,
         username_str: str | None = None,
         password_str: str | None = None,
+        *,
         verbose: bool = False,
     ) -> None:
         """Initialize NordVPN client.
@@ -218,7 +219,9 @@ class Client:
             )
 
         # Initialize components in the correct order
-        self.api_client = NordVPNAPIClient(self.username, self.password, verbose)
+        self.api_client = NordVPNAPIClient(
+            self.username, self.password, verbose=verbose
+        )
         self.server_manager = ServerManager(self.api_client)
         self.vpn_manager = VPNConnectionManager(
             api_client=self.api_client,
@@ -397,40 +400,31 @@ class Client:
         attempting any connections.
 
         Raises:
-            ConnectionError: If any initialization step fails (OpenVPN missing,
-                           directory creation fails, API unreachable, etc.)
+            VPNConnectionError: If any initialization step fails (OpenVPN missing,
+                               directory creation fails, API unreachable, etc.)
 
         """
         try:
-            # Check OpenVPN installation
-            openvpn_path = self.vpn_manager.check_openvpn_installation()
-            if self.verbose:
-                self.logger.info(f"Found OpenVPN at: {openvpn_path}")
-
             # Create necessary directories
             for directory in [CACHE_DIR, CONFIG_DIR, DATA_DIR]:
                 directory.mkdir(parents=True, exist_ok=True)
-                if self.verbose:
-                    self.logger.info(f"Created directory: {directory}")
 
             # Test API connectivity
-            if not self.api_client.test_api_connectivity():
-                raise ConnectionError("Failed to connect to NordVPN API")
-            if self.verbose:
-                self.logger.info("Successfully connected to NordVPN API")
+            try:
+                self.api_client.list_countries()
+            except Exception as e:
+                raise VPNConnectionError("Failed to connect to NordVPN API") from e
 
-            # Get initial IP
-            initial_ip = self.vpn_manager.get_current_ip()
-            if not initial_ip:
-                raise ConnectionError("Failed to get initial IP")
-            if self.verbose:
-                self.logger.info(f"Initial IP: {initial_ip}")
-
-            if self.verbose:
-                self.logger.info("Client environment initialized successfully")
+            # Get initial IP for comparison
+            try:
+                self.get_current_ip()
+            except Exception as e:
+                raise VPNConnectionError("Failed to get initial IP") from e
 
         except Exception as e:
-            raise ConnectionError(f"Failed to initialize client environment: {e}")
+            if isinstance(e, VPNConnectionError):
+                raise
+            raise VPNConnectionError(f"Failed to initialize client environment: {e}")
 
     def get_current_ip(self) -> str | None:
         """Get current IP address."""

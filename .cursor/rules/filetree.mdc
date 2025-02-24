@@ -2,10 +2,10 @@
 description: File tree of the project
 globs: 
 ---
-[ 800]  .
+[ 896]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [8.6K]  filetree.mdc
+│       ├── [8.5K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -14,7 +14,7 @@ globs:
 ├── [3.5K]  .gitignore
 ├── [ 532]  .pre-commit-config.yaml
 ├── [ 128]  .specstory
-│   └── [1.9K]  history
+│   └── [2.0K]  history
 │       ├── [2.0K]  .what-is-this.md
 │       ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
 │       ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
@@ -72,57 +72,64 @@ globs:
 │       ├── [244K]  2025-02-24_17-19-vpn-country-resolution-issue.md
 │       ├── [164K]  2025-02-24_17-43-vpn-connection-issue-no-servers-in-germany.md
 │       ├── [ 20K]  2025-02-24_18-03-refining-api-documentation-and-structure.md
-│       └── [ 25K]  2025-02-24_18-41-untitled.md
+│       ├── [ 25K]  2025-02-24_18-41-script-modification-for-repomix-command.md
+│       ├── [148K]  2025-02-24_19-08-tracking-todo-and-progress-updates.md
+│       ├── [ 39K]  2025-02-24_19-49-review-and-update-project-documentation.md
+│       ├── [ 59K]  2025-02-24_20-10-task-management-for-nyord-vpn-project.md
+│       └── [ 47K]  2025-02-24_20-54-placeholder-message.md
 ├── [ 160]  CLEANUP.txt
 ├── [1.0K]  LICENSE
+├── [4.2K]  PROGRESS.md
 ├── [5.5K]  README.md
-├── [ 11K]  TODO.md
-├── [ 12K]  cleanup.py
+├── [7.5K]  TODO.md
+├── [ 13K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
+├── [131K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
 │   ├── [   0]  __init__.py
 │   └── [ 448]  nyord_vpn
-│       ├── [2.3K]  __init__.py
+│       ├── [2.4K]  __init__.py
 │       ├── [2.5K]  __main__.py
-│       ├── [ 448]  api
-│       │   ├── [7.7K]  api.py
+│       ├── [ 512]  api
+│       │   ├── [ 327]  __init__.py
+│       │   ├── [ 16K]  api.py
 │       │   ├── [ 27K]  v1_countries.json
-│       │   ├── [4.9K]  v1_countries.py
+│       │   ├── [5.4K]  v1_countries.py
 │       │   ├── [5.2K]  v1_groups.json
-│       │   ├── [3.9K]  v1_groups.py
+│       │   ├── [4.6K]  v1_groups.py
 │       │   ├── [ 67K]  v1_recommendations.json
-│       │   ├── [6.6K]  v1_recommendations.py
+│       │   ├── [7.0K]  v1_recommendations.py
 │       │   ├── [4.2K]  v1_technologies.json
-│       │   ├── [3.5K]  v1_technologies.py
+│       │   ├── [3.9K]  v1_technologies.py
 │       │   ├── [ 97K]  v2_servers.json
-│       │   └── [9.3K]  v2_servers.py
+│       │   └── [ 11K]  v2_servers.py
 │       ├── [ 256]  core
 │       │   ├── [ 178]  __init__.py
-│       │   ├── [9.1K]  api.py
-│       │   ├── [6.4K]  base.py
-│       │   └── [ 15K]  client.py
+│       │   ├── [ 12K]  api.py
+│       │   ├── [8.2K]  base.py
+│       │   └── [ 14K]  client.py
 │       ├── [ 192]  data
 │       │   ├── [  96]  .specstory
 │       │   │   └── [  96]  history
 │       │   │       └── [2.0K]  .what-is-this.md
 │       │   ├── [ 93K]  countries.json
 │       │   └── [ 963]  country_ids.json
-│       ├── [7.2K]  exceptions.py
+│       ├── [6.8K]  exceptions.py
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 36K]  server.py
+│       │   ├── [ 37K]  server.py
 │       │   ├── [ 47K]  vpn.py
-│       │   └── [4.7K]  vpn_commands.py
+│       │   └── [ 13K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
 │       │   └── [3.0K]  update_countries.py
 │       ├── [ 224]  storage
-│       │   ├── [   0]  __init__.py
-│       │   ├── [8.8K]  models.py
+│       │   ├── [ 212]  __init__.py
+│       │   ├── [8.0K]  models.py
 │       │   └── [4.0K]  state.py
 │       └── [ 288]  utils
 │           ├── [ 194]  __init__.py
@@ -130,7 +137,7 @@ globs:
 │           ├── [  64]  data
 │           ├── [ 12K]  templates.py
 │           └── [9.4K]  utils.py
-├── [ 352]  tests
+├── [ 544]  tests
 │   ├── [  40]  __init__.py
 │   ├── [2.6K]  conftest.py
 │   ├── [ 288]  integration
@@ -139,10 +146,16 @@ globs:
 │   │   ├── [2.9K]  test_connection.py
 │   │   ├── [9.3K]  test_errors.py
 │   │   └── [1.4K]  test_validation_integration.py
+│   ├── [5.9K]  test_api.py
 │   ├── [2.0K]  test_client.py
 │   ├── [3.5K]  test_legacy_api.py
 │   ├── [ 159]  test_package.py
-│   └── [6.3K]  test_server_manager.py
+│   ├── [6.4K]  test_server_manager.py
+│   ├── [4.2K]  test_v1_countries.py
+│   ├── [4.4K]  test_v1_groups.py
+│   ├── [5.7K]  test_v1_recommendations.py
+│   ├── [3.2K]  test_v1_technologies.py
+│   └── [7.9K]  test_v2_servers.py
 └── [264K]  uv.lock
 
-22 directories, 120 files
+22 directories, 133 files
