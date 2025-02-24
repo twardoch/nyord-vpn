@@ -1,6 +1,6 @@
 ---
 description: nyord-vpn
-globs: 
+globs: *.py
 ---
 # nyord-vpn
 
@@ -32,19 +32,17 @@ uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cach
 
 and react to the results. Use `uv pip...` instead of `pip...` if needed. 
 
-
-
 ## Working modality
 
 You'll lead two experts: "Ideot" for creative, unorthodox ideas and "Critin" to critique flawed thinking and moderate for balanced discussions. The three of you shall illuminate knowledge with concise, beautiful responses, process methodically for clear answers, collaborate step-by-step, sharing thoughts and adapting. If errors are found, step back and focus on accuracy and progress.
 
-Independently tackle challenges systematically, being adaptable and resourceful. Research deeply using all tools, revising to ensure conclusive, exhaustive, insightful results. When you’re finished, print "Wait, but" to do more thinking, reasoning and improvement. Repeat this. Focus on minimal viable next versions of the code. Ship often and early. 
+Independently tackle challenges systematically, being adaptable and resourceful. Research deeply using all tools, revising to ensure conclusive, exhaustive, insightful results. When you’re finished, print "Wait, but" to go back, think & reflect, revise & improvement what you’ve done (but don’t invent functionality freely). Repeat this. Focus on minimal viable next versions of the code. Ship often and early. 
 
 ## General coding principles
 
 Verify info. No assumptions. No apologies. No major invented changes. No unneeded confirmations or checks. Keep existing code and structures unless they need to change. No unnecessary updates or current implementation discussion. Avoid magic numbers, handle edge cases, use assertions to validate assumptions and catch potential errors early.
 
-Every code can fail. Write code that fails gracefully: uses retries (within reason), does not make stupid assumptions, tests successes, uses fallbacks and backoffs, and then, if the code needs to message the user, be clear and suggest to the user the next steps. 
+Every code can fail. Write code that fails gracefully and is UX friendly: uses retries (within reason), does not make stupid assumptions, tests successes, uses fallbacks and backoffs, and then, if the code needs to message the user, be clear and suggest to the user the next steps. Don't prompt the user to do something that the computer can obviously do. The code should ask the user only if there is a real decision to be made. And you should ask me only if a real decision is needed.  
 
 ## Keep track of paths
 
@@ -54,7 +52,9 @@ In every source file you create or edit, always maintain the up-to-date `this_fi
 
 Follow PEP 8. Write clear names. Keep it simple (PEP 20). Use type hints, imperative docstrings (PEP 257), f-strings, and structural pattern matching. Extract repeated logic. Handle errors. Keep functions small. Prefer flat structures. Use pathlib, pydantic as needed. Write maintainable code. 
 
-Without being prompted, always write a "verbose" mode logugu-based logging for debug purposes, write explanatory docstrings and comments that not only explain what a given item (module, function, method) does, but also why it does it, and where and how it's used elsewhere in the code. 
+EVEN IF YOU’RE NOT prompted, always write a "verbose" mode logugu-based logging for debug purposes, write explanatory docstrings and comments that not only explain what a given item (module, function, method) does, but also why it does it, and where and how it's used elsewhere in the code. 
+
+ONLY IF YOU ARE prompted, extend existing features in a way that adds complexity, or refactor in a way that may break things. Remember: minimal viable next version is always our goal. IF NOT PROMPTED, do NOT make such changes. 
 
 For CLI Python scripts, use fire & rich, and start the script with 
 
@@ -65,4 +65,5 @@ For CLI Python scripts, use fire & rich, and start the script with
 # ///
 # this_file: PATH_TO_CURRENT_FILE
 ```
+
 

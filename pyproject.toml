@@ -67,6 +67,7 @@ dependencies = [
     "webencodings>=0.5.1",
     "zipp>=3.16.2",
     "loguru>=0.7.3",
+    "vulture>=2.14",
 ]
 
 [project.optional-dependencies]
@@ -77,6 +78,7 @@ dev = [
     "pyupgrade>=3.19.0",
     "autoflake>=2.0.0",
     "isort>=5.10.1",
+    "vulture>=2.10",
 ]
 
 test = [
@@ -151,8 +153,8 @@ dependencies = [
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/nyord_vpn tests}"
-style = ["ruff check {args:.}", "ruff format --respect-gitignore {args:.}"]
-fmt = ["ruff format --respect-gitignore {args:.}", "ruff check --fix {args:.}"]
+style = ["ruff check {args:.}", "ruff format --respect-gitignore {args:.}", "vulture src"]
+fmt = ["ruff format --respect-gitignore {args:.}", "ruff check --fix {args:.}", "vulture src"]
 all = ["style", "typing"]
 
 [tool.hatch.envs.test]

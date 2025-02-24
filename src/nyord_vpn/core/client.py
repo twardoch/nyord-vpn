@@ -35,6 +35,7 @@ import time
 import os
 from pathlib import Path
 from typing import TypedDict, Any
+import json
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -44,6 +45,7 @@ from rich.logging import RichHandler
 from nyord_vpn.storage.models import (
     ConnectionError,
     VPNError,
+    ServerError,
 )
 from nyord_vpn.utils.utils import (
     CACHE_DIR,
@@ -232,87 +234,80 @@ class Client:
         """Connect to VPN in specified country.
 
         Args:
-            country_code: Two-letter country code (e.g. 'US', 'GB')
+            country_code: Two-letter country code (e.g. 'us', 'de')
 
         Raises:
             VPNError: If connection fails
-
         """
-        if not check_root():
-            ensure_root()
-            return
-
         try:
-            # First check if we're already connected
+            # Check if already connected
             status = self.status()
             if status.get("connected", False):
-                console.print("[yellow]Already connected to VPN.[/yellow]")
-                console.print(f"Current IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
-                console.print(
-                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
-                )
-                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
-                console.print("\n[yellow]Please disconnect first with:[/yellow]")
-                console.print("[blue]nyord-vpn bye[/blue]")
-                return
+                self.logger.info("Already connected to VPN, disconnecting first...")
+                self.bye()
 
-            # Select fastest server
-            server = self.server_manager.select_fastest_server(country_code)
-            if not server:
-                raise VPNError(f"No servers available in {country_code}")
+            # Try up to 3 servers in the country
+            last_error = None
+            tried_servers = set()
+            hostname = None
+            
+            for _ in range(3):
+                try:
+                    # Get a server we haven't tried yet
+                    server = self.server_manager.select_fastest_server(
+                        country_code,
+                        exclude_servers=tried_servers
+                    )
+                    if not server:
+                        raise VPNError(f"No more servers available in {country_code}")
 
-            hostname = server.get("hostname")
-            if not hostname:
-                raise VPNError("Selected server has no hostname")
+                    hostname = server.get("hostname")
+                    if not hostname:
+                        raise VPNError("Selected server has no hostname")
+                        
+                    tried_servers.add(hostname)
+                    self.logger.info(f"Selected server: {hostname}")
+                    self.vpn_manager.connect(server)
+                    return  # Success!
+                except VPNError as e:
+                    last_error = e
+                    if hostname:
+                        self.logger.debug(f"Failed to connect to {hostname}: {e}")
+                    continue  # Try next server
 
-            if self.verbose:
-                self.logger.info(f"Selected server: {hostname}")
-                console.print(f"Selected server: [cyan]{hostname}[/cyan]")
-
-            # Set up VPN configuration
-            self.vpn_manager.setup_connection(
-                hostname, self.api_client.username, self.api_client.password
-            )
-
-            # Connect to VPN
-            if self.verbose:
-                self.logger.info("Establishing VPN connection...")
-                console.print("Establishing VPN connection...")
-
-            # Connect and wait for result
-            self.vpn_manager.connect(server)
-
-            # Get status for display
-            status = self.status()
-            if self.verbose:
-                self.logger.info("Successfully connected to VPN")
-                self.logger.info(f"New IP: {status.get('ip', 'Unknown')}")
-            console.print("[green]Successfully connected to VPN[/green]")
-            console.print(f"New IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
-            console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
-            console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+            # If we get here, all attempts failed
+            raise VPNError(f"Failed to connect to any server in {country_code}: {last_error}")
 
         except Exception as e:
             if isinstance(e, VPNError):
                 raise
-            raise VPNError(f"Failed to connect: {e!s}")
+            raise VPNError(f"Failed to connect to VPN: {e}")
 
     def bye(self) -> None:
         """Disconnect from VPN and show status.
 
         Disconnects from any active VPN connection and displays
         the current connection status including the public IP.
+
+        Raises:
+            VPNError: If disconnection fails
         """
         try:
             # Get current IP before disconnecting
             current_ip = self.vpn_manager.get_current_ip()
+            if self.verbose:
+                self.logger.info("Checking current connection status...")
 
             # Disconnect if connected
             if self.vpn_manager.is_connected():
+                if self.verbose:
+                    self.logger.info("Disconnecting from VPN...")
                 self.vpn_manager.disconnect()
-                print("Disconnected from VPN")
+                console.print("[green]Disconnected from VPN[/green]")
             else:
-                print("Not connected to VPN")
+                if self.verbose:
+                    self.logger.info("No active VPN connection found")
+                console.print("[yellow]Not connected to VPN[/yellow]")
 
             # Get fresh IP after disconnecting and save state
             public_ip = self.vpn_manager.get_current_ip()
@@ -329,11 +324,14 @@ class Client:
             }
             save_vpn_state(state)
             
-            print(f"Public IP: {public_ip or 'Could not determine IP'}")
+            if public_ip:
+                console.print(f"Public IP: [cyan]{public_ip}[/cyan]")
+            else:
+                console.print("[yellow]Could not determine IP[/yellow]")
 
         except Exception as e:
             self.logger.error(f"Failed to disconnect: {e}")
-            raise
+            raise VPNError(f"Failed to disconnect: {e}")
 
     def info(self) -> None:
         """Display current VPN status."""

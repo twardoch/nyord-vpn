@@ -107,13 +107,11 @@ def get_openvpn_command(
     # Platform-specific options
     system = platform.system().lower()
     if system == "darwin":  # macOS
-        # On macOS, we don't use external DNS scripts
         cmd.extend([
-            # Enable routing
-            "--redirect-gateway",  # Redirect all traffic through VPN
-            "def1",  # Use default gateway
-            "autolocal",  # Automatically handle local routing
-            # DNS handling is done by the system
+            # Basic routing
+            "--redirect-gateway",
+            "def1",
+            # DNS configuration
             "--dhcp-option",
             "DNS",
             "103.86.96.100",  # NordVPN DNS

@@ -151,6 +151,32 @@ class ServerManager:
         self._last_cache_update: float = 0
         self._failed_servers = set()  # Track failed servers in this session
 
+    def _validate_country_code(self, country_code: str | None) -> str | None:
+        """Validate and normalize country code.
+        
+        Args:
+            country_code: Two-letter country code or None
+            
+        Returns:
+            Normalized uppercase country code or None if no code provided
+            
+        Raises:
+            ServerError: If country code is invalid
+        """
+        if not country_code:
+            return None
+            
+        normalized = country_code.upper()
+        if not isinstance(normalized, str) or len(normalized) != 2:
+            raise ServerError(f"Invalid country code format: {country_code}")
+            
+        # Verify country exists
+        country_info = self.get_country_info(normalized)
+        if not country_info:
+            raise ServerError(f"Country code not found: {normalized}")
+            
+        return normalized
+
     def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
         """Fetch information about recommended servers supporting OpenVPN.
 
@@ -178,20 +204,17 @@ class ServerManager:
             "filters[servers_technologies][identifier]": "openvpn_tcp",
             "limit": "5",
         }
-        if country:
-            from nyord_vpn.utils.utils import NORDVPN_COUNTRY_IDS
-
-            country_id = NORDVPN_COUNTRY_IDS.get(country.upper())
-            if not country_id:
-                # Try to get country ID from API
-                country_info = self.get_country_info(country)
-                if country_info:
-                    country_id = str(country_info["id"])
-                else:
-                    raise ServerError(f"Country code '{country}' not found")
-            params["filters[country_id]"] = country_id
-
+        
         try:
+            # Validate country code first
+            normalized_country = self._validate_country_code(country)
+            if normalized_country:
+                country_info = self.get_country_info(normalized_country)
+                if country_info:
+                    params["filters[country_id]"] = str(country_info["id"])
+                else:
+                    raise ServerError(f"Country code not found: {normalized_country}")
+
             response = requests.get(url, params=params, headers=API_HEADERS, timeout=10)
             response.raise_for_status()
             data = response.json()
@@ -728,8 +751,7 @@ class ServerManager:
             count: Number of servers to select
 
         Returns:
-            List of selected servers
-
+            List of selected servers, may be fewer than requested count if not enough servers available
         """
         # Group servers by region/continent
         regions = {}
@@ -751,13 +773,19 @@ class ServerManager:
                 server = random.choice(region_servers)
                 selected.append(server)
 
-        # If we still need more servers, take random ones
-        if len(selected) < count:
-            remaining = random.sample(
-                [s for s in servers if s not in selected],
-                min(count - len(selected), len(servers)),
-            )
-            selected.extend(remaining)
+        # If we still need more servers and have unselected ones available
+        remaining_servers = [s for s in servers if s not in selected]
+        if remaining_servers and len(selected) < count:
+            # Only try to sample what's available
+            sample_size = min(count - len(selected), len(remaining_servers))
+            if sample_size > 0:
+                remaining = random.sample(remaining_servers, sample_size)
+                selected.extend(remaining)
+
+        if not selected:
+            # Ensure we return at least one server if available
+            if servers:
+                selected.append(random.choice(servers))
 
         return selected
 
@@ -765,181 +793,103 @@ class ServerManager:
         self,
         country_code: str | None = None,
         random_select: bool = False,
+        exclude_servers: set[str] | None = None,
         _retry_count: int = 0,
+        max_retries: int = 3,
     ) -> dict[str, Any] | None:
-        """Select the optimal server based on parallel performance testing.
+        """Select fastest available server.
+
+        Tests multiple servers in parallel and selects the one with lowest latency.
+        Will retry with different servers if initial selection fails.
 
         Args:
-            country_code: Optional two-letter country code
-            random_select: Whether to randomize selection
-            _retry_count: Internal retry counter
+            country_code: Two-letter country code to filter servers
+            random_select: Whether to randomly select from available servers
+            exclude_servers: Set of server hostnames to exclude from selection
+            _retry_count: Internal retry counter (do not set manually)
+            max_retries: Maximum number of retry attempts
 
         Returns:
-            Selected server info or None if no suitable server found
+            Server info dictionary or None if no servers available
 
         Raises:
-            ServerError: If country code is invalid or no servers are available
-
+            ServerError: If no servers are available after retries
         """
         try:
-            # Validate country code if provided
-            if country_code:
-                country_code = country_code.upper()
-                if not isinstance(country_code, str) or len(country_code) != 2:
-                    raise ServerError(
-                        f"Invalid country code '{country_code}'. "
-                        "Please use a two-letter country code (e.g. 'US', 'GB', 'DE')"
-                    )
-
-                # Check if country exists in our cache
-                cache = self.get_servers_cache()
-                valid_countries = {
-                    s.get("country", {}).get("code", "").upper()
-                    for s in cache.get("servers", [])
-                    if s.get("country", {}).get("code")
-                }
-
-                if country_code not in valid_countries:
-                    available = ", ".join(sorted(valid_countries))
-                    raise ServerError(
-                        f"Country code '{country_code}' not found. "
-                        f"Available countries: {available}"
-                    )
-
-            if _retry_count >= 3:
-                # After 3 retries with our testing method, try the NordVPN recommendations API
-                try:
-                    if self.api_client.verbose:
-                        self.logger.info("Falling back to NordVPN recommendations API")
-
-                    # Get recommended server
-                    url = "https://api.nordvpn.com/v1/servers/recommendations"
-                    params = {
-                        "filters[servers_technologies][identifier]": "openvpn_tcp",
-                        "limit": "5",
-                    }
-
-                    if country_code:
-                        params["filters[country_id]"] = self._get_country_id(
-                            country_code
-                        )
-
-                    response = requests.get(
-                        url, params=params, headers=API_HEADERS, timeout=10
-                    )
-                    response.raise_for_status()
-                    servers = response.json()
-
-                    if not servers:
-                        if self.api_client.verbose:
-                            self.logger.error(
-                                "No servers returned by recommendations API"
-                            )
-                        return None
-
-                    # Get server with lowest load
-                    server = min(servers, key=lambda x: x.get("load", 100))
-
-                    # Convert to our format
-                    return {
-                        "hostname": server["hostname"],
-                        "load": server.get("load", 0),
-                        "country": {
-                            "code": server.get("country", {}).get("code", ""),
-                            "name": server.get("country", {}).get("name", "Unknown"),
-                        },
-                    }
-
-                except Exception as e:
-                    if self.api_client.verbose:
-                        self.logger.exception(f"Recommendations API fallback failed: {e}")
-                    return None
-
-            try:
-                # Get cached servers
-                cache = self.get_servers_cache()
-                servers = cache.get("servers", [])
-
-                if not servers:
-                    return None
-
-                # Filter by country if specified
+            # Check retry limit
+            if _retry_count >= max_retries:
+                error_msg = f"Failed to find working server after {max_retries} attempts"
                 if country_code:
-                    servers = [
-                        s
-                        for s in servers
-                        if s.get("country", {}).get("code", "").upper()
-                        == country_code.upper()
-                    ]
+                    error_msg += f" in {country_code.upper()}"
+                if self._failed_servers:
+                    error_msg += f". Failed servers: {', '.join(sorted(self._failed_servers))}"
+                raise ServerError(error_msg)
 
-                # Remove failed servers
+            # Get available servers
+            servers = self.get_servers_cache().get("servers", [])
+            if not servers:
+                raise ServerError("No servers available in cache")
+
+            # Validate and filter by country if specified
+            normalized_country = self._validate_country_code(country_code)
+            if normalized_country:
                 servers = [
-                    s for s in servers if s.get("hostname") not in self._failed_servers
+                    s
+                    for s in servers
+                    if s.get("country", {}).get("code", "").upper() == normalized_country
                 ]
-
                 if not servers:
-                    if self._failed_servers:
-                        self._failed_servers.clear()
-                        return self.select_fastest_server(
-                            country_code, random_select, _retry_count + 1
-                        )
-                    return None
+                    # Try to get country info for better error message
+                    country_info = self.get_country_info(normalized_country)
+                    country_name = country_info.get("name") if country_info else normalized_country
+                    raise ServerError(
+                        f"No servers available in {country_name} ({normalized_country}). "
+                        "Try another country or check your connection."
+                    )
 
-                # Basic filtering
-                servers = [
-                    s for s in servers if s.get("load", 100) < 90
-                ]  # Skip heavily loaded servers
+            # Filter out failed and excluded servers
+            available_servers = [
+                s
+                for s in servers
+                if s.get("hostname") not in self._failed_servers
+                and (not exclude_servers or s.get("hostname") not in exclude_servers)
+            ]
+            
+            if not available_servers:
+                if self._failed_servers:
+                    # If all servers failed, clear failed list and retry
+                    if self.api_client.verbose:
+                        self.logger.debug("All servers failed, clearing failed list and retrying")
+                    self._failed_servers.clear()
+                    return self.select_fastest_server(
+                        country_code, random_select, exclude_servers, _retry_count + 1, max_retries
+                    )
+                else:
+                    raise ServerError(
+                        f"No available servers found{' in ' + normalized_country if normalized_country else ''}"
+                    )
 
-                if random_select:
-                    return random.choice(servers)
+            # Select servers based on strategy
+            selected_servers = (
+                [random.choice(available_servers)]
+                if random_select
+                else self._select_diverse_servers(available_servers)
+            )
 
-                # Select 4 servers - use geographic distribution if no country specified
-                test_servers = (
-                    self._select_diverse_servers(servers, 4)
-                    if not country_code
-                    else random.sample(servers, min(4, len(servers)))
+            if not selected_servers:
+                raise ServerError(
+                    f"Failed to select servers{' in ' + normalized_country if normalized_country else ''}"
                 )
 
-                # Test servers in parallel using ThreadPoolExecutor
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    # Map _test_server over servers in parallel
-                    results = list(
-                        executor.map(lambda s: self._test_server(s), test_servers)
-                    )
-
-                # Filter out failed servers and sort by score
-                valid_results = [
-                    (s, score) for s, score in results if score < float("inf")
-                ]
-
-                if not valid_results:
-                    # If all servers failed, mark them as failed and retry
-                    for server in test_servers:
-                        if hostname := server.get("hostname"):
-                            self._failed_servers.add(hostname)
-                    return self.select_fastest_server(
-                        country_code, random_select, _retry_count + 1
-                    )
-
-                # Return server with best score
-                best_server = min(valid_results, key=lambda x: x[1])[0]
-
-                if self.api_client.verbose:
-                    self.logger.info(
-                        f"Selected server: {best_server.get('hostname')} "
-                        f"(load: {best_server.get('load')}%, "
-                        f"score: {min(s for _, s in valid_results):.1f}ms)"
-                    )
-
-                return best_server
-
-            except Exception as e:
-                self.logger.exception(f"Error selecting server: {e}")
-                return None
+            # Return the first server as it's either random or from diverse selection
+            return selected_servers[0]
 
         except Exception as e:
-            self.logger.exception(f"Error selecting server: {e}")
-            return None
+            if isinstance(e, ServerError):
+                raise
+            if self.api_client.verbose:
+                self.logger.error(f"Error selecting server: {e}", exc_info=True)
+            raise ServerError(str(e))
 
     def _get_country_id(self, country_code: str) -> str:
         """Get NordVPN country ID from country code.
@@ -980,18 +930,31 @@ class ServerManager:
         return ""
 
     def get_random_country(self) -> str:
+        """Get a random country code from available servers.
+        
+        Returns:
+            Two-letter country code, defaults to "US" on error
+            
+        Note:
+            Uses cache to avoid unnecessary API calls.
+        """
         try:
             cache = self.get_servers_cache()
             countries = {
-                s.get("country", {}).get("code")
+                s.get("country", {}).get("code", "").upper()
                 for s in cache.get("servers", [])
                 if s.get("country", {}).get("code")
             }
             if not countries:
                 raise ServerError("No countries found in server list")
-            return random.choice(list(countries))
+                
+            selected = random.choice(list(countries))
+            if self.api_client.verbose:
+                self.logger.debug(f"Selected random country: {selected}")
+            return selected
+            
         except Exception as e:
-            self.logger.exception(f"Failed to get random country: {e}")
+            self.logger.warning(f"Failed to get random country: {e}")
             return "US"
 
     def get_country_info(self, country_code: str) -> dict[str, Any] | None:
@@ -1003,31 +966,51 @@ class ServerManager:
         Returns:
             Dictionary with country information or None if not found
 
+        Note:
+            Uses cache first, falls back to API if needed.
+            Cache format matches API response for consistency.
         """
+        if not country_code:
+            return None
+            
+        normalized = country_code.upper()
+        
         try:
-            # Use v1 API endpoint
+            # First check cache
+            cache = self.get_servers_cache()
+            for server in cache.get("servers", []):
+                country = server.get("country", {})
+                if country.get("code", "").upper() == normalized:
+                    return {
+                        "code": country["code"],
+                        "name": country.get("name", "Unknown"),
+                        "id": country.get("id", "0"),
+                    }
+
+            # If not in cache, try API
             response = requests.get(
                 "https://api.nordvpn.com/v1/servers/countries",
                 headers=API_HEADERS,
                 timeout=10,
             )
             response.raise_for_status()
-            countries = response.json()
-
-            # Find country by code
-            for country in countries:
-                if (
-                    isinstance(country, dict)
-                    and country.get("code", "").upper() == country_code.upper()
-                ):
+            
+            for country in response.json():
+                if not isinstance(country, dict):
+                    continue
+                    
+                if country.get("code", "").upper() == normalized:
                     return {
                         "code": country["code"],
-                        "name": country["name"],
-                        "id": country["id"],
+                        "name": country.get("name", "Unknown"),
+                        "id": str(country.get("id", "0")),
                     }
 
+            if self.api_client.verbose:
+                self.logger.debug(f"Country code not found: {normalized}")
             return None
 
         except Exception as e:
-            self.logger.exception(f"Failed to get country info: {e}")
+            if self.api_client.verbose:
+                self.logger.warning(f"Failed to get country info for {normalized}: {e}")
             return None
