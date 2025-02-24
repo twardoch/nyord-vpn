@@ -89,19 +89,26 @@ def get_openvpn_command(
         str(ping_interval),
         "--ping-restart",
         str(ping_restart),
-        # Add script security for up/down scripts
         "--script-security",
         "2",
-        # Network setup
-        "--persist-tun",  # Keep tun device between restarts
-        "--persist-key",  # Keep keys between restarts
-        "--nobind",  # Don't bind to a specific local port
-        "--fast-io",  # Optimize I/O operations
-        # Cipher configuration
+        "--persist-tun",
+        "--persist-key",
+        "--nobind",
+        "--fast-io",
         "--data-ciphers",
-        "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305",
+        "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:AES-256-CBC",
         "--data-ciphers-fallback",
         "AES-256-CBC",
+        "--auth-retry",
+        "nointeract",
+        "--auth-nocache",
+        "--pull-filter",
+        "ignore",
+        "auth-token",
+        "--tls-version-min",
+        "1.2",
+        "--tls-cipher",
+        "TLS-ECDHE-RSA-WITH-AES-256-GCM-SHA384:TLS-ECDHE-RSA-WITH-AES-128-GCM-SHA256",
     ]
 
     # Platform-specific options

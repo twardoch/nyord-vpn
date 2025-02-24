@@ -425,6 +425,33 @@ class VPNConnectionManager:
             if not config_path:
                 raise VPNConfigError(f"Failed to get OpenVPN config for {hostname}")
 
+            # Log config file contents for debugging
+            if self.verbose:
+                try:
+                    config_content = config_path.read_text()
+                    self.logger.debug(f"OpenVPN config for {hostname}:")
+                    for line in config_content.splitlines():
+                        if not line.strip().startswith("#"):  # Skip comments
+                            self.logger.debug(f"  {line}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to read config file: {e}")
+
+            # Verify auth file exists and has correct format
+            if not OPENVPN_AUTH.exists():
+                raise VPNError("Auth file not found - please run setup first")
+            try:
+                auth_content = OPENVPN_AUTH.read_text().strip().split("\n")
+                if len(auth_content) != 2:
+                    raise VPNError("Auth file is corrupted - please run setup again")
+                if not auth_content[0] or not auth_content[1]:
+                    raise VPNError("Auth file contains empty username or password - please run setup again")
+                if self.verbose:
+                    self.logger.debug(f"Auth file exists and has correct format")
+            except Exception as e:
+                if isinstance(e, VPNError):
+                    raise
+                raise VPNError(f"Failed to read auth file: {e}")
+
             # Start OpenVPN process
             cmd = get_openvpn_command(
                 config_path=config_path,
@@ -482,12 +509,29 @@ class VPNConnectionManager:
                     try:
                         if OPENVPN_LOG and OPENVPN_LOG.exists():
                             log_content = OPENVPN_LOG.read_text()
-                    except Exception:
-                        pass
+                            if self.verbose:
+                                self.logger.debug("OpenVPN log content:")
+                                for line in log_content.splitlines():
+                                    self.logger.debug(f"  {line}")
+                    except Exception as e:
+                        if self.verbose:
+                            self.logger.warning(f"Failed to read OpenVPN log: {e}")
 
                     # If we have log content, check for known errors
                     if log_content:
-                        if "Cannot load certificate file" in log_content:
+                        if "AUTH_FAILED" in log_content:
+                            # Get more context around the auth failure
+                            auth_lines = [line for line in log_content.splitlines() if "AUTH" in line]
+                            if auth_lines and self.verbose:
+                                self.logger.debug("Auth-related log lines:")
+                                for line in auth_lines:
+                                    self.logger.debug(f"  {line}")
+                            error_msg = "Authentication failed - check your credentials"
+                            if "AUTH_FAILED,SESSION" in log_content:
+                                error_msg = "Session authentication failed - server may require re-login"
+                            elif "AUTH_FAILED,CERTIFICATE" in log_content:
+                                error_msg = "Certificate authentication failed - server config may be invalid"
+                        elif "Cannot load certificate file" in log_content:
                             error_msg = "Certificate error - server config may be invalid"
                         elif "Cannot load private key file" in log_content:
                             error_msg = "Private key error - server config may be invalid"
@@ -495,8 +539,12 @@ class VPNConnectionManager:
                             error_msg = "All VPN adapters are in use"
                         elif "TLS Error" in log_content:
                             error_msg = "TLS handshake failed - server may be down"
-                        elif "AUTH_FAILED" in log_content:
-                            error_msg = "Authentication failed - check your credentials"
+                        elif "TLS key negotiation failed" in log_content:
+                            error_msg = "TLS key negotiation failed - server may require different TLS settings"
+                        elif "Connection timed out" in log_content:
+                            error_msg = "Connection timed out - server may be unreachable"
+                        elif "Cannot resolve host address" in log_content:
+                            error_msg = "Cannot resolve server hostname - DNS issue"
                     
                     # If no specific error found, use a generic message
                     if not error_msg:
@@ -518,6 +566,14 @@ class VPNConnectionManager:
                         if "Initialization Sequence Completed" in log_content:
                             success = True
                             break
+                            
+                        # Check for auth progress
+                        if self.verbose and "AUTH" in log_content:
+                            auth_lines = [line for line in log_content.splitlines() if "AUTH" in line]
+                            if auth_lines:
+                                self.logger.debug("Auth progress:")
+                                for line in auth_lines:
+                                    self.logger.debug(f"  {line}")
                             
                         # Check for common errors
                         if "AUTH_FAILED" in log_content:

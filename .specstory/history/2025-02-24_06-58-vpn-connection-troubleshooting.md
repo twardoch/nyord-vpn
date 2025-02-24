@@ -1421,11 +1421,1004 @@ I see the issue - we're not properly handling the case where OpenVPN exits with 
 
 _****_
 
-
+```diff
+              success = False
+              error_msg = None
++             log_content = ""
+  
+              while time.time() - start_time < 30:  # 30 second timeout
+                  # Check if process died
+                  if self.process.poll() is not None:
+                      stdout, stderr = self.process.communicate()
++                     
++                     # Try to get log content for better error reporting
++                     try:
++                         if OPENVPN_LOG and OPENVPN_LOG.exists():
++                             log_content = OPENVPN_LOG.read_text()
++                     except Exception:
++                         pass
++ 
++                     # If we have log content, check for known errors
++                     if log_content:
++                         if "Cannot load certificate file" in log_content:
++                             error_msg = "Certificate error - server config may be invalid"
++                         elif "Cannot load private key file" in log_content:
++                             error_msg = "Private key error - server config may be invalid"
++                         elif "All TAP-Windows adapters on this system are currently in use" in log_content:
++                             error_msg = "All VPN adapters are in use"
++                         elif "TLS Error" in log_content:
++                             error_msg = "TLS handshake failed - server may be down"
++                         elif "AUTH_FAILED" in log_content:
++                             error_msg = "Authentication failed - check your credentials"
++                     
++                     # If no specific error found, use a generic message
++                     if not error_msg:
+                          error_msg = (
+                              f"OpenVPN process terminated unexpectedly:\n"
+                              f"Exit code: {self.process.returncode}\n"
+                              f"Output: {stdout}\n"
+-                         f"Error: {stderr}"
++                             f"Error: {stderr}\n"
++                             f"Log: {log_content if log_content else 'No log available'}"
+                          )
+                      break
+                              error_msg = "All VPN adapters are in use"
+                              break
++                         if "Cannot load certificate file" in log_content:
++                             error_msg = "Certificate error - server config may be invalid"
++                             break
++                         if "Cannot load private key file" in log_content:
++                             error_msg = "Private key error - server config may be invalid"
++                             break
+                      except Exception as e:
+                          if self.verbose:
+```
 
 ---
 
 _****_
+
+
+
+
+
+Now let me also add a delay between server attempts to avoid overwhelming the system:
+
+---
+
+_****_
+
+```diff
+              tried_servers = set()
+              hostname = None
++             attempt = 0
+              
+-             for _ in range(3):
++             while attempt < 3:  # Try up to 3 servers
+                  try:
++                     # Add delay between attempts (except first)
++                     if attempt > 0:
++                         self.logger.info(f"Retrying with different server (attempt {attempt + 1}/3)")
++                         time.sleep(2)  # Wait 2 seconds between attempts
++                         
+                      # Get a server we haven't tried yet
+                      server = self.server_manager.select_fastest_server(
+                      tried_servers.add(hostname)
+                      self.logger.info(f"Selected server: {hostname}")
++                     
++                     try:
+                          self.vpn_manager.connect(server)
+                          return  # Success!
+                              self.logger.debug(f"Failed to connect to {hostname}: {e}")
+                          continue  # Try next server
++                         
++                 except VPNError as e:
++                     last_error = e
++                     if hostname:
++                         self.logger.debug(f"Failed to connect to {hostname}: {e}")
++                 finally:
++                     attempt += 1
+  
+              # If we get here, all attempts failed
+-             raise VPNError(f"Failed to connect to any server in {country_code}: {last_error}")
++             raise VPNError(
++                 f"Failed to connect to any server in {country_code} after {attempt} attempts. "
++                 f"Last error: {last_error}"
++             )
+  
+          except Exception as e:
+```
+
+---
+
+_****_
+
+
+
+
+
+The changes I've made:
+
+1. Added better error detection from OpenVPN logs to understand why the connection fails
+2. Added a delay between server attempts to avoid overwhelming the system
+3. Improved error messages to show which attempt failed and why
+4. Fixed the server retry logic to properly handle all error cases
+
+Try connecting again - it should now:
+1. Try to connect to a server
+2. If it fails, wait 2 seconds
+3. Try another server in the same country
+4. Repeat up to 3 times
+5. Show detailed error messages about what went wrong
+
+---
+
+_**User**_
+
+[02/24/25 07:07:08] DEBUG    2025-02-24 07:07:08.293 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:156 - Found OpenVPN at                   vpn.py:156
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-24 07:07:08.299 | DEBUG    | nyord_vpn.network.vpn:status:838 - Connection status: process=True, initialized=True      vpn.py:838
+                    INFO     2025-02-24 07:07:08.300 | INFO     | nyord_vpn.core.client:go:246 - Already connected to VPN, disconnecting first...        client.py:246
+                    DEBUG    2025-02-24 07:07:08.302 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:302 - Checking IP with api.ipify.org (attempt 1)     vpn.py:302
+                    DEBUG    2025-02-24 07:07:08.623 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:309 - Got valid IP 95.214.216.213 from api.ipify.org vpn.py:309
+                    INFO     2025-02-24 07:07:08.626 | INFO     | nyord_vpn.core.client:bye:317 - Checking current connection status...                  client.py:317
+                    INFO     2025-02-24 07:07:08.628 | INFO     | nyord_vpn.core.client:bye:327 - No active VPN connection found                         client.py:327
+Not connected to VPN
+                    DEBUG    2025-02-24 07:07:08.630 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:302 - Checking IP with api.ipify.org (attempt 1)     vpn.py:302
+                    DEBUG    2025-02-24 07:07:08.917 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:309 - Got valid IP 95.214.216.213 from api.ipify.org vpn.py:309
+                    DEBUG    2025-02-24 07:07:08.919 | DEBUG    | nyord_vpn.utils.utils:save_vpn_state:263 - Saved state to                               utils.py:263
+                             /Users/adam/Library/Caches/nyord-vpn/state.json: {                                                                                       
+                               "connected": false,                                                                                                                    
+                               "current_ip": "95.214.216.213",                                                                                                        
+                               "server": null,                                                                                                                        
+                               "country": null,                                                                                                                       
+                               "timestamp": 1740377228.91931,                                                                                                         
+                               "normal_ip": "95.214.216.213",                                                                                                         
+                               "connected_ip": null                                                                                                                   
+                             }                                                                                                                                        
+Public IP: 95.214.216.213
+                    DEBUG    2025-02-24 07:07:08.923 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    DEBUG    2025-02-24 07:07:08.926 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    INFO     2025-02-24 07:07:08.928 | INFO     | nyord_vpn.core.client:go:275 - Selected server: de510.nordvpn.com                      client.py:275
+[02/24/25 07:07:09] DEBUG    2025-02-24 07:07:09.030 | DEBUG    | nyord_vpn.network.vpn:disconnect:639 - Found OpenVPN process 31144                        vpn.py:639
+                    DEBUG    2025-02-24 07:07:09.235 | DEBUG    | nyord_vpn.network.vpn:disconnect:680 - Cleaned up OpenVPN log file                        vpn.py:680
+                    DEBUG    2025-02-24 07:07:09.238 | DEBUG    | nyord_vpn.network.vpn:_invalidate_ip_cache:923 - IP cache invalidated                     vpn.py:923
+                    INFO     2025-02-24 07:07:09.241 | INFO     | nyord_vpn.network.vpn:disconnect:704 - Disconnected from VPN                              vpn.py:704
+                    DEBUG    2025-02-24 07:07:09.244 | DEBUG    | nyord_vpn.network.vpn:connect:421 - Connecting to de510.nordvpn.com                       vpn.py:421
+                    DEBUG    2025-02-24 07:07:09.246 | DEBUG    | nyord_vpn.utils.templates:log_debug:50 - Looking for config file at:                 templates.py:50
+                             /Users/adam/.cache/nyord-vpn/configs/de510.nordvpn.com.tcp.ovpn                                                                          
+                    DEBUG    2025-02-24 07:07:09.248 | DEBUG    | nyord_vpn.network.vpn:connect:437 - Running OpenVPN command:                              vpn.py:437
+                    DEBUG    2025-02-24 07:07:09.249 | DEBUG    | nyord_vpn.network.vpn:connect:438 - openvpn --config                                      vpn.py:438
+                             /Users/adam/.cache/nyord-vpn/configs/de510.nordvpn.com.tcp.ovpn --auth-user-pass /Users/adam/.cache/nyord-vpn/openvpn.auth               
+                             --verb 5 --connect-retry 2 --connect-timeout 10 --resolv-retry infinite --ping 10 --ping-restart 60 --script-security 2                  
+                             --persist-tun --persist-key --nobind --fast-io --data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305                                  
+                             --data-ciphers-fallback AES-256-CBC --redirect-gateway def1 --dhcp-option DNS 103.86.96.100 --dhcp-option DNS 103.86.99.100              
+                             --log /Users/adam/.cache/nyord-vpn/openvpn.log                                                                                           
+Error: Failed to connect to VPN: Authentication failed - check your credentials
+
+
+(pl works)
+
+---
+
+_**Assistant**_
+
+Ah, I see the issue. The server in Poland works but Germany fails with an auth error. This suggests that the server might be using a different authentication method or configuration. Let me modify the code to:
+
+1. Add more logging to see what's in the config file
+2. Add a retry with a different auth method if the first one fails
+
+---
+
+_****_
+
+```diff
+          "--data-ciphers-fallback",
+          "AES-256-CBC",
++         # Auth method options
++         "--auth-retry",
++         "nointeract",  # Don't prompt for auth on retry
++         "--auth-nocache",  # Don't cache auth info
++         "--pull-filter",
++         "ignore",
++         "auth-token",  # Ignore auth-token directive from server
+      ]
+  
+```
+
+---
+
+_****_
+
+
+
+
+
+Now let me add better logging for the config file:
+
+---
+
+_****_
+
+```diff
+                  raise VPNConfigError(f"Failed to get OpenVPN config for {hostname}")
+  
++             # Log config file contents for debugging
++             if self.verbose:
++                 try:
++                     config_content = config_path.read_text()
++                     self.logger.debug(f"OpenVPN config for {hostname}:")
++                     for line in config_content.splitlines():
++                         if not line.strip().startswith("#"):  # Skip comments
++                             self.logger.debug(f"  {line}")
++                 except Exception as e:
++                     self.logger.warning(f"Failed to read config file: {e}")
++ 
+              # Start OpenVPN process
+              cmd = get_openvpn_command(
+```
+
+---
+
+_****_
+
+
+
+
+
+
+
+And let me also add a check for the auth file contents:
+
+---
+
+_****_
+
+```diff
+                      self.logger.warning(f"Failed to read config file: {e}")
+  
++             # Verify auth file exists and has correct format
++             if not OPENVPN_AUTH.exists():
++                 raise VPNError("Auth file not found - please run setup first")
++             try:
++                 auth_content = OPENVPN_AUTH.read_text().strip().split("\n")
++                 if len(auth_content) != 2:
++                     raise VPNError("Auth file is corrupted - please run setup again")
++                 if not auth_content[0] or not auth_content[1]:
++                     raise VPNError("Auth file contains empty username or password - please run setup again")
++                 if self.verbose:
++                     self.logger.debug(f"Auth file exists and has correct format")
++             except Exception as e:
++                 if isinstance(e, VPNError):
++                     raise
++                 raise VPNError(f"Failed to read auth file: {e}")
++ 
+              # Start OpenVPN process
+              cmd = get_openvpn_command(
+```
+
+---
+
+_****_
+
+
+
+
+
+I've made several changes to help debug and fix the authentication issues:
+
+1. Added more robust auth options to OpenVPN:
+   - `--auth-retry nointeract` to handle auth retries
+   - `--auth-nocache` to prevent caching of auth info
+   - `--pull-filter ignore auth-token` to ignore server auth token directives
+
+2. Added logging of the OpenVPN config file contents (when verbose) to see what auth methods the server requires
+
+3. Added validation of the auth file to ensure it's properly formatted
+
+Try connecting again - it should either:
+1. Work with the new auth options, or
+2. Give us more detailed logs about why the auth is failing
+
+If it still fails, we can look at the logs to see what's different between the working Polish server and the failing German server.
+
+---
+
+_**User**_
+
+sudo -E nyord-vpn go de --verbose
+[02/24/25 07:08:44] DEBUG    2025-02-24 07:08:44.913 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:156 - Found OpenVPN at                   vpn.py:156
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-24 07:08:44.918 | DEBUG    | nyord_vpn.network.vpn:status:865 - Connection status: process=False, initialized=False    vpn.py:865
+                    DEBUG    2025-02-24 07:08:44.922 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    DEBUG    2025-02-24 07:08:44.925 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    INFO     2025-02-24 07:08:44.926 | INFO     | nyord_vpn.core.client:go:275 - Selected server: de509.nordvpn.com                      client.py:275
+[02/24/25 07:08:45] DEBUG    2025-02-24 07:08:45.112 | DEBUG    | nyord_vpn.network.vpn:disconnect:707 - Cleaned up OpenVPN log file                        vpn.py:707
+                    DEBUG    2025-02-24 07:08:45.113 | DEBUG    | nyord_vpn.network.vpn:_invalidate_ip_cache:950 - IP cache invalidated                     vpn.py:950
+                    INFO     2025-02-24 07:08:45.115 | INFO     | nyord_vpn.network.vpn:disconnect:731 - Disconnected from VPN                              vpn.py:731
+                    DEBUG    2025-02-24 07:08:45.116 | DEBUG    | nyord_vpn.network.vpn:connect:421 - Connecting to de509.nordvpn.com                       vpn.py:421
+                    DEBUG    2025-02-24 07:08:45.118 | DEBUG    | nyord_vpn.utils.templates:log_debug:50 - Looking for config file at:                 templates.py:50
+                             /Users/adam/.cache/nyord-vpn/configs/de509.nordvpn.com.tcp.ovpn                                                                          
+                    DEBUG    2025-02-24 07:08:45.119 | DEBUG    | nyord_vpn.network.vpn:connect:432 - OpenVPN config for de509.nordvpn.com:                 vpn.py:432
+                    DEBUG    2025-02-24 07:08:45.121 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   client                                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.122 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   dev tun                                             vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.123 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   proto tcp                                           vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.124 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote 185.130.184.117 443                          vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.125 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   resolv-retry infinite                               vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.127 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-random                                       vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.128 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   nobind                                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.129 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu 1500                                        vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.130 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu-extra 32                                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.131 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   mssfix 1450                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.133 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-key                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.134 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-tun                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.135 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping 15                                             vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.136 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-restart 0                                      vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.137 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-timer-rem                                      vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.138 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   reneg-sec 0                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.139 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   comp-lzo no                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.141 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verify-x509-name CN=de509.nordvpn.com               vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.143 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.146 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-cert-tls server                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.147 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.149 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth-user-pass                                      vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.151 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verb 3                                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.153 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   pull                                                vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.154 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fast-io                                             vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.155 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cipher AES-256-CBC                                  vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.156 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth SHA512                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.157 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <ca>                                                vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.158 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN CERTIFICATE-----                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.160 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ                                                                         
+                    DEBUG    2025-02-24 07:08:45.161 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2                                                                         
+                    DEBUG    2025-02-24 07:08:45.163 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV                                                                         
+                    DEBUG    2025-02-24 07:08:45.164 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI                                                                         
+                    DEBUG    2025-02-24 07:08:45.166 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF                                                                         
+                    DEBUG    2025-02-24 07:08:45.168 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr                                                                         
+                    DEBUG    2025-02-24 07:08:45.169 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU                                                                         
+                    DEBUG    2025-02-24 07:08:45.171 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV                                                                         
+                    DEBUG    2025-02-24 07:08:45.172 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu                                                                         
+                    DEBUG    2025-02-24 07:08:45.174 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA                                                                         
+                    DEBUG    2025-02-24 07:08:45.176 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR                                                                         
+                    DEBUG    2025-02-24 07:08:45.177 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s                                                                         
+                    DEBUG    2025-02-24 07:08:45.179 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy                                                                         
+                    DEBUG    2025-02-24 07:08:45.180 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6                                                                         
+                    DEBUG    2025-02-24 07:08:45.182 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST                                                                         
+                    DEBUG    2025-02-24 07:08:45.183 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG                                                                         
+                    DEBUG    2025-02-24 07:08:45.185 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g                                                                         
+                    DEBUG    2025-02-24 07:08:45.186 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/                                                                         
+                    DEBUG    2025-02-24 07:08:45.188 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S                                                                         
+                    DEBUG    2025-02-24 07:08:45.189 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/                                                                         
+                    DEBUG    2025-02-24 07:08:45.190 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo                                                                         
+                    DEBUG    2025-02-24 07:08:45.192 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp                                                                         
+                    DEBUG    2025-02-24 07:08:45.193 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             +RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd                                                                         
+                    DEBUG    2025-02-24 07:08:45.195 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa                                                                         
+                    DEBUG    2025-02-24 07:08:45.196 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC                                                                         
+                    DEBUG    2025-02-24 07:08:45.198 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S                                                                         
+                    DEBUG    2025-02-24 07:08:45.199 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==                                                                         
+                    DEBUG    2025-02-24 07:08:45.201 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END CERTIFICATE-----                           vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.202 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </ca>                                               vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.203 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   key-direction 1                                     vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.205 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <tls-auth>                                          vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.206 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN OpenVPN Static key V1-----               vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.207 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   e685bdaf659a25a200e2b9e39e51ff03                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.209 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0fc72cf1ce07232bd8b2be5e6c670143                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.210 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   f51e937e670eee09d4f2ea5a6e4e6996                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.211 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5db852c275351b86fc4ca892d78ae002                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.212 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   d6f70d029bd79c4d1c26cf14e9588033                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.213 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cf639f8a74809f29f72b9d58f9b8f5fe                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.214 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fc7938eade40e9fed6cb92184abb2cc1                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.215 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0eb1a296df243b251df0643d53724cdb                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.217 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5a92a1d6cb817804c4a9319b57d53be5                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.218 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   80815bcfcb2df55018cc83fc43bc7ff8                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.219 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   2d51f9b88364776ee9d12fc85cc7ea5b                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.220 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9741c4f598c485316db066d52db4540e                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.221 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   212e1518a9bd4828219e24b20d88f598                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.223 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   a196c9de96012090e333519ae18d3509                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.224 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9427e7b372d348d352dc4c85e18cd4b9                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.225 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   3f8a56ddb2e64eb67adfc9b337157ff4                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.226 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END OpenVPN Static key V1-----                 vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.228 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </tls-auth>                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:45.229 | DEBUG    | nyord_vpn.network.vpn:connect:449 - Auth file exists and has correct format               vpn.py:449
+                    DEBUG    2025-02-24 07:08:45.231 | DEBUG    | nyord_vpn.network.vpn:connect:464 - Running OpenVPN command:                              vpn.py:464
+                    DEBUG    2025-02-24 07:08:45.232 | DEBUG    | nyord_vpn.network.vpn:connect:465 - openvpn --config                                      vpn.py:465
+                             /Users/adam/.cache/nyord-vpn/configs/de509.nordvpn.com.tcp.ovpn --auth-user-pass /Users/adam/.cache/nyord-vpn/openvpn.auth               
+                             --verb 5 --connect-retry 2 --connect-timeout 10 --resolv-retry infinite --ping 10 --ping-restart 60 --script-security 2                  
+                             --persist-tun --persist-key --nobind --fast-io --data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305                                  
+                             --data-ciphers-fallback AES-256-CBC --auth-retry nointeract --auth-nocache --pull-filter ignore auth-token --redirect-gateway            
+                             def1 --dhcp-option DNS 103.86.96.100 --dhcp-option DNS 103.86.99.100 --log /Users/adam/.cache/nyord-vpn/openvpn.log                      
+Error: Failed to connect to VPN: Authentication failed - check your credentials
+sudo -E nyord-vpn go fr --verbose
+[02/24/25 07:08:52] DEBUG    2025-02-24 07:08:52.521 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:156 - Found OpenVPN at                   vpn.py:156
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-24 07:08:52.527 | DEBUG    | nyord_vpn.network.vpn:status:865 - Connection status: process=False, initialized=False    vpn.py:865
+                    DEBUG    2025-02-24 07:08:52.531 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    DEBUG    2025-02-24 07:08:52.534 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    INFO     2025-02-24 07:08:52.536 | INFO     | nyord_vpn.core.client:go:275 - Selected server: fr542.nordvpn.com                      client.py:275
+                    DEBUG    2025-02-24 07:08:52.740 | DEBUG    | nyord_vpn.network.vpn:disconnect:707 - Cleaned up OpenVPN log file                        vpn.py:707
+                    DEBUG    2025-02-24 07:08:52.742 | DEBUG    | nyord_vpn.network.vpn:_invalidate_ip_cache:950 - IP cache invalidated                     vpn.py:950
+                    INFO     2025-02-24 07:08:52.744 | INFO     | nyord_vpn.network.vpn:disconnect:731 - Disconnected from VPN                              vpn.py:731
+                    DEBUG    2025-02-24 07:08:52.746 | DEBUG    | nyord_vpn.network.vpn:connect:421 - Connecting to fr542.nordvpn.com                       vpn.py:421
+                    DEBUG    2025-02-24 07:08:52.747 | DEBUG    | nyord_vpn.utils.templates:log_debug:50 - Looking for config file at:                 templates.py:50
+                             /Users/adam/.cache/nyord-vpn/configs/fr542.nordvpn.com.tcp.ovpn                                                                          
+                    DEBUG    2025-02-24 07:08:52.748 | DEBUG    | nyord_vpn.utils.templates:log_debug:50 - Fixed config file permissions for           templates.py:50
+                             /Users/adam/.cache/nyord-vpn/configs/fr542.nordvpn.com.tcp.ovpn                                                                          
+                    DEBUG    2025-02-24 07:08:52.750 | DEBUG    | nyord_vpn.network.vpn:connect:432 - OpenVPN config for fr542.nordvpn.com:                 vpn.py:432
+                    DEBUG    2025-02-24 07:08:52.752 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   client                                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.753 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   dev tun                                             vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.754 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   proto tcp                                           vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.756 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote 217.138.207.171 443                          vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.757 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   resolv-retry infinite                               vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.758 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-random                                       vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.759 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   nobind                                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.760 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu 1500                                        vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.761 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu-extra 32                                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.762 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   mssfix 1450                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.763 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-key                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.764 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-tun                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.765 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping 15                                             vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.766 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-restart 0                                      vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.767 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-timer-rem                                      vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.768 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   reneg-sec 0                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.769 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   comp-lzo no                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.770 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verify-x509-name CN=fr542.nordvpn.com               vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.771 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.772 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-cert-tls server                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.774 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.775 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth-user-pass                                      vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.776 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verb 3                                              vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.777 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   pull                                                vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.779 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fast-io                                             vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.780 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cipher AES-256-CBC                                  vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.781 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth SHA512                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.782 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <ca>                                                vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.783 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN CERTIFICATE-----                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.784 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ                                                                         
+                    DEBUG    2025-02-24 07:08:52.786 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2                                                                         
+                    DEBUG    2025-02-24 07:08:52.787 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV                                                                         
+                    DEBUG    2025-02-24 07:08:52.788 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI                                                                         
+                    DEBUG    2025-02-24 07:08:52.790 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF                                                                         
+                    DEBUG    2025-02-24 07:08:52.792 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr                                                                         
+                    DEBUG    2025-02-24 07:08:52.795 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU                                                                         
+                    DEBUG    2025-02-24 07:08:52.797 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV                                                                         
+                    DEBUG    2025-02-24 07:08:52.798 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu                                                                         
+                    DEBUG    2025-02-24 07:08:52.799 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA                                                                         
+                    DEBUG    2025-02-24 07:08:52.801 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR                                                                         
+                    DEBUG    2025-02-24 07:08:52.803 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s                                                                         
+                    DEBUG    2025-02-24 07:08:52.804 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy                                                                         
+                    DEBUG    2025-02-24 07:08:52.806 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6                                                                         
+                    DEBUG    2025-02-24 07:08:52.807 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST                                                                         
+                    DEBUG    2025-02-24 07:08:52.808 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG                                                                         
+                    DEBUG    2025-02-24 07:08:52.810 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g                                                                         
+                    DEBUG    2025-02-24 07:08:52.811 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/                                                                         
+                    DEBUG    2025-02-24 07:08:52.813 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S                                                                         
+                    DEBUG    2025-02-24 07:08:52.814 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/                                                                         
+                    DEBUG    2025-02-24 07:08:52.816 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo                                                                         
+                    DEBUG    2025-02-24 07:08:52.817 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp                                                                         
+                    DEBUG    2025-02-24 07:08:52.819 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             +RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd                                                                         
+                    DEBUG    2025-02-24 07:08:52.820 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa                                                                         
+                    DEBUG    2025-02-24 07:08:52.821 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC                                                                         
+                    DEBUG    2025-02-24 07:08:52.823 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S                                                                         
+                    DEBUG    2025-02-24 07:08:52.824 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==                                                                         
+                    DEBUG    2025-02-24 07:08:52.826 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END CERTIFICATE-----                           vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.827 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </ca>                                               vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.829 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   key-direction 1                                     vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.830 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <tls-auth>                                          vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.831 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN OpenVPN Static key V1-----               vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.832 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   e685bdaf659a25a200e2b9e39e51ff03                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.834 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0fc72cf1ce07232bd8b2be5e6c670143                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.835 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   f51e937e670eee09d4f2ea5a6e4e6996                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.837 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5db852c275351b86fc4ca892d78ae002                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.838 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   d6f70d029bd79c4d1c26cf14e9588033                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.840 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cf639f8a74809f29f72b9d58f9b8f5fe                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.841 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fc7938eade40e9fed6cb92184abb2cc1                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.843 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0eb1a296df243b251df0643d53724cdb                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.844 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5a92a1d6cb817804c4a9319b57d53be5                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.846 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   80815bcfcb2df55018cc83fc43bc7ff8                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.848 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   2d51f9b88364776ee9d12fc85cc7ea5b                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.849 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9741c4f598c485316db066d52db4540e                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.851 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   212e1518a9bd4828219e24b20d88f598                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.852 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   a196c9de96012090e333519ae18d3509                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.853 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9427e7b372d348d352dc4c85e18cd4b9                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.855 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   3f8a56ddb2e64eb67adfc9b337157ff4                    vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.856 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END OpenVPN Static key V1-----                 vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.857 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </tls-auth>                                         vpn.py:435
+                    DEBUG    2025-02-24 07:08:52.859 | DEBUG    | nyord_vpn.network.vpn:connect:449 - Auth file exists and has correct format               vpn.py:449
+                    DEBUG    2025-02-24 07:08:52.860 | DEBUG    | nyord_vpn.network.vpn:connect:464 - Running OpenVPN command:                              vpn.py:464
+                    DEBUG    2025-02-24 07:08:52.862 | DEBUG    | nyord_vpn.network.vpn:connect:465 - openvpn --config                                      vpn.py:465
+                             /Users/adam/.cache/nyord-vpn/configs/fr542.nordvpn.com.tcp.ovpn --auth-user-pass /Users/adam/.cache/nyord-vpn/openvpn.auth               
+                             --verb 5 --connect-retry 2 --connect-timeout 10 --resolv-retry infinite --ping 10 --ping-restart 60 --script-security 2                  
+                             --persist-tun --persist-key --nobind --fast-io --data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305                                  
+                             --data-ciphers-fallback AES-256-CBC --auth-retry nointeract --auth-nocache --pull-filter ignore auth-token --redirect-gateway            
+                             def1 --dhcp-option DNS 103.86.96.100 --dhcp-option DNS 103.86.99.100 --log /Users/adam/.cache/nyord-vpn/openvpn.log                      
+[02/24/25 07:08:54] DEBUG    2025-02-24 07:08:54.595 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:302 - Checking IP with api.ipify.org (attempt 1)     vpn.py:302
+[02/24/25 07:08:55] DEBUG    2025-02-24 07:08:55.048 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:309 - Got valid IP 45.84.137.231 from api.ipify.org  vpn.py:309
+                    INFO     2025-02-24 07:08:55.052 | INFO     | nyord_vpn.network.vpn:connect:609 - Connected to fr542.nordvpn.com                        vpn.py:609
+sudo -E nyord-vpn bye
+Not connected to VPN
+[02/24/25 07:09:03] DEBUG    2025-02-24 07:09:03.411 | DEBUG    | nyord_vpn.utils.utils:save_vpn_state:263 - Saved state to                               utils.py:263
+                             /Users/adam/Library/Caches/nyord-vpn/state.json: {                                                                                       
+                               "connected": false,                                                                                                                    
+                               "current_ip": "45.84.137.231",                                                                                                         
+                               "server": null,                                                                                                                        
+                               "country": null,                                                                                                                       
+                               "timestamp": 1740377343.410635,                                                                                                        
+                               "normal_ip": "45.84.137.231",                                                                                                          
+                               "connected_ip": null                                                                                                                   
+                             }                                                                                                                                        
+Public IP: 45.84.137.231
+sudo -E nyord-vpn go de --verbose
+[02/24/25 07:09:07] DEBUG    2025-02-24 07:09:07.137 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:156 - Found OpenVPN at                   vpn.py:156
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-24 07:09:07.143 | DEBUG    | nyord_vpn.network.vpn:status:865 - Connection status: process=False, initialized=False    vpn.py:865
+                    DEBUG    2025-02-24 07:09:07.147 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    DEBUG    2025-02-24 07:09:07.149 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    INFO     2025-02-24 07:09:07.151 | INFO     | nyord_vpn.core.client:go:275 - Selected server: de510.nordvpn.com                      client.py:275
+                    DEBUG    2025-02-24 07:09:07.258 | DEBUG    | nyord_vpn.network.vpn:disconnect:666 - Found OpenVPN process 31586                        vpn.py:666
+                    DEBUG    2025-02-24 07:09:07.458 | DEBUG    | nyord_vpn.network.vpn:disconnect:707 - Cleaned up OpenVPN log file                        vpn.py:707
+                    DEBUG    2025-02-24 07:09:07.459 | DEBUG    | nyord_vpn.network.vpn:_invalidate_ip_cache:950 - IP cache invalidated                     vpn.py:950
+                    INFO     2025-02-24 07:09:07.461 | INFO     | nyord_vpn.network.vpn:disconnect:731 - Disconnected from VPN                              vpn.py:731
+                    DEBUG    2025-02-24 07:09:07.462 | DEBUG    | nyord_vpn.network.vpn:connect:421 - Connecting to de510.nordvpn.com                       vpn.py:421
+                    DEBUG    2025-02-24 07:09:07.464 | DEBUG    | nyord_vpn.utils.templates:log_debug:50 - Looking for config file at:                 templates.py:50
+                             /Users/adam/.cache/nyord-vpn/configs/de510.nordvpn.com.tcp.ovpn                                                                          
+                    DEBUG    2025-02-24 07:09:07.465 | DEBUG    | nyord_vpn.network.vpn:connect:432 - OpenVPN config for de510.nordvpn.com:                 vpn.py:432
+                    DEBUG    2025-02-24 07:09:07.466 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   client                                              vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.467 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   dev tun                                             vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.468 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   proto tcp                                           vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.470 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote 185.130.184.118 443                          vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.471 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   resolv-retry infinite                               vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.472 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-random                                       vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.473 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   nobind                                              vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.474 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu 1500                                        vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.475 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu-extra 32                                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.476 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   mssfix 1450                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.477 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-key                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.478 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-tun                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.479 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping 15                                             vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.480 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-restart 0                                      vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.481 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-timer-rem                                      vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.482 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   reneg-sec 0                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.484 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   comp-lzo no                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.485 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verify-x509-name CN=de510.nordvpn.com               vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.486 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.487 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-cert-tls server                              vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.488 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.489 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth-user-pass                                      vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.490 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verb 3                                              vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.491 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   pull                                                vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.493 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fast-io                                             vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.494 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cipher AES-256-CBC                                  vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.496 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth SHA512                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.497 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <ca>                                                vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.498 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN CERTIFICATE-----                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.499 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ                                                                         
+                    DEBUG    2025-02-24 07:09:07.500 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2                                                                         
+                    DEBUG    2025-02-24 07:09:07.502 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV                                                                         
+                    DEBUG    2025-02-24 07:09:07.503 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI                                                                         
+                    DEBUG    2025-02-24 07:09:07.504 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF                                                                         
+                    DEBUG    2025-02-24 07:09:07.505 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr                                                                         
+                    DEBUG    2025-02-24 07:09:07.507 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU                                                                         
+                    DEBUG    2025-02-24 07:09:07.508 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV                                                                         
+                    DEBUG    2025-02-24 07:09:07.509 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu                                                                         
+                    DEBUG    2025-02-24 07:09:07.510 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA                                                                         
+                    DEBUG    2025-02-24 07:09:07.512 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR                                                                         
+                    DEBUG    2025-02-24 07:09:07.513 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s                                                                         
+                    DEBUG    2025-02-24 07:09:07.514 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy                                                                         
+                    DEBUG    2025-02-24 07:09:07.516 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6                                                                         
+                    DEBUG    2025-02-24 07:09:07.517 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST                                                                         
+                    DEBUG    2025-02-24 07:09:07.518 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG                                                                         
+                    DEBUG    2025-02-24 07:09:07.519 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g                                                                         
+                    DEBUG    2025-02-24 07:09:07.521 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/                                                                         
+                    DEBUG    2025-02-24 07:09:07.522 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S                                                                         
+                    DEBUG    2025-02-24 07:09:07.523 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/                                                                         
+                    DEBUG    2025-02-24 07:09:07.525 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo                                                                         
+                    DEBUG    2025-02-24 07:09:07.526 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp                                                                         
+                    DEBUG    2025-02-24 07:09:07.527 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             +RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd                                                                         
+                    DEBUG    2025-02-24 07:09:07.528 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa                                                                         
+                    DEBUG    2025-02-24 07:09:07.529 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC                                                                         
+                    DEBUG    2025-02-24 07:09:07.531 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S                                                                         
+                    DEBUG    2025-02-24 07:09:07.532 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==                                                                         
+                    DEBUG    2025-02-24 07:09:07.533 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END CERTIFICATE-----                           vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.534 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </ca>                                               vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.536 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   key-direction 1                                     vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.537 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <tls-auth>                                          vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.538 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN OpenVPN Static key V1-----               vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.539 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   e685bdaf659a25a200e2b9e39e51ff03                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.541 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0fc72cf1ce07232bd8b2be5e6c670143                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.542 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   f51e937e670eee09d4f2ea5a6e4e6996                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.543 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5db852c275351b86fc4ca892d78ae002                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.544 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   d6f70d029bd79c4d1c26cf14e9588033                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.545 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cf639f8a74809f29f72b9d58f9b8f5fe                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.546 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fc7938eade40e9fed6cb92184abb2cc1                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.547 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0eb1a296df243b251df0643d53724cdb                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.548 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5a92a1d6cb817804c4a9319b57d53be5                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.550 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   80815bcfcb2df55018cc83fc43bc7ff8                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.552 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   2d51f9b88364776ee9d12fc85cc7ea5b                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.554 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9741c4f598c485316db066d52db4540e                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.555 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   212e1518a9bd4828219e24b20d88f598                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.556 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   a196c9de96012090e333519ae18d3509                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.557 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9427e7b372d348d352dc4c85e18cd4b9                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.558 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   3f8a56ddb2e64eb67adfc9b337157ff4                    vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.560 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END OpenVPN Static key V1-----                 vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.561 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </tls-auth>                                         vpn.py:435
+                    DEBUG    2025-02-24 07:09:07.562 | DEBUG    | nyord_vpn.network.vpn:connect:449 - Auth file exists and has correct format               vpn.py:449
+                    DEBUG    2025-02-24 07:09:07.564 | DEBUG    | nyord_vpn.network.vpn:connect:464 - Running OpenVPN command:                              vpn.py:464
+                    DEBUG    2025-02-24 07:09:07.565 | DEBUG    | nyord_vpn.network.vpn:connect:465 - openvpn --config                                      vpn.py:465
+                             /Users/adam/.cache/nyord-vpn/configs/de510.nordvpn.com.tcp.ovpn --auth-user-pass /Users/adam/.cache/nyord-vpn/openvpn.auth               
+                             --verb 5 --connect-retry 2 --connect-timeout 10 --resolv-retry infinite --ping 10 --ping-restart 60 --script-security 2                  
+                             --persist-tun --persist-key --nobind --fast-io --data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305                                  
+                             --data-ciphers-fallback AES-256-CBC --auth-retry nointeract --auth-nocache --pull-filter ignore auth-token --redirect-gateway            
+                             def1 --dhcp-option DNS 103.86.96.100 --dhcp-option DNS 103.86.99.100 --log /Users/adam/.cache/nyord-vpn/openvpn.log                      
+Error: Failed to connect to VPN: Authentication failed - check your credentials
+
+---
+
+_**Assistant**_
+
+I notice an interesting pattern - the connection to the French server (fr542.nordvpn.com) works fine, but both German servers (de509.nordvpn.com and de510.nordvpn.com) fail with authentication errors. This suggests that the German servers might be using a different authentication configuration.
+
+Let me modify the OpenVPN command to handle different authentication methods:
+
+---
+
+_****_
+
+```diff
+          # Cipher configuration
+          "--data-ciphers",
+-         "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305",
++         "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:AES-256-CBC",
+          "--data-ciphers-fallback",
+          "AES-256-CBC",
+          "ignore",
+          "auth-token",  # Ignore auth-token directive from server
++         # Additional auth options for compatibility
++         "--auth-retry-methods",
++         "none,auth-pam,auth-ldap",  # Try different auth methods
++         "--auth-user-pass-verify-script",
++         "none",  # Don't use external auth script
++         "--tls-version-min",
++         "1.2",  # Minimum TLS version
++         "--tls-cipher",
++         "TLS-ECDHE-RSA-WITH-AES-256-GCM-SHA384:TLS-ECDHE-RSA-WITH-AES-128-GCM-SHA256",  # Supported TLS ciphers
+      ]
+  
+```
+
+---
+
+_****_
+
+
+
+Let me also add more detailed logging of the OpenVPN auth process:
+
+---
+
+_****_
+
+```diff
+                          if OPENVPN_LOG and OPENVPN_LOG.exists():
+                              log_content = OPENVPN_LOG.read_text()
+-                     except Exception:
+-                         pass
++                             if self.verbose:
++                                 self.logger.debug("OpenVPN log content:")
++                                 for line in log_content.splitlines():
++                                     self.logger.debug(f"  {line}")
++                     except Exception as e:
++                         if self.verbose:
++                             self.logger.warning(f"Failed to read OpenVPN log: {e}")
+  
+                      # If we have log content, check for known errors
+                      if log_content:
+-                         if "Cannot load certificate file" in log_content:
++                         if "AUTH_FAILED" in log_content:
++                             # Get more context around the auth failure
++                             auth_lines = [line for line in log_content.splitlines() if "AUTH" in line]
++                             if auth_lines and self.verbose:
++                                 self.logger.debug("Auth-related log lines:")
++                                 for line in auth_lines:
++                                     self.logger.debug(f"  {line}")
++                             error_msg = "Authentication failed - check your credentials"
++                             if "AUTH_FAILED,SESSION" in log_content:
++                                 error_msg = "Session authentication failed - server may require re-login"
++                             elif "AUTH_FAILED,CERTIFICATE" in log_content:
++                                 error_msg = "Certificate authentication failed - server config may be invalid"
++                         elif "Cannot load certificate file" in log_content:
+                              error_msg = "Certificate error - server config may be invalid"
+                          elif "Cannot load private key file" in log_content:
+                          elif "TLS Error" in log_content:
+                              error_msg = "TLS handshake failed - server may be down"
+-                         elif "AUTH_FAILED" in log_content:
+-                             error_msg = "Authentication failed - check your credentials"
++                         elif "TLS key negotiation failed" in log_content:
++                             error_msg = "TLS key negotiation failed - server may require different TLS settings"
++                         elif "Connection timed out" in log_content:
++                             error_msg = "Connection timed out - server may be unreachable"
++                         elif "Cannot resolve host address" in log_content:
++                             error_msg = "Cannot resolve server hostname - DNS issue"
+                      
+                      # If no specific error found, use a generic message
+                              break
+                              
++                         # Check for auth progress
++                         if self.verbose and "AUTH" in log_content:
++                             auth_lines = [line for line in log_content.splitlines() if "AUTH" in line]
++                             if auth_lines:
++                                 self.logger.debug("Auth progress:")
++                                 for line in auth_lines:
++                                     self.logger.debug(f"  {line}")
++                             
+                          # Check for common errors
+                          if "AUTH_FAILED" in log_content:
+```
+
+---
+
+_****_
+
+
+
+I've made several changes to help diagnose and fix the authentication issues with German servers:
+
+1. Added more authentication options to the OpenVPN command:
+   - Added AES-256-CBC to the primary cipher list (some servers prefer it)
+   - Added `--auth-retry-methods` to try different auth methods
+   - Added explicit TLS version and cipher settings
+   - Disabled external auth scripts that might interfere
+
+2. Enhanced authentication logging:
+   - Added detailed logging of all auth-related log lines
+   - Added more specific error messages for different types of auth failures
+   - Added progress logging for auth attempts
+   - Added full log content in verbose mode
+
+Try connecting to a German server again with `--verbose`. The enhanced logging should help us understand exactly why the authentication is failing. If it still fails, we'll be able to see:
+
+1. Which authentication method the server is requesting
+2. What specific part of the auth process is failing
+3. Whether it's a TLS/cipher issue or a credentials issue
+
+This will help us determine if we need to:
+1. Try different authentication methods
+2. Adjust the TLS/cipher settings
+3. Re-run the setup to update credentials
+
+---
+
+_**User**_
+
+[02/24/25 07:10:55] DEBUG    2025-02-24 07:10:55.751 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:156 - Found OpenVPN at                   vpn.py:156
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-24 07:10:55.757 | DEBUG    | nyord_vpn.network.vpn:status:894 - Connection status: process=False, initialized=False    vpn.py:894
+                    DEBUG    2025-02-24 07:10:55.761 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    DEBUG    2025-02-24 07:10:55.764 | DEBUG    | nyord_vpn.network.server:get_servers_cache:289 - Using cached server list with 100     server.py:289
+                             valid servers                                                                                                                            
+                    INFO     2025-02-24 07:10:55.765 | INFO     | nyord_vpn.core.client:go:275 - Selected server: de507.nordvpn.com                      client.py:275
+                    DEBUG    2025-02-24 07:10:55.951 | DEBUG    | nyord_vpn.network.vpn:disconnect:736 - Cleaned up OpenVPN log file                        vpn.py:736
+                    DEBUG    2025-02-24 07:10:55.953 | DEBUG    | nyord_vpn.network.vpn:_invalidate_ip_cache:979 - IP cache invalidated                     vpn.py:979
+                    INFO     2025-02-24 07:10:55.955 | INFO     | nyord_vpn.network.vpn:disconnect:760 - Disconnected from VPN                              vpn.py:760
+                    DEBUG    2025-02-24 07:10:55.956 | DEBUG    | nyord_vpn.network.vpn:connect:421 - Connecting to de507.nordvpn.com                       vpn.py:421
+                    DEBUG    2025-02-24 07:10:55.957 | DEBUG    | nyord_vpn.utils.templates:log_debug:50 - Looking for config file at:                 templates.py:50
+                             /Users/adam/.cache/nyord-vpn/configs/de507.nordvpn.com.tcp.ovpn                                                                          
+                    DEBUG    2025-02-24 07:10:55.959 | DEBUG    | nyord_vpn.network.vpn:connect:432 - OpenVPN config for de507.nordvpn.com:                 vpn.py:432
+                    DEBUG    2025-02-24 07:10:55.960 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   client                                              vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.961 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   dev tun                                             vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.963 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   proto tcp                                           vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.964 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote 185.130.184.115 443                          vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.965 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   resolv-retry infinite                               vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.966 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-random                                       vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.967 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   nobind                                              vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.968 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu 1500                                        vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.969 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   tun-mtu-extra 32                                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.971 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   mssfix 1450                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.972 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-key                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.973 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   persist-tun                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.974 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping 15                                             vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.975 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-restart 0                                      vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.976 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   ping-timer-rem                                      vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.977 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   reneg-sec 0                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.978 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   comp-lzo no                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.979 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verify-x509-name CN=de507.nordvpn.com               vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.981 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.982 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   remote-cert-tls server                              vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.983 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.984 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth-user-pass                                      vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.985 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   verb 3                                              vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.986 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   pull                                                vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.987 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fast-io                                             vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.988 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cipher AES-256-CBC                                  vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.989 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   auth SHA512                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.990 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <ca>                                                vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.991 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN CERTIFICATE-----                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:55.992 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ                                                                         
+                    DEBUG    2025-02-24 07:10:55.994 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2                                                                         
+                    DEBUG    2025-02-24 07:10:55.996 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV                                                                         
+                    DEBUG    2025-02-24 07:10:55.998 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI                                                                         
+                    DEBUG    2025-02-24 07:10:55.999 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF                                                                         
+[02/24/25 07:10:56] DEBUG    2025-02-24 07:10:56.001 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr                                                                         
+                    DEBUG    2025-02-24 07:10:56.003 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU                                                                         
+                    DEBUG    2025-02-24 07:10:56.004 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV                                                                         
+                    DEBUG    2025-02-24 07:10:56.006 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu                                                                         
+                    DEBUG    2025-02-24 07:10:56.007 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA                                                                         
+                    DEBUG    2025-02-24 07:10:56.008 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR                                                                         
+                    DEBUG    2025-02-24 07:10:56.009 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s                                                                         
+                    DEBUG    2025-02-24 07:10:56.011 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy                                                                         
+                    DEBUG    2025-02-24 07:10:56.012 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6                                                                         
+                    DEBUG    2025-02-24 07:10:56.013 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST                                                                         
+                    DEBUG    2025-02-24 07:10:56.015 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG                                                                         
+                    DEBUG    2025-02-24 07:10:56.016 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g                                                                         
+                    DEBUG    2025-02-24 07:10:56.017 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/                                                                         
+                    DEBUG    2025-02-24 07:10:56.019 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S                                                                         
+                    DEBUG    2025-02-24 07:10:56.021 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/                                                                         
+                    DEBUG    2025-02-24 07:10:56.022 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo                                                                         
+                    DEBUG    2025-02-24 07:10:56.023 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp                                                                         
+                    DEBUG    2025-02-24 07:10:56.024 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             +RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd                                                                         
+                    DEBUG    2025-02-24 07:10:56.026 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa                                                                         
+                    DEBUG    2025-02-24 07:10:56.027 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC                                                                         
+                    DEBUG    2025-02-24 07:10:56.029 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S                                                                         
+                    DEBUG    2025-02-24 07:10:56.030 | DEBUG    | nyord_vpn.network.vpn:connect:435 -                                                       vpn.py:435
+                             PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==                                                                         
+                    DEBUG    2025-02-24 07:10:56.032 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END CERTIFICATE-----                           vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.033 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </ca>                                               vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.035 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   key-direction 1                                     vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.036 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   <tls-auth>                                          vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.037 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----BEGIN OpenVPN Static key V1-----               vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.038 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   e685bdaf659a25a200e2b9e39e51ff03                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.040 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0fc72cf1ce07232bd8b2be5e6c670143                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.041 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   f51e937e670eee09d4f2ea5a6e4e6996                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.042 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5db852c275351b86fc4ca892d78ae002                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.044 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   d6f70d029bd79c4d1c26cf14e9588033                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.045 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   cf639f8a74809f29f72b9d58f9b8f5fe                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.047 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   fc7938eade40e9fed6cb92184abb2cc1                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.048 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   0eb1a296df243b251df0643d53724cdb                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.049 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   5a92a1d6cb817804c4a9319b57d53be5                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.051 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   80815bcfcb2df55018cc83fc43bc7ff8                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.052 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   2d51f9b88364776ee9d12fc85cc7ea5b                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.053 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9741c4f598c485316db066d52db4540e                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.055 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   212e1518a9bd4828219e24b20d88f598                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.056 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   a196c9de96012090e333519ae18d3509                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.057 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   9427e7b372d348d352dc4c85e18cd4b9                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.059 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   3f8a56ddb2e64eb67adfc9b337157ff4                    vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.060 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   -----END OpenVPN Static key V1-----                 vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.061 | DEBUG    | nyord_vpn.network.vpn:connect:435 -   </tls-auth>                                         vpn.py:435
+                    DEBUG    2025-02-24 07:10:56.063 | DEBUG    | nyord_vpn.network.vpn:connect:449 - Auth file exists and has correct format               vpn.py:449
+                    DEBUG    2025-02-24 07:10:56.065 | DEBUG    | nyord_vpn.network.vpn:connect:464 - Running OpenVPN command:                              vpn.py:464
+                    DEBUG    2025-02-24 07:10:56.067 | DEBUG    | nyord_vpn.network.vpn:connect:465 - openvpn --config                                      vpn.py:465
+                             /Users/adam/.cache/nyord-vpn/configs/de507.nordvpn.com.tcp.ovpn --auth-user-pass /Users/adam/.cache/nyord-vpn/openvpn.auth               
+                             --verb 5 --connect-retry 2 --connect-timeout 10 --resolv-retry infinite --ping 10 --ping-restart 60 --script-security 2                  
+                             --persist-tun --persist-key --nobind --fast-io --data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:AES-256-CBC                      
+                             --data-ciphers-fallback AES-256-CBC --auth-retry nointeract --auth-nocache --pull-filter ignore auth-token                               
+                             --auth-retry-methods none,auth-pam,auth-ldap --auth-user-pass-verify-script none --tls-version-min 1.2 --tls-cipher                      
+                             TLS-ECDHE-RSA-WITH-AES-256-GCM-SHA384:TLS-ECDHE-RSA-WITH-AES-128-GCM-SHA256 --redirect-gateway def1 --dhcp-option DNS                    
+                             103.86.96.100 --dhcp-option DNS 103.86.99.100 --log /Users/adam/.cache/nyord-vpn/openvpn.log                                             
+Error: Failed to connect to VPN: OpenVPN process failed to start:
+Exit code: 1
+Output: Options error: Unrecognized option or missing or extra parameter(s) in [CMD-LINE]:1: auth-retry-methods (2.6.13)
+Use --help for more information.
+
+Error: 
+
+---
+
+_**Assistant**_
 
 
 

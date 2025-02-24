@@ -250,9 +250,15 @@ class Client:
             last_error = None
             tried_servers = set()
             hostname = None
+            attempt = 0
             
-            for _ in range(3):
+            while attempt < 3:  # Try up to 3 servers
                 try:
+                    # Add delay between attempts (except first)
+                    if attempt > 0:
+                        self.logger.info(f"Retrying with different server (attempt {attempt + 1}/3)")
+                        time.sleep(2)  # Wait 2 seconds between attempts
+                        
                     # Get a server we haven't tried yet
                     server = self.server_manager.select_fastest_server(
                         country_code,
@@ -267,16 +273,28 @@ class Client:
                         
                     tried_servers.add(hostname)
                     self.logger.info(f"Selected server: {hostname}")
-                    self.vpn_manager.connect(server)
-                    return  # Success!
+                    
+                    try:
+                        self.vpn_manager.connect(server)
+                        return  # Success!
+                    except VPNError as e:
+                        last_error = e
+                        if hostname:
+                            self.logger.debug(f"Failed to connect to {hostname}: {e}")
+                        continue  # Try next server
+                        
                 except VPNError as e:
                     last_error = e
                     if hostname:
                         self.logger.debug(f"Failed to connect to {hostname}: {e}")
-                    continue  # Try next server
+                finally:
+                    attempt += 1
 
             # If we get here, all attempts failed
-            raise VPNError(f"Failed to connect to any server in {country_code}: {last_error}")
+            raise VPNError(
+                f"Failed to connect to any server in {country_code} after {attempt} attempts. "
+                f"Last error: {last_error}"
+            )
 
         except Exception as e:
             if isinstance(e, VPNError):
