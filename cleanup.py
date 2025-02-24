@@ -4,6 +4,7 @@
 #   "ruff>=0.9.6",
 #   "pytest>=8.3.4",
 #   "mypy>=1.15.0",
+#   "repomix>=0.1.0",
 # ]
 # ///
 # this_file: cleanup.py
@@ -26,7 +27,7 @@ using uv.
 - `cleanup.py install`: Use after `venv` or when dependencies have changed. Installs
 the package and all development dependencies in editable mode.
 
-- `cleanup.py update`: Run this when you've made changes and want to commit them.
+- `cleanup.py update`: Use this when you've made changes and want to commit them.
 It will:
 1. Show current status (like `status` command)
 2. Stage and commit any changes with a generic message
@@ -41,7 +42,7 @@ Workflow Example:
 3. Commit changes: `cleanup.py update`
 4. Push to remote: `cleanup.py push`
 
-The script maintains a CLEANUP.log file that records all operations with timestamps.
+The script maintains a CLEANUP.txt file that records all operations with timestamps.
 It also includes content from README.md at the start and TODO.md at the end of logs
 for context.
 
@@ -69,7 +70,7 @@ IGNORE_PATTERNS = [
     "*.egg-info",
 ]
 REQUIRED_FILES = ["LOG.md", ".cursor/rules/0project.mdc", "TODO.md"]
-LOG_FILE = Path("CLEANUP.log")
+LOG_FILE = Path("CLEANUP.txt")
 
 # Ensure we're working from the script's directory
 os.chdir(Path(__file__).parent)
@@ -253,8 +254,20 @@ class Cleanup:
 
 
             # Run tests
-            log_message(">>>\n>>> %s...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then either adjust the implementation or the test!\n>>>" % "Running tests")
+            log_message(">>>\n>>> %s...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!\n>>>" % "Running tests")
             run_command(["python", "-m", "pytest", "tests"], check=False)
+
+            # Run repomix to compress and analyze repository
+            log_message(">>>\n>>> %s...\n>>> TODO: Check the output!\n>>>" % "Running repomix analysis")
+            run_command([
+                "repomix",
+                "--compress",
+                "--remove-empty-lines",
+                "-i",
+                ".specstory/**/*.md,.venv/**,_private/**,CLEANUP.txt,**/*.json,*.lock",
+                "-o",
+                "nyord_vpn.txt"
+            ], check=False)
 
             log_message("All checks completed")
         except Exception as e:
@@ -360,7 +373,8 @@ def main() -> NoReturn:
     except Exception as e:
         log_message(f"Error: {e}")
 
-    print(Path("CLEANUP.log").read_text())
+    print(Path("CLEANUP.txt").read_text())
+    sys.exit(0)  # Explicitly exit to satisfy NoReturn type
 
 
 if __name__ == "__main__":
