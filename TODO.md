@@ -18,7 +18,7 @@ nyord-vpn bye  # Disconnect
 
 ## DEVELOPMENT
 
-After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+After each set of changes, update @PROGRESS.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
 
 Periodically do:
 
@@ -69,88 +69,78 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [x] Rename `ConnectionError` to `VPNConnectionError`
 - [x] Make boolean parameters keyword-only
 - [x] Move main blocks to test files
+- [x] API Module (`src/nyord_vpn/api/`)
+  - [x] `src/nyord_vpn/api/api.py`: Implement central API interface
+  - [x] `src/nyord_vpn/api/v1_*.py`: Add deprecation notices and clean up
+  - [x] `src/nyord_vpn/api/v2_servers.py`: Fix linting and improve type hints
+- [x] Core Module - Initial cleanup
+  - [x] `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`: Add deprecation warnings
 
-## Remaining Tasks
+## Remaining Tasks (Prioritized)
 
-### API Module (`src/nyord_vpn/api/`)
+### High Priority Items
 
-#### `src/nyord_vpn/api/api.py`
+#### Network Module (`src/nyord_vpn/network/`)
 
-**Action**: Modify to make this the central API interface.
+##### `src/nyord_vpn/network/server.py`
 
-- [ ] Remove shebang and any commented-out code at the top
-- [ ] Implement `NordVPNAPI` class with proper docstrings and type hints
-- [ ] Add `find_best_server` method with v2 API support and v1 fallback
-- [ ] Update v1 methods with deprecation notices and keyword-only arguments
+**Action**: Fix type issues and improve security.
 
-#### `src/nyord_vpn/api/v1_*.py` files
+- [!] Fix type compatibility issues in server.py:
+  - [!] Fix Technology type in server_technologies creation
+  - [!] Fix parameter type in _select_diverse_servers function 
+  - [!] Fix return type in get_country_info function
+- [!] Replace random module with secrets module for secure randomization
+- [!] Address security issues in subprocess calls by validating input
+- [!] Add comprehensive type hints for functions and variables
 
-**Action**: Keep but mark as deprecated and clean up.
+##### `src/nyord_vpn/network/vpn_commands.py`
 
-- [ ] Add deprecation notices to docstrings
-- [ ] Fix boolean positional arguments
-- [ ] Fix ambiguous variable names
-- [ ] Add proper docstrings to classes and methods
-- [ ] Update error handling to use specific exceptions from exceptions.py
+**Action**: Refactor for better usability.
 
-#### `src/nyord_vpn/api/v2_servers.py`
+- [!] Create `OpenVPNConfig` dataclass with proper validation
+- [!] Implement `get_openvpn_command` function with proper validation
+- [!] Add security enhancements for command generation
 
-**Action**: Refine and improve.
+### Medium Priority Items
 
-- [ ] Fix linting issues, particularly ambiguous variable names (E741)
-- [ ] Add proper docstrings to methods
-- [ ] Add comprehensive type hints where missing
+#### Core Module (`src/nyord_vpn/core/`)
 
-### Core Module (`src/nyord_vpn/core/`)
+##### `src/nyord_vpn/core/client.py`
 
-#### `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`
-
-**Action**: Deprecate and eventually remove.
-
-- [ ] Add deprecation warnings
-- [ ] Fix boolean positional arguments and other linting issues
-
-#### `src/nyord_vpn/core/client.py`
-
-**Action**: Refactor significantly to use the new API.
+**Action**: Refactor to use the new API.
 
 - [ ] Update to use the new `NordVPNAPI` class
 - [ ] Improve error handling and user feedback
 - [ ] Break down complex methods into smaller helper functions
 - [ ] Fix boolean arguments and other linting issues
 
-### Network Module (`src/nyord_vpn/network/`)
+#### Network Module (`src/nyord_vpn/network/`)
 
-#### `src/nyord_vpn/network/server.py`
-
-**Action**: Refactor to use new API.
-
-- [ ] Add type hints for functions and variables
-- [ ] Replace random.randrange and random.choice with secrets module
-- [ ] Address security issues in subprocess calls by validating input
-- [ ] Reduce complexity by extracting helper functions
-
-#### `src/nyord_vpn/network/vpn.py`
+##### `src/nyord_vpn/network/vpn.py`
 
 **Action**: Refactor for better maintainability.
 
 - [ ] Make boolean arguments keyword-only
-- [ ] Add type hints
-- [ ] Add retry logic for connection attempts
+- [ ] Add comprehensive type hints
+- [ ] Implement retry logic for connection attempts
 - [ ] Break down complex methods
 - [ ] Replace random.uniform with secrets.SystemRandom().uniform
 - [ ] Improve error handling
 
-#### `src/nyord_vpn/network/vpn_commands.py`
+#### Tests
 
-**Action**: Refactor for better usability.
+**Action**: Update to reflect code changes.
 
-- [ ] Create `OpenVPNConfig` dataclass
-- [ ] Implement `get_openvpn_command` function with proper validation
+- [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
+- [ ] Update test fixtures to match model requirements
+- [ ] Fix validation errors in tests
 
-### Utils Module (`src/nyord_vpn/utils/`)
+### Lower Priority Items
 
-#### `src/nyord_vpn/utils/templates.py`
+#### Utils Module (`src/nyord_vpn/utils/`)
+
+##### `src/nyord_vpn/utils/templates.py`
 
 **Action**: Simplify with tenacity.
 
@@ -158,25 +148,16 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [ ] Break down complex functions into smaller ones
 - [ ] Improve docstrings and type hints
 
-### Main Module Files
+#### Main Module Files
 
-#### `src/nyord_vpn/__main__.py`
+##### `src/nyord_vpn/__main__.py`
 
 **Action**: Update to use new API.
 
 - [ ] Update CLI class to use the updated Client
 - [ ] Improve error handling and user feedback
 
-### Tests
-
-**Action**: Update to reflect code changes.
-
-- [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
-- [ ] Update test fixtures to match model requirements
-- [ ] Fix validation errors in tests
-- [ ] Update integration tests to use correct import paths
-
-### Documentation
+#### Documentation
 
 **Action**: Update documentation.
 
