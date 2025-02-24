@@ -4,7 +4,8 @@ globs:
 ---
 [ 896]  .
 ├── [  96]  .cursor
-│   └── [  96]  rules
+│   └── [ 128]  rules
+│       ├── [7.2K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -93,7 +94,7 @@ globs:
 │       │   ├── [1.0K]  country.py
 │       │   ├── [ 38K]  server.py
 │       │   ├── [ 42K]  vpn.py
-│       │   └── [4.5K]  vpn_commands.py
+│       │   └── [4.7K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
 │       │   └── [3.0K]  update_countries.py
@@ -121,4 +122,4 @@ globs:
 │   └── [ 159]  test_package.py
 └── [264K]  uv.lock
 
-19 directories, 99 files
+19 directories, 100 files

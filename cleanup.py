@@ -213,11 +213,10 @@ class Cleanup:
 
     def _run_checks(self) -> None:
         """Run code quality checks using ruff and pytest."""
-        log_message("Running code quality checks")
 
         try:
             # Run ruff checks
-            log_message(">>> Running code fixes...")
+            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Running code fixes")
             run_command(
                 [
                     "python",
@@ -245,16 +244,16 @@ class Cleanup:
             )
 
             # Run type checks
-            log_message(">>>Running type checks...")
+            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Running type checks")
             run_command(["python", "-m", "mypy", "src", "tests"], check=False)
 
             # Check unused code
-            log_message(">>>Checking for _potentially_ unused code...")
+            log_message(">>>\n>>> %s...\n>>> TODO: Check the errors!\n>>>" % "Checking for _potentially_ unused code")
             run_command(["python", "-m", "vulture", "src"], check=False)
 
 
             # Run tests
-            log_message(">>> Running tests...")
+            log_message(">>>\n>>> %s...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then either adjust the implementation or the test!\n>>>" % "Running tests")
             run_command(["python", "-m", "pytest", "tests"], check=False)
 
             log_message("All checks completed")

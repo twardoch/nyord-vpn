@@ -155,14 +155,12 @@ def download_with_retry(
 
         except requests.RequestException as e:
             last_error = e
-            if isinstance(e, requests.HTTPError):
-                if (
-                    400 <= e.response.status_code < 500
-                    and e.response.status_code != 429
-                ):
-                    raise VPNConfigError(
-                        f"Failed to download (HTTP {e.response.status_code}): {e}"
-                    ) from e
+            if isinstance(e, requests.HTTPError) and (
+                400 <= e.response.status_code < 500 and e.response.status_code != 429
+            ):
+                raise VPNConfigError(
+                    f"Failed to download (HTTP {e.response.status_code}): {e}"
+                ) from e
             delay = min(delay * 2, MAX_RETRY_DELAY)
             log_debug(
                 "Download failed (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, str(e)
