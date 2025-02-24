@@ -4,7 +4,8 @@ import subprocess
 import time
 import socket
 import ssl
-from typing import Any, TypedDict
+from pathlib import Path
+from typing import Any, TypedDict, NotRequired, Dict, List, Optional, cast, Sequence
 from loguru import logger
 import requests
 
@@ -58,63 +59,187 @@ handling server information from the NordVPN API.
 """
 
 
+class Country(TypedDict):
+    """Country information."""
+    name: str
+    code: str
+
+
 class ServerLocation(TypedDict):
-    """Server location information from NordVPN API.
-
-    Attributes:
-        country: Dictionary containing country information
-                with keys for code and name
-
-    """
-
-    country: dict[str, str]
+    """Server location information."""
+    id: str
+    country: Country
 
 
-class ServerTechnology(TypedDict):
-    """Server technology support information.
-
-    Attributes:
-        id: Technology identifier (e.g. 5 for OpenVPN TCP)
-        status: Technology status ('online' or 'offline')
-
-    """
-
+class Technology(TypedDict):
+    """Server technology information."""
     id: int
     status: str
+    metadata: NotRequired[List[Dict[str, str]]]
 
 
-class ServerData(TypedDict):
-    """Complete server information from NordVPN API.
-
-    Attributes:
-        hostname: Server's hostname for connection
-        load: Current server load percentage (0-100)
-        status: Server status ('online' or 'offline')
-        location_ids: List of location identifiers
-        technologies: List of supported technologies
-        station: Optional station identifier
-
-    """
-
+class ServerInfo(TypedDict):
+    """Server information structure."""
     hostname: str
-    load: int
+    location_ids: List[str]
     status: str
-    location_ids: list[str]
-    technologies: list[ServerTechnology]
-    station: str | None
+    load: int
+    technologies: List[Technology]
 
 
-class APIResponse(TypedDict):
-    """NordVPN API response structure.
+class ServerCache(TypedDict):
+    """Cache structure for server information."""
+    servers: List[ServerInfo]
+    locations: Dict[str, ServerLocation]
+    last_updated: float
 
-    Attributes:
-        servers: List of available servers
-        locations: Mapping of location IDs to location info
 
+# Constants
+SERVERS_CACHE_FILE = CACHE_DIR / "servers.json"
+SERVERS_CACHE_TTL = 3600  # 1 hour in seconds
+
+
+def _safe_dict_get(d: Dict[str, Any], key: str, default: Any = None) -> Any:
+    """Safely get a value from a dictionary."""
+    return d.get(key, default) if isinstance(d, dict) else default
+
+
+def _safe_get(d: Optional[Dict[str, Any]], key: str, default: Any = None) -> Any:
+    """Safely get a value from a dictionary that might be None."""
+    if d is None:
+        return default
+    return _safe_dict_get(d, key, default)
+
+
+def _safe_str_get(s: Optional[str], key: str, default: Any = None) -> Any:
+    """Safely get a value from a string that might be None."""
+    if s is None:
+        return default
+    try:
+        return s[int(key)] if key.isdigit() else default
+    except (ValueError, IndexError):
+        return default
+
+
+def cache_servers(data: List[Dict[str, Any]] | Dict[str, Any]) -> None:
+    """Cache server information from the API.
+
+    Args:
+        data: Server data from the API to cache - can be either a list of servers or a dict with servers/locations
     """
+    try:
+        # Handle both list and dict response formats
+        if isinstance(data, list):
+            # Extract servers and locations from the list format
+            servers: List[ServerInfo] = []
+            locations: Dict[str, ServerLocation] = {}
+            location_ids = set()
 
-    servers: list[ServerData]
-    locations: dict[str, ServerLocation]
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+
+                # Extract server data
+                if "hostname" in item:
+                    server_info: ServerInfo = {
+                        "hostname": str(item.get("hostname", "")),
+                        "location_ids": [str(lid) for lid in item.get("location_ids", [])],
+                        "status": str(item.get("status", "")),
+                        "load": int(item.get("load", 0)),
+                        "technologies": cast(List[Technology], item.get("technologies", []))
+                    }
+                    servers.append(server_info)
+
+                # Extract location data
+                if "id" in item and "country" in item:
+                    loc_id = str(item["id"])
+                    if loc_id not in location_ids:
+                        country_data = item.get("country", {})
+                        if isinstance(country_data, dict):
+                            country: Country = {
+                                "name": str(country_data.get("name", "")),
+                                "code": str(country_data.get("code", ""))
+                            }
+                            location: ServerLocation = {
+                                "id": loc_id,
+                                "country": country
+                            }
+                            locations[loc_id] = location
+                            location_ids.add(loc_id)
+        else:
+            # Handle dictionary format (v2 API)
+            servers = [
+                cast(ServerInfo, {
+                    "hostname": str(_safe_get(s, "hostname", "")),
+                    "location_ids": [str(lid) for lid in _safe_get(s, "location_ids", [])],
+                    "status": str(_safe_get(s, "status", "")),
+                    "load": int(_safe_get(s, "load", 0)),
+                    "technologies": cast(List[Technology], _safe_get(s, "technologies", []))
+                })
+                for s in _safe_get(data, "servers", []) if isinstance(s, dict)
+            ]
+            locations = {
+                str(k): cast(ServerLocation, {
+                    "id": str(_safe_get(v, "id", "")),
+                    "country": cast(Country, {
+                        "name": str(_safe_get(_safe_get(v, "country", {}), "name", "")),
+                        "code": str(_safe_get(_safe_get(v, "country", {}), "code", ""))
+                    })
+                })
+                for k, v in _safe_get(data, "locations", {}).items()
+                if isinstance(v, dict)
+            }
+
+        # Create cache data structure
+        cache_data: ServerCache = {
+            "servers": servers,
+            "locations": locations,
+            "last_updated": time.time()
+        }
+        
+        # Ensure cache directory exists
+        SERVERS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write to temporary file first
+        temp_file = SERVERS_CACHE_FILE.with_suffix('.tmp')
+        temp_file.write_text(json.dumps(cache_data, indent=2))
+        
+        # Atomic rename
+        temp_file.replace(SERVERS_CACHE_FILE)
+        
+    except Exception as e:
+        logger.warning(f"Failed to cache server information: {e}")
+
+
+def get_cached_servers() -> Optional[ServerCache]:
+    """Get cached server information if available and not expired.
+
+    Returns:
+        Cached server data if available and fresh, None otherwise
+    """
+    try:
+        if not SERVERS_CACHE_FILE.exists():
+            return None
+            
+        data = json.loads(SERVERS_CACHE_FILE.read_text())
+        last_updated = float(_safe_get(data, "last_updated", 0))
+        
+        # Check if cache is expired
+        if time.time() - last_updated > SERVERS_CACHE_TTL:
+            return None
+            
+        # Validate and convert data
+        cache_data: ServerCache = {
+            "servers": cast(List[ServerInfo], _safe_get(data, "servers", [])),
+            "locations": cast(Dict[str, ServerLocation], _safe_get(data, "locations", {})),
+            "last_updated": last_updated
+        }
+        
+        return cache_data
+        
+    except Exception as e:
+        logger.warning(f"Failed to read server cache: {e}")
+        return None
 
 
 class ServerManager:
@@ -147,7 +272,7 @@ class ServerManager:
         """
         self.api_client = api_client
         self.logger = api_client.logger
-        self._servers_cache: list[dict[str, Any]] | None = None
+        self._servers_cache: Optional[ServerCache] = None
         self._last_cache_update: float = 0
         self._failed_servers = set()  # Track failed servers in this session
 
@@ -171,12 +296,14 @@ class ServerManager:
         if not isinstance(normalized, str) or len(normalized) != 2:
             raise ServerError(f"Invalid country code format: {country_code}")
 
-        # Verify country exists
-        country_info = self.get_country_info(normalized)
-        if not country_info:
-            raise ServerError(f"Country code not found: {normalized}")
+        # Verify country exists in cache
+        cache = self.get_servers_cache()
+        if cache:
+            for location in cache["locations"].values():
+                if location["country"]["code"].upper() == normalized:
+                    return normalized
 
-        return normalized
+        raise ServerError(f"Country code not found: {normalized}")
 
     def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
         """Fetch information about recommended servers supporting OpenVPN.
@@ -276,107 +403,113 @@ class ServerManager:
         except Exception as e:
             raise ServerError(f"Failed to fetch server info: {e}")
 
-    def get_servers_cache(self) -> dict:
-        """Get all servers from NordVPN v2 API or cache.
-        
+    def get_servers_cache(self) -> Optional[ServerCache]:
+        """Get server information from cache or API.
+
         Returns:
-            dict: Cache data with servers, locations and metadata
+            Server information if available, None if both cache and API fail
         """
-        cache_file = CACHE_DIR / "servers.json"
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
         try:
-            # Check cache first
-            if cache_file.exists():
-                try:
-                    cache = json.loads(cache_file.read_text())
-                    expires_at = cache.get("expires_at", 0)
-                    if time.time() < expires_at and cache.get("servers") and cache.get("locations"):
-                        if self.api_client.verbose:
-                            self.logger.debug(f"Using cached server list with {len(cache['servers'])} servers")
-                        return cache
-                except Exception as e:
-                    if self.api_client.verbose:
-                        self.logger.warning(f"Failed to read cache: {e}")
+            # Try to get from memory cache first
+            if self._servers_cache and time.time() - self._last_cache_update <= SERVERS_CACHE_TTL:
+                return self._servers_cache
 
-            # Fetch fresh data from v2 API
-            if self.api_client.verbose:
-                self.logger.debug("Fetching fresh server data from API v2")
+            # Try to get from file cache
+            cache_data = get_cached_servers()
+            if cache_data:
+                self._servers_cache = cache_data
+                self._last_cache_update = cache_data["last_updated"]
+                return cache_data
 
+            # Fetch from API
             response = requests.get(
                 "https://api.nordvpn.com/v2/servers",
                 headers=API_HEADERS,
-                timeout=10,
+                timeout=10
             )
             response.raise_for_status()
-            data = response.json()
+            api_data = response.json()
 
-            if not isinstance(data, list):
-                raise ValueError("Invalid API response format")
+            # Cache the data
+            cache_servers(api_data)
+            
+            # Convert API response to cache format
+            if isinstance(api_data, list):
+                # Extract servers and locations
+                servers: List[ServerInfo] = []
+                locations: Dict[str, ServerLocation] = {}
+                location_ids = set()
 
-            # Extract servers and locations from the API response
-            servers = []
-            locations = []
-            location_ids = set()
+                for item in api_data:
+                    if not isinstance(item, dict):
+                        continue
 
-            for item in data:
-                if not isinstance(item, dict):
-                    continue
+                    # Extract server data
+                    if "hostname" in item:
+                        server_info: ServerInfo = {
+                            "hostname": str(_safe_dict_get(item, "hostname", "")),
+                            "location_ids": [str(lid) for lid in _safe_dict_get(item, "location_ids", [])],
+                            "status": str(_safe_dict_get(item, "status", "")),
+                            "load": int(_safe_dict_get(item, "load", 0)),
+                            "technologies": cast(List[Technology], _safe_dict_get(item, "technologies", []))
+                        }
+                        servers.append(server_info)
 
-                # Extract server data
-                if "hostname" in item:
-                    servers.append(item)
+                    # Extract location data
+                    if "id" in item and "country" in item:
+                        loc_id = str(item["id"])
+                        if loc_id not in location_ids:
+                            country_data = _safe_dict_get(item, "country", {})
+                            if isinstance(country_data, dict):
+                                country: Country = {
+                                    "name": str(_safe_dict_get(country_data, "name", "")),
+                                    "code": str(_safe_dict_get(country_data, "code", ""))
+                                }
+                                location: ServerLocation = {
+                                    "id": loc_id,
+                                    "country": country
+                                }
+                                locations[loc_id] = location
+                                location_ids.add(loc_id)
 
-                # Extract location data
-                if "id" in item and "country" in item:
-                    loc_id = str(item["id"])
-                    if loc_id not in location_ids:
-                        locations.append(item)
-                        location_ids.add(loc_id)
-
-            if not servers:
-                raise ValueError("No servers received from API")
-
-            if self.api_client.verbose:
-                self.logger.debug(f"Fetched {len(servers)} servers and {len(locations)} locations from API")
-
-            # Filter for online servers with OpenVPN TCP support
-            valid_servers = []
-            for server in servers:
-                if not isinstance(server, dict):
-                    continue
-
-                if server.get("status") != "online":
-                    continue
-
-                # Check OpenVPN TCP support (technology id 5)
-                has_openvpn_tcp = False
-                for tech in server.get("technologies", []):
-                    if tech.get("id") == 5 and tech.get("status") == "online":
-                        has_openvpn_tcp = True
-                        break
-
-                if not has_openvpn_tcp:
-                    continue
-
-                valid_servers.append(server)
-
-            if self.api_client.verbose:
-                self.logger.debug(f"Found {len(valid_servers)} valid servers")
-
-            # Save to cache
-            cache = {
-                "servers": valid_servers,
-                "locations": locations,
-                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "expires_at": time.time() + CACHE_EXPIRY,
-            }
-            cache_file.write_text(json.dumps(cache, indent=2))
-
-            return cache
+                self._servers_cache = cast(ServerCache, {
+                    "servers": servers,
+                    "locations": locations,
+                    "last_updated": time.time()
+                })
+            else:
+                # Handle dictionary format (v2 API)
+                self._servers_cache = cast(ServerCache, {
+                    "servers": [
+                        cast(ServerInfo, {
+                            "hostname": str(_safe_dict_get(s, "hostname", "")),
+                            "location_ids": [str(lid) for lid in _safe_dict_get(s, "location_ids", [])],
+                            "status": str(_safe_dict_get(s, "status", "")),
+                            "load": int(_safe_dict_get(s, "load", 0)),
+                            "technologies": cast(List[Technology], _safe_dict_get(s, "technologies", []))
+                        })
+                        for s in _safe_get(api_data, "servers", []) if isinstance(s, dict)
+                    ],
+                    "locations": {
+                        str(k): cast(ServerLocation, {
+                            "id": str(_safe_dict_get(v, "id", "")),
+                            "country": cast(Country, {
+                                "name": str(_safe_dict_get(_safe_dict_get(v, "country", {}), "name", "")),
+                                "code": str(_safe_dict_get(_safe_dict_get(v, "country", {}), "code", ""))
+                            })
+                        })
+                        for k, v in _safe_get(api_data, "locations", {}).items()
+                        if isinstance(v, dict)
+                    },
+                    "last_updated": time.time()
+                })
+            
+            self._last_cache_update = time.time()
+            return self._servers_cache
 
         except Exception as e:
-            raise ServerError(f"Failed to get server list: {e}")
+            self.logger.warning(f"Failed to get server information: {e}")
+            return None
 
     def _ping_server(self, hostname: str) -> float:
         """Ping a server and return response time in ms.
@@ -521,7 +654,7 @@ class ServerManager:
 
         return has_openvpn_tcp
 
-    def _test_server(self, server: dict[str, Any]) -> tuple[dict[str, Any], float]:
+    def _test_server(self, server: Dict[str, Any]) -> tuple[Dict[str, Any], float]:
         """Test a server's response time using both ping and TCP connection.
 
         Args:
@@ -531,7 +664,7 @@ class ServerManager:
             Tuple of (server, score) where score is combined ping/TCP time
             Lower score is better, float('inf') means failed
         """
-        hostname = server.get("hostname")
+        hostname = _safe_dict_get(server, "hostname")
         if not hostname:
             return server, float("inf")
 
@@ -676,7 +809,7 @@ class ServerManager:
 
         return selected
 
-    def select_fastest_server(self, country_code: str | None = None) -> list[dict[str, Any]]:
+    def select_fastest_server(self, country_code: str | None = None) -> list[Dict[str, Any]]:
         """Select fastest servers in a country based on ping times.
 
         Args:
@@ -688,14 +821,17 @@ class ServerManager:
         try:
             # Get all servers
             cache = self.get_servers_cache()
-            servers = cache.get("servers", [])
-            locations = cache.get("locations", [])
+            if not cache:
+                raise ServerError("No servers available")
+
+            servers = cache["servers"]
+            locations = cache["locations"]
 
             if not servers:
                 raise ServerError("No servers available")
 
             # Create location lookup by ID
-            location_lookup = {str(loc["id"]): loc for loc in locations}
+            location_lookup = {str(loc["id"]): loc for loc in locations.values()}
 
             # Filter by country if specified
             if country_code:
@@ -704,9 +840,9 @@ class ServerManager:
                 
                 for server in servers:
                     # Check each location ID
-                    for loc_id in server.get("location_ids", []):
+                    for loc_id in server["location_ids"]:
                         location = location_lookup.get(str(loc_id))
-                        if location and location.get("country", {}).get("code", "").upper() == country_code:
+                        if location and location["country"]["code"].upper() == country_code:
                             filtered_servers.append(server)
                             break
                 
@@ -715,9 +851,9 @@ class ServerManager:
                 if not servers:
                     # Get list of available countries
                     available_countries = sorted(list({
-                        loc.get("country", {}).get("code", "").upper()
-                        for loc in locations
-                        if loc.get("country", {}).get("code")
+                        loc["country"]["code"].upper()
+                        for loc in locations.values()
+                        if loc["country"]["code"]
                     }))
                     raise ServerError(
                         f"No servers available in {country_code}. "
@@ -725,25 +861,24 @@ class ServerManager:
                     )
 
             # Remove failed servers
-            servers = [s for s in servers if s.get("hostname") not in self._failed_servers]
+            servers = [s for s in servers if s["hostname"] not in self._failed_servers]
             if not servers:
                 self._failed_servers.clear()  # Reset failed servers if none left
                 return self.select_fastest_server(country_code)  # Try again
 
             # Take 20 servers with highest load
-            servers.sort(key=lambda x: x.get("load", 100))
+            servers.sort(key=lambda x: x["load"])
             logger.debug(servers)
-            #servers = servers[20:]
 
             # Test response times
             results = []
             for server in servers:
-                hostname = server.get("hostname")
+                hostname = server["hostname"]
                 if not hostname:
                     continue
 
                 # Test server response time
-                server_result, score = self._test_server(server)
+                server_result, score = self._test_server(cast(Dict[str, Any], server))
                 if score < float("inf"):
                     results.append((server_result, score))
 

@@ -442,7 +442,19 @@ class VPNConnectionManager:
 
                 # Store server info
                 self._server = hostname
-                self._country_name = server.get("country")
+                # Store full country name from server data
+                try:
+                    location_ids = server.get("location_ids", [])
+                    locations = self.server_manager.get_servers_cache().get("locations", {})
+                    for loc_id in location_ids:
+                        location = locations.get(str(loc_id))
+                        if location and location.get("country"):
+                            self._country_name = location["country"]["name"]
+                            break
+                except Exception as e:
+                    if self.verbose:
+                        self.logger.warning(f"Failed to get country name from server data: {e}")
+                    self._country_name = None
 
                 # Ensure OpenVPN is available
                 if not self.openvpn_path:
@@ -973,68 +985,55 @@ class VPNConnectionManager:
         """Get current VPN connection status.
 
         Returns:
-            dict with:
-                connected (bool): True if connected to VPN
-                server (str): Connected server hostname
-                country (str): Full country name
-                city (str): Server city location
-                ip (str): Current IP address
+            dict: Status information including:
+                - connected (bool): Whether connected to VPN
+                - ip (str): Current IP address
+                - normal_ip (str): IP when not connected to VPN
+                - server (str): Connected server if any
+                - country (str): Connected country if any
 
-        Raises:
-            VPNError: If status check fails
         """
-        try:
-            # Load state once
-            state = load_vpn_state()
+        status = {
+            "connected": self.is_connected(),
+            "ip": self.get_current_ip(),
+            "normal_ip": self._normal_ip,
+            "server": self._server,
+            "country": None,
+        }
 
-            # Check process first (fastest)
-            process_running = False
-            process_id = state.get("process_id")
-            if process_id:
-                process_running = self._is_process_running(process_id)
+        # Get country information from server manager's cached data
+        if self._server:
+            try:
+                # Get server info from cache
+                cache = self.server_manager.get_servers_cache()
+                if cache and cache.get("servers"):
+                    # Find our server in the cache
+                    for server in cache["servers"]:
+                        if server.get("hostname") == self._server:
+                            # Get location info
+                            location_ids = server.get("location_ids", [])
+                            locations = cache.get("locations", {})
+                            
+                            # Find matching location with country info
+                            for loc_id in location_ids:
+                                location = locations.get(str(loc_id))
+                                if location and location.get("country"):
+                                    status["country"] = location["country"]["name"]
+                                    break
+                            break
 
-            # Check OpenVPN log for connection status
-            is_connected = False
-            if process_running and OPENVPN_LOG and OPENVPN_LOG.exists():
-                try:
-                    log_content = OPENVPN_LOG.read_text()
-                    is_connected = "Initialization Sequence Completed" in log_content
-                except Exception as e:
-                    if self.verbose:
-                        self.logger.debug(f"Failed to read OpenVPN log: {e}")
+                # Fallback to hostname parsing if server not found in cache
+                if not status["country"]:
+                    country_code = self._server.split('.')[0][:2].upper()
+                    country = self.api_client.get_country_by_code(country_code)
+                    if country:
+                        status["country"] = country["name"]
 
-            # Get current IP
-            current_ip = self.get_current_ip()
+            except Exception as e:
+                if self.verbose:
+                    self.logger.warning(f"Failed to get country information from server data: {e}")
 
-            # Get full country name if we have a country code
-            country = state.get("country", "Unknown")
-            if country and len(country) == 2:
-                try:
-                    import pycountry
-                    country_obj = pycountry.countries.get(alpha_2=country.upper())
-                    if country_obj:
-                        country = country_obj.name
-                except ImportError:
-                    if self.verbose:
-                        self.logger.debug("pycountry not available for country name lookup")
-
-            if self.verbose:
-                self.logger.debug(
-                    f"Connection status: process={process_running}, "
-                    f"initialized={is_connected}, "
-                    f"ip={current_ip}"
-                )
-
-            return {
-                "connected": is_connected,
-                "country": country,
-                "city": state.get("city", "Unknown"),
-                "server": state.get("server"),
-                "ip": current_ip,
-            }
-
-        except Exception as e:
-            raise VPNError(f"Failed to get status: {e}")
+        return status
 
     def _is_process_running(self, process_id: int) -> bool:
         """Check if a process is running by its PID.
