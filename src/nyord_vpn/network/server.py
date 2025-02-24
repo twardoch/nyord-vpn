@@ -3,6 +3,7 @@ import random
 import subprocess
 import time
 import socket
+import ssl
 from typing import Any, TypedDict
 
 import requests
@@ -364,23 +365,28 @@ class ServerManager:
                 if server.get("status") != "online":
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping offline server: {server.get('hostname')}",
+                            f"Skipping offline server: {server.get('hostname')}"
                         )
                     continue
+
+                if self.api_client.verbose:
+                    self.logger.debug(f"Technologies for {server.get('hostname')}:")
+                    for tech in server.get("technologies", []):
+                        self.logger.debug(f"  - ID: {tech.get('id')}, Name: {tech.get('name')}, Status: {tech.get('status')}")
 
                 has_openvpn_tcp = False
                 for tech in server.get("technologies", []):
                     if (
                         isinstance(tech, dict)
-                        and tech.get("id") == 5
-                        and tech.get("status") == "online"
+                        and tech.get("name") == "OpenVPN TCP"
                     ):
                         has_openvpn_tcp = True
                         break
+
                 if not has_openvpn_tcp:
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}",
+                            f"Skipping server without OpenVPN TCP: {server.get('hostname')}"
                         )
                     continue
 
@@ -415,7 +421,7 @@ class ServerManager:
                 if not country_info:
                     if self.api_client.verbose:
                         self.logger.debug(
-                            f"Skipping server without country info: {hostname}",
+                            f"Skipping server without country info: {hostname}"
                         )
                     continue
 
@@ -436,9 +442,13 @@ class ServerManager:
                     invalid_count += 1
 
             if not valid_servers:
+                if self.api_client.verbose:
+                    self.logger.debug(
+                        f"No valid servers found after filtering {len(raw_servers)} total servers"
+                    )
                 raise ValueError(
                     f"No valid servers found in API response. "
-                    f"Total servers: {len(raw_servers)}, Invalid: {invalid_count}",
+                    f"Total servers: {len(raw_servers)}, Invalid: {invalid_count}"
                 )
 
             if self.api_client.verbose:
@@ -449,7 +459,7 @@ class ServerManager:
                 self.logger.debug(
                     f"Found {len(valid_servers)} valid servers. "
                     f"Country distribution: "
-                    + ", ".join(f"{k}: {v}" for k, v in sorted(country_counts.items())),
+                    + ", ".join(f"{k}: {v}" for k, v in sorted(country_counts.items()))
                 )
 
             cache = {
@@ -644,90 +654,88 @@ class ServerManager:
             Tuple of (server, score) where score is combined ping/TCP time
             Lower score is better, float('inf') means failed
 
+        The test performs:
+        1. Quick TCP connection test to port 443 (OpenVPN)
+        2. Quick TLS handshake to verify server certificate and auth
+        3. Single ping with short timeout
+        4. Combines scores with TCP weighted more heavily
         """
         hostname = server.get("hostname")
         if not hostname:
             return server, float("inf")
 
         try:
-            # Platform-specific ping command
-            import platform
-
-            system = platform.system().lower()
-
-            if system == "darwin":  # macOS
-                cmd = ["ping", "-c", "1", "-W", "1000", "-t", "1", hostname]
-            elif system == "windows":
-                cmd = ["ping", "-n", "1", "-w", "1000", hostname]
-            else:  # Linux and others
-                cmd = ["ping", "-c", "1", "-W", "1", hostname]
-
-            if self.api_client.verbose:
-                self.logger.debug(f"Running ping command: {' '.join(cmd)}")
-
-            # Run ping
-            ping_result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=2, check=False
-            )
-
-            if ping_result.returncode != 0:
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"Ping failed for {hostname}: {ping_result.stderr}"
-                    )
-                return server, float("inf")
-
-            # Parse ping time based on platform
-            ping_time = float("inf")
-            output = ping_result.stdout
-
-            if system == "darwin":
-                # macOS format: round-trip min/avg/max/stddev = 20.237/20.237/20.237/0.000 ms
-                for line in output.splitlines():
-                    if "round-trip" in line:
-                        try:
-                            stats = line.split("=")[1].strip().split("/")
-                            ping_time = float(stats[0])  # Use min time
-                            break
-                        except (IndexError, ValueError) as e:
-                            if self.api_client.verbose:
-                                self.logger.debug(
-                                    f"Failed to parse macOS ping stats: {e}"
-                                )
-                            continue
-            else:
-                # Linux/Windows format: time=20.2 ms
-                try:
-                    ping_time = float(output.split("time=")[1].split()[0].rstrip("ms"))
-                except (IndexError, ValueError) as e:
-                    if self.api_client.verbose:
-                        self.logger.debug(f"Failed to parse ping time: {e}")
-                    return server, float("inf")
-
-            if ping_time == float("inf"):
-                if self.api_client.verbose:
-                    self.logger.debug(
-                        f"Could not parse ping time from output: {output}"
-                    )
-                return server, float("inf")
-
-            # Quick TCP connection test to OpenVPN port
-            start = time.time()
+            # Quick TCP connection test first (more important for VPN)
+            tcp_time = float("inf")
             try:
-                with socket.create_connection((hostname, 443), timeout=2):
-                    tcp_time = (time.time() - start) * 1000  # Convert to ms
-            except (TimeoutError, OSError) as e:
+                context = ssl.create_default_context()
+                context.check_hostname = True
+                context.verify_mode = ssl.CERT_REQUIRED
+                
+                start = time.time()
+                with socket.create_connection((hostname, 443), timeout=1) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        # Try to start TLS handshake
+                        ssock.do_handshake()
+                        tcp_time = (time.time() - start) * 1000  # Convert to ms
+            except (socket.timeout, socket.error, ssl.SSLError) as e:
                 if self.api_client.verbose:
-                    self.logger.debug(f"TCP connection failed for {hostname}: {e}")
+                    self.logger.debug(f"TCP/TLS test failed for {hostname}: {e}")
                 return server, float("inf")
 
-            # Combined score (70% ping, 30% TCP)
-            score = (ping_time * 0.7) + (tcp_time * 0.3)
+            # Quick single ping test
+            ping_time = float("inf")
+            try:
+                import platform
+                system = platform.system().lower()
+
+                if system == "darwin":  # macOS
+                    cmd = ["ping", "-c", "1", "-W", "1", "-t", "1", hostname]
+                elif system == "windows":
+                    cmd = ["ping", "-n", "1", "-w", "1000", hostname]
+                else:  # Linux and others
+                    cmd = ["ping", "-c", "1", "-W", "1", hostname]
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    check=False
+                )
+
+                if result.returncode == 0:
+                    # Parse time from output
+                    if system == "darwin":
+                        # macOS: round-trip min/avg/max/stddev = 20.237/20.237/20.237/0.000 ms
+                        for line in result.stdout.splitlines():
+                            if "round-trip" in line:
+                                try:
+                                    ping_time = float(line.split("=")[1].strip().split("/")[0])
+                                    break
+                                except (IndexError, ValueError):
+                                    continue
+                    else:
+                        # Linux/Windows: time=20.2 ms
+                        try:
+                            ping_time = float(result.stdout.split("time=")[1].split()[0].rstrip("ms"))
+                        except (IndexError, ValueError):
+                            pass
+
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
+                if self.api_client.verbose:
+                    self.logger.debug(f"Ping failed for {hostname}: {e}")
+                # Don't fail completely if ping fails but TCP worked
+                ping_time = tcp_time * 1.5  # Estimate ping as 1.5x TCP time
+
+            # Combined score (70% TCP, 30% ping)
+            # TCP matters more for VPN performance
+            score = (tcp_time * 0.7) + (ping_time * 0.3)
 
             if self.api_client.verbose:
                 self.logger.debug(
                     f"Server {hostname} test results: "
-                    f"ping={ping_time:.1f}ms, tcp={tcp_time:.1f}ms, score={score:.1f}ms"
+                    f"tcp={tcp_time:.1f}ms, ping={ping_time:.1f}ms, score={score:.1f}ms"
                 )
 
             return server, score
@@ -735,9 +743,6 @@ class ServerManager:
         except Exception as e:
             if self.api_client.verbose:
                 self.logger.debug(f"Failed to test server {hostname}: {e}")
-                import traceback
-
-                self.logger.debug(f"Traceback: {traceback.format_exc()}")
             return server, float("inf")
 
     def _select_diverse_servers(
@@ -799,10 +804,11 @@ class ServerManager:
         exclude_servers: set[str] | None = None,
         _retry_count: int = 0,
         max_retries: int = 3,
-    ) -> dict[str, Any] | None:
-        """Select fastest available server.
+        max_servers: int = 5,  # Return up to 5 fastest servers
+    ) -> list[dict[str, Any]]:
+        """Select fastest available servers.
 
-        Tests multiple servers in parallel and selects the one with lowest latency.
+        Tests multiple servers in parallel and returns them sorted by latency.
         Will retry with different servers if initial selection fails.
 
         Args:
@@ -811,28 +817,15 @@ class ServerManager:
             exclude_servers: Set of server hostnames to exclude from selection
             _retry_count: Internal retry counter (do not set manually)
             max_retries: Maximum number of retry attempts
+            max_servers: Maximum number of servers to return (default 5)
 
         Returns:
-            Server info dictionary or None if no servers available
+            List of server info dictionaries sorted by speed (fastest first)
 
         Raises:
             ServerError: If no servers are available after retries
-
         """
         try:
-            # Check retry limit
-            if _retry_count >= max_retries:
-                error_msg = (
-                    f"Failed to find working server after {max_retries} attempts"
-                )
-                if country_code:
-                    error_msg += f" in {country_code.upper()}"
-                if self._failed_servers:
-                    error_msg += (
-                        f". Failed servers: {', '.join(sorted(self._failed_servers))}"
-                    )
-                raise ServerError(error_msg)
-
             # Get available servers
             servers = self.get_servers_cache().get("servers", [])
             if not servers:
@@ -844,11 +837,9 @@ class ServerManager:
                 servers = [
                     s
                     for s in servers
-                    if s.get("country", {}).get("code", "").upper()
-                    == normalized_country
+                    if s.get("country", {}).get("code", "").upper() == normalized_country
                 ]
                 if not servers:
-                    # Try to get country info for better error message
                     country_info = self.get_country_info(normalized_country)
                     country_name = (
                         country_info.get("name") if country_info else normalized_country
@@ -860,49 +851,78 @@ class ServerManager:
 
             # Filter out failed and excluded servers
             available_servers = [
-                s
-                for s in servers
-                if s.get("hostname") not in self._failed_servers
-                and (not exclude_servers or s.get("hostname") not in exclude_servers)
+                s for s in servers
+                if s.get("hostname") not in (exclude_servers or set())
+                and s.get("hostname") not in self._failed_servers
             ]
 
             if not available_servers:
-                if self._failed_servers:
-                    # If all servers failed, clear failed list and retry
-                    if self.api_client.verbose:
-                        self.logger.debug(
-                            "All servers failed, clearing failed list and retrying"
-                        )
-                    self._failed_servers.clear()
-                    return self.select_fastest_server(
-                        country_code,
-                        random_select,
-                        exclude_servers,
-                        _retry_count + 1,
-                        max_retries,
+                if self.api_client.verbose:
+                    self.logger.debug(
+                        f"No available servers after filtering {len(servers)} total, "
+                        f"{len(self._failed_servers)} failed, "
+                        f"{len(exclude_servers or set())} excluded"
                     )
                 raise ServerError(
                     f"No available servers found{' in ' + normalized_country if normalized_country else ''}"
                 )
 
-            # Select servers based on strategy
-            selected_servers = (
-                [random.choice(available_servers)]
-                if random_select
-                else self._select_diverse_servers(available_servers)
-            )
+            # Sort by load first to get initial candidates
+            available_servers.sort(key=lambda x: float(x.get("load", 100)))
+            
+            # Take top N servers by load for testing
+            test_candidates = available_servers[:max_servers * 2]  # Test twice as many as we need
+            if random_select:
+                import random
+                test_candidates = random.sample(
+                    available_servers, 
+                    min(max_servers * 2, len(available_servers))
+                )
+
+            if self.api_client.verbose:
+                self.logger.debug(f"Testing {len(test_candidates)} servers for speed")
+
+            # Test servers in parallel using ThreadPoolExecutor
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from threading import Lock
+
+            results = []
+            result_lock = Lock()
+
+            with ThreadPoolExecutor(max_workers=min(len(test_candidates), 10)) as executor:
+                future_to_server = {
+                    executor.submit(self._test_server, server): server
+                    for server in test_candidates
+                }
+
+                for future in as_completed(future_to_server):
+                    server = future_to_server[future]
+                    try:
+                        tested_server, score = future.result()
+                        if score < float('inf'):  # Only include successful tests
+                            with result_lock:
+                                results.append((tested_server, score))
+                    except Exception as e:
+                        if self.api_client.verbose:
+                            self.logger.warning(f"Failed to test {server.get('hostname')}: {e}")
+
+            # Sort by score and take top N
+            results.sort(key=lambda x: x[1])  # Sort by score
+            selected_servers = [server for server, _ in results[:max_servers]]
 
             if not selected_servers:
                 raise ServerError(
-                    f"Failed to select servers{' in ' + normalized_country if normalized_country else ''}"
+                    f"No responsive servers found{' in ' + normalized_country if normalized_country else ''}"
                 )
 
-            # Return the first server as it's either random or from diverse selection
-            return selected_servers[0]
+            if self.api_client.verbose:
+                self.logger.info(f"Selected {len(selected_servers)} fastest servers:")
+                for i, server in enumerate(selected_servers, 1):
+                    self.logger.info(f"  {i}. {server.get('hostname')} (load: {server.get('load')}%)")
+
+            return selected_servers
 
         except Exception as e:
-            if isinstance(e, ServerError):
-                raise
             if self.api_client.verbose:
                 self.logger.error(f"Error selecting server: {e}", exc_info=True)
             raise ServerError(str(e))
