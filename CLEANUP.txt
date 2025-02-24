@@ -1,11 +1,11 @@
-2025-02-24 21:52:25 - 
+2025-02-25 00:10:42 - 
 === Current Status ===
-2025-02-24 21:52:25 - Error: LOG.md is missing
-2025-02-24 21:52:25 - Error: .cursor/rules/0project.mdc is missing
-2025-02-24 21:52:25 - [ 896]  .
+2025-02-25 00:10:42 - Error: LOG.md is missing
+2025-02-25 00:10:42 - Error: .cursor/rules/0project.mdc is missing
+2025-02-25 00:10:42 - [ 896]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [8.5K]  filetree.mdc
+│       ├── [9.5K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -14,7 +14,7 @@
 ├── [3.5K]  .gitignore
 ├── [ 532]  .pre-commit-config.yaml
 ├── [ 128]  .specstory
-│   └── [2.0K]  history
+│   └── [2.1K]  history
 │       ├── [2.0K]  .what-is-this.md
 │       ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
 │       ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
@@ -76,16 +76,19 @@
 │       ├── [148K]  2025-02-24_19-08-tracking-todo-and-progress-updates.md
 │       ├── [ 39K]  2025-02-24_19-49-review-and-update-project-documentation.md
 │       ├── [ 59K]  2025-02-24_20-10-task-management-for-nyord-vpn-project.md
-│       └── [ 47K]  2025-02-24_20-54-placeholder-message.md
+│       ├── [ 47K]  2025-02-24_20-54-placeholder-message.md
+│       ├── [ 64K]  2025-02-24_21-51-codebase-review-and-task-prioritization.md
+│       ├── [ 54K]  2025-02-24_22-08-reviewing-progress-and-todo-for-codebase-tasks.md
+│       └── [204K]  2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
 ├── [ 160]  CLEANUP.txt
 ├── [1.0K]  LICENSE
-├── [4.2K]  PROGRESS.md
+├── [ 30K]  PROGRESS.md
 ├── [5.5K]  README.md
-├── [7.5K]  TODO.md
+├── [ 16K]  TODO.md
 ├── [ 13K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [131K]  nyord_vpn.txt
+├── [174K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
@@ -95,7 +98,7 @@
 │       ├── [2.5K]  __main__.py
 │       ├── [ 512]  api
 │       │   ├── [ 327]  __init__.py
-│       │   ├── [ 16K]  api.py
+│       │   ├── [ 17K]  api.py
 │       │   ├── [ 27K]  v1_countries.json
 │       │   ├── [5.4K]  v1_countries.py
 │       │   ├── [5.2K]  v1_groups.json
@@ -121,9 +124,9 @@
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 37K]  server.py
+│       │   ├── [ 38K]  server.py
 │       │   ├── [ 47K]  vpn.py
-│       │   └── [ 13K]  vpn_commands.py
+│       │   └── [ 14K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
 │       │   └── [3.0K]  update_countries.py
@@ -155,17 +158,17 @@
 │   ├── [4.4K]  test_v1_groups.py
 │   ├── [5.7K]  test_v1_recommendations.py
 │   ├── [3.2K]  test_v1_technologies.py
-│   └── [7.9K]  test_v2_servers.py
+│   └── [7.8K]  test_v2_servers.py
 └── [264K]  uv.lock
 
-22 directories, 133 files
+22 directories, 136 files
 
-2025-02-24 21:52:25 - 
+2025-02-25 00:10:42 - 
 Project structure:
-2025-02-24 21:52:25 - [ 896]  .
+2025-02-25 00:10:42 - [ 896]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [8.5K]  filetree.mdc
+│       ├── [9.5K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -174,7 +177,7 @@ Project structure:
 ├── [3.5K]  .gitignore
 ├── [ 532]  .pre-commit-config.yaml
 ├── [ 128]  .specstory
-│   └── [2.0K]  history
+│   └── [2.1K]  history
 │       ├── [2.0K]  .what-is-this.md
 │       ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
 │       ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
@@ -236,16 +239,19 @@ Project structure:
 │       ├── [148K]  2025-02-24_19-08-tracking-todo-and-progress-updates.md
 │       ├── [ 39K]  2025-02-24_19-49-review-and-update-project-documentation.md
 │       ├── [ 59K]  2025-02-24_20-10-task-management-for-nyord-vpn-project.md
-│       └── [ 47K]  2025-02-24_20-54-placeholder-message.md
+│       ├── [ 47K]  2025-02-24_20-54-placeholder-message.md
+│       ├── [ 64K]  2025-02-24_21-51-codebase-review-and-task-prioritization.md
+│       ├── [ 54K]  2025-02-24_22-08-reviewing-progress-and-todo-for-codebase-tasks.md
+│       └── [204K]  2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
 ├── [ 160]  CLEANUP.txt
 ├── [1.0K]  LICENSE
-├── [4.2K]  PROGRESS.md
+├── [ 30K]  PROGRESS.md
 ├── [5.5K]  README.md
-├── [7.5K]  TODO.md
+├── [ 16K]  TODO.md
 ├── [ 13K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [131K]  nyord_vpn.txt
+├── [174K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
 ├── [ 160]  src
@@ -255,7 +261,7 @@ Project structure:
 │       ├── [2.5K]  __main__.py
 │       ├── [ 512]  api
 │       │   ├── [ 327]  __init__.py
-│       │   ├── [ 16K]  api.py
+│       │   ├── [ 17K]  api.py
 │       │   ├── [ 27K]  v1_countries.json
 │       │   ├── [5.4K]  v1_countries.py
 │       │   ├── [5.2K]  v1_groups.json
@@ -281,9 +287,9 @@ Project structure:
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 37K]  server.py
+│       │   ├── [ 38K]  server.py
 │       │   ├── [ 47K]  vpn.py
-│       │   └── [ 13K]  vpn_commands.py
+│       │   └── [ 14K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
 │       │   └── [3.0K]  update_countries.py
@@ -315,118 +321,66 @@ Project structure:
 │   ├── [4.4K]  test_v1_groups.py
 │   ├── [5.7K]  test_v1_recommendations.py
 │   ├── [3.2K]  test_v1_technologies.py
-│   └── [7.9K]  test_v2_servers.py
+│   └── [7.8K]  test_v2_servers.py
 └── [264K]  uv.lock
 
-22 directories, 133 files
+22 directories, 136 files
 
-2025-02-24 21:52:25 - On branch main
+2025-02-25 00:10:42 - On branch main
 Your branch is up to date with 'origin/main'.
 
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   .cursor/rules/filetree.mdc
-	modified:   .cursor/rules/nyord-vpn.mdc
 	modified:   CLEANUP.txt
+	modified:   PROGRESS.md
 	modified:   TODO.md
 	modified:   cleanup.py
-	modified:   src/nyord_vpn/__init__.py
-	modified:   src/nyord_vpn/api/api.py
-	modified:   src/nyord_vpn/api/v1_countries.py
-	modified:   src/nyord_vpn/api/v1_groups.py
-	modified:   src/nyord_vpn/api/v1_recommendations.py
-	modified:   src/nyord_vpn/api/v1_technologies.py
-	modified:   src/nyord_vpn/api/v2_servers.py
-	modified:   src/nyord_vpn/core/api.py
-	modified:   src/nyord_vpn/core/base.py
-	modified:   src/nyord_vpn/core/client.py
-	modified:   src/nyord_vpn/exceptions.py
+	modified:   nyord_vpn.txt
 	modified:   src/nyord_vpn/network/server.py
-	modified:   src/nyord_vpn/network/vpn.py
-	modified:   src/nyord_vpn/network/vpn_commands.py
-	modified:   src/nyord_vpn/storage/__init__.py
-	modified:   src/nyord_vpn/storage/models.py
-	modified:   tests/conftest.py
 	modified:   tests/test_server_manager.py
 
 Untracked files:
   (use "git add <file>..." to include in what will be committed)
-	.specstory/history/2025-02-24_19-08-tracking-todo-and-progress-updates.md
-	.specstory/history/2025-02-24_19-49-review-and-update-project-documentation.md
-	.specstory/history/2025-02-24_20-10-task-management-for-nyord-vpn-project.md
-	.specstory/history/2025-02-24_20-54-placeholder-message.md
-	PROGRESS.md
-	src/nyord_vpn/api/__init__.py
-	tests/test_api.py
-	tests/test_v1_countries.py
-	tests/test_v1_groups.py
-	tests/test_v1_recommendations.py
-	tests/test_v1_technologies.py
-	tests/test_v2_servers.py
+	.specstory/history/2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
 
 no changes added to commit (use "git add" and/or "git commit -a")
 
-2025-02-24 21:52:25 - On branch main
+2025-02-25 00:10:42 - On branch main
 Your branch is up to date with 'origin/main'.
 
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
 	modified:   .cursor/rules/filetree.mdc
-	modified:   .cursor/rules/nyord-vpn.mdc
 	modified:   CLEANUP.txt
+	modified:   PROGRESS.md
 	modified:   TODO.md
 	modified:   cleanup.py
-	modified:   src/nyord_vpn/__init__.py
-	modified:   src/nyord_vpn/api/api.py
-	modified:   src/nyord_vpn/api/v1_countries.py
-	modified:   src/nyord_vpn/api/v1_groups.py
-	modified:   src/nyord_vpn/api/v1_recommendations.py
-	modified:   src/nyord_vpn/api/v1_technologies.py
-	modified:   src/nyord_vpn/api/v2_servers.py
-	modified:   src/nyord_vpn/core/api.py
-	modified:   src/nyord_vpn/core/base.py
-	modified:   src/nyord_vpn/core/client.py
-	modified:   src/nyord_vpn/exceptions.py
+	modified:   nyord_vpn.txt
 	modified:   src/nyord_vpn/network/server.py
-	modified:   src/nyord_vpn/network/vpn.py
-	modified:   src/nyord_vpn/network/vpn_commands.py
-	modified:   src/nyord_vpn/storage/__init__.py
-	modified:   src/nyord_vpn/storage/models.py
-	modified:   tests/conftest.py
 	modified:   tests/test_server_manager.py
 
 Untracked files:
   (use "git add <file>..." to include in what will be committed)
-	.specstory/history/2025-02-24_19-08-tracking-todo-and-progress-updates.md
-	.specstory/history/2025-02-24_19-49-review-and-update-project-documentation.md
-	.specstory/history/2025-02-24_20-10-task-management-for-nyord-vpn-project.md
-	.specstory/history/2025-02-24_20-54-placeholder-message.md
-	PROGRESS.md
-	src/nyord_vpn/api/__init__.py
-	tests/test_api.py
-	tests/test_v1_countries.py
-	tests/test_v1_groups.py
-	tests/test_v1_recommendations.py
-	tests/test_v1_technologies.py
-	tests/test_v2_servers.py
+	.specstory/history/2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
 
 no changes added to commit (use "git add" and/or "git commit -a")
 
-2025-02-24 21:52:25 - 
+2025-02-25 00:10:42 - 
 === Environment Status ===
-2025-02-24 21:52:25 - Setting up virtual environment
-2025-02-24 21:52:26 - Virtual environment created and activated
-2025-02-24 21:52:26 - Installing package with all extras
-2025-02-24 21:52:26 - Setting up virtual environment
-2025-02-24 21:52:26 - Virtual environment created and activated
-2025-02-24 21:52:27 - Package installed successfully
-2025-02-24 21:52:27 - >>>
+2025-02-25 00:10:42 - Setting up virtual environment
+2025-02-25 00:10:43 - Virtual environment created and activated
+2025-02-25 00:10:43 - Installing package with all extras
+2025-02-25 00:10:43 - Setting up virtual environment
+2025-02-25 00:10:43 - Virtual environment created and activated
+2025-02-25 00:10:46 - Package installed successfully
+2025-02-25 00:10:46 - >>>
 >>> Running code fixes...
 >>> TODO: Check the errors!
 >>>
-2025-02-24 21:52:28 - src/__init__.py:1:1: D104 Missing docstring in public package
+2025-02-25 00:10:47 - src/__init__.py:1:1: D104 Missing docstring in public package
 src/nyord_vpn/__main__.py:23:24: FBT001 Boolean-typed positional argument in function definition
    |
 21 |     """NordVPN CLI interface."""
@@ -456,100 +410,103 @@ src/nyord_vpn/__main__.py:79:5: D401 First line of docstring should be in impera
 81 |         fire.Fire(CLI)
    |
 
-src/nyord_vpn/api/api.py:126:27: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:128:27: TRY003 Avoid specifying long messages outside the exception class
     |
-124 |                 if self._recommended_servers is None:
-125 |                     # Only raise if we don't have cached data
-126 |                     raise VPNAPIError(f"Failed to fetch recommended servers: {e}") from e
-    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-127 |
-128 |         return self._recommended_servers
+126 |                   if self._recommended_servers is None:
+127 |                       # Only raise if we don't have cached data
+128 |                       raise VPNAPIError(
+    |  ___________________________^
+129 | |                         f"Failed to fetch recommended servers: {e}"
+130 | |                     ) from e
+    | |_____________________^ TRY003
+131 |
+132 |           return self._recommended_servers
     |
 
-src/nyord_vpn/api/api.py:159:27: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:163:27: TRY003 Avoid specifying long messages outside the exception class
     |
-157 |                 if self._technologies is None:
-158 |                     # Only raise if we don't have cached data
-159 |                     raise VPNAPIError(f"Failed to fetch technologies: {e}") from e
+161 |                 if self._technologies is None:
+162 |                     # Only raise if we don't have cached data
+163 |                     raise VPNAPIError(f"Failed to fetch technologies: {e}") from e
     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-160 |
-161 |         return self._technologies
+164 |
+165 |         return self._technologies
     |
 
-src/nyord_vpn/api/api.py:190:27: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:194:27: TRY003 Avoid specifying long messages outside the exception class
     |
-188 |                 if self._groups is None:
-189 |                     # Only raise if we don't have cached data
-190 |                     raise VPNAPIError(f"Failed to fetch groups: {e}") from e
+192 |                 if self._groups is None:
+193 |                     # Only raise if we don't have cached data
+194 |                     raise VPNAPIError(f"Failed to fetch groups: {e}") from e
     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-191 |
-192 |         return self._groups
+195 |
+196 |         return self._groups
     |
 
-src/nyord_vpn/api/api.py:221:27: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:225:27: TRY003 Avoid specifying long messages outside the exception class
     |
-219 |                 if self._countries is None:
-220 |                     # Only raise if we don't have cached data
-221 |                     raise VPNAPIError(f"Failed to fetch countries: {e}") from e
+223 |                 if self._countries is None:
+224 |                     # Only raise if we don't have cached data
+225 |                     raise VPNAPIError(f"Failed to fetch countries: {e}") from e
     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-222 |
-223 |         return self._countries
+226 |
+227 |         return self._countries
     |
 
-src/nyord_vpn/api/api.py:249:27: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:253:27: TRY003 Avoid specifying long messages outside the exception class
     |
-247 |                 if self._servers is None:
-248 |                     # Only raise if we don't have cached data
-249 |                     raise VPNAPIError(f"Failed to fetch servers: {e}") from e
+251 |                 if self._servers is None:
+252 |                     # Only raise if we don't have cached data
+253 |                     raise VPNAPIError(f"Failed to fetch servers: {e}") from e
     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-250 |
-251 |         return self._servers
+254 |
+255 |         return self._servers
     |
 
-src/nyord_vpn/api/api.py:253:9: C901 `find_best_server` is too complex (12 > 10)
+src/nyord_vpn/api/api.py:257:9: C901 `find_best_server` is too complex (12 > 10)
     |
-251 |         return self._servers
-252 |
-253 |     def find_best_server(
+255 |         return self._servers
+256 |
+257 |     def find_best_server(
     |         ^^^^^^^^^^^^^^^^ C901
-254 |         self,
-255 |         country_code: str | None = None,
+258 |         self,
+259 |         country_code: str | None = None,
     |
 
-src/nyord_vpn/api/api.py:350:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:373:23: TRY003 Avoid specifying long messages outside the exception class
     |
-349 |               if not filtered_servers:
-350 |                   raise ValueError(
+372 |               if not filtered_servers:
+373 |                   raise ValueError(
     |  _______________________^
-351 | |                     f"No servers found matching criteria: "
-352 | |                     f"country_code={country_code}, group_identifier={group_identifier}, "
-353 | |                     f"technology_identifier={technology_identifier}"
-354 | |                 )
+374 | |                     f"No servers found matching criteria: "
+375 | |                     f"country_code={country_code}, group_identifier={group_identifier}, "
+376 | |                     f"technology_identifier={technology_identifier}"
+377 | |                 )
     | |_________________^ TRY003
-355 |
-356 |               return min(filtered_servers, key=lambda s: s.load)
+378 |
+379 |               return min(filtered_servers, key=lambda s: s.load)
     |
 
-src/nyord_vpn/api/api.py:359:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:382:19: TRY003 Avoid specifying long messages outside the exception class
     |
-358 |           except (requests.exceptions.RequestException, VPNAPIError) as e:
-359 |               raise VPNAPIError(
+381 |           except (requests.exceptions.RequestException, VPNAPIError) as e:
+382 |               raise VPNAPIError(
     |  ___________________^
-360 | |                 f"Failed to find best server using both v1 and v2 APIs: {e}"
-361 | |             ) from e
+383 | |                 f"Failed to find best server using both v1 and v2 APIs: {e}"
+384 | |             ) from e
     | |_____________^ TRY003
-362 |
-363 |       def get_server_stats(self) -> dict[str, Any]:
+385 |
+386 |       def get_server_stats(self) -> dict[str, Any]:
     |
 
-src/nyord_vpn/api/api.py:443:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/api.py:465:23: TRY003 Avoid specifying long messages outside the exception class
     |
-441 |                   }
-442 |               except (VPNAPIError, requests.exceptions.RequestException) as e2:
-443 |                   raise VPNAPIError(
+463 |                   }
+464 |               except (VPNAPIError, requests.exceptions.RequestException) as e2:
+465 |                   raise VPNAPIError(
     |  _______________________^
-444 | |                     f"Failed to generate server statistics using both v1 and v2 APIs: {e2}"
-445 | |                 ) from e2
+466 | |                     f"Failed to generate server statistics using both v1 and v2 APIs: {e2}"
+467 | |                 ) from e2
     | |_________________^ TRY003
     |
 
@@ -832,19 +789,19 @@ src/nyord_vpn/api/v2_servers.py:262:27: TRY003 Avoid specifying long messages ou
 268 |               # Create lookup maps for efficient linking
     |
 
-src/nyord_vpn/api/v2_servers.py:289:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/api/v2_servers.py:293:19: TRY003 Avoid specifying long messages outside the exception class
     |
-287 |           except requests.exceptions.RequestException as error:
-288 |               logger.error(f"Failed to fetch NordVPN server data: {error}")
-289 |               raise VPNAPIError(
+291 |           except requests.exceptions.RequestException as error:
+292 |               logger.error(f"Failed to fetch NordVPN server data: {error}")
+293 |               raise VPNAPIError(
     |  ___________________^
-290 | |                 "Failed to fetch server data from v2 API",
-291 | |                 details=str(error),
-292 | |                 cause=error,
-293 | |             ) from error
+294 | |                 "Failed to fetch server data from v2 API",
+295 | |                 details=str(error),
+296 | |                 cause=error,
+297 | |             ) from error
     | |_____________^ TRY003
-294 |
-295 |       def _link_server_relations(
+298 |
+299 |       def _link_server_relations(
     |
 
 src/nyord_vpn/core/api.py:104:33: ARG002 Unused method argument: `use_cache`
@@ -876,59 +833,59 @@ src/nyord_vpn/core/api.py:247:17: PERF401 Use `list.extend` to create a transfor
     |
     = help: Replace for loop with list.extend
 
-src/nyord_vpn/core/api.py:250:51: ARG002 Unused method argument: `use_cache`
+src/nyord_vpn/core/api.py:251:37: ARG002 Unused method argument: `use_cache`
     |
-248 |         return locations
-249 |
-250 |     def get_best_city(self, country_code: str, *, use_cache: bool = True) -> City | None:
-    |                                                   ^^^^^^^^^ ARG002
-251 |         """Get the best city in a country for VPN connection.
+250 |     def get_best_city(
+251 |         self, country_code: str, *, use_cache: bool = True
+    |                                     ^^^^^^^^^ ARG002
+252 |     ) -> City | None:
+253 |         """Get the best city in a country for VPN connection.
     |
 
-src/nyord_vpn/core/api.py:305:48: ARG002 Unused method argument: `use_cache`
+src/nyord_vpn/core/api.py:309:48: ARG002 Unused method argument: `use_cache`
     |
-303 |         return self.list_countries(use_cache=True)
-304 |
-305 |     def get_cities(self, country_code: str, *, use_cache: bool = True) -> list[City]:
+307 |         return self.list_countries(use_cache=True)
+308 |
+309 |     def get_cities(self, country_code: str, *, use_cache: bool = True) -> list[City]:
     |                                                ^^^^^^^^^ ARG002
-306 |         """Get cities in a specific country.
+310 |         """Get cities in a specific country.
     |
 
-src/nyord_vpn/core/api.py:365:13: TRY300 Consider moving this statement to an `else` block
+src/nyord_vpn/core/api.py:369:13: TRY300 Consider moving this statement to an `else` block
     |
-363 |             )
-364 |             response.raise_for_status()
-365 |             return True
+367 |             )
+368 |             response.raise_for_status()
+369 |             return True
     |             ^^^^^^^^^^^ TRY300
-366 |         except Exception as e:
-367 |             if self.verbose:
+370 |         except Exception as e:
+371 |             if self.verbose:
     |
 
-src/nyord_vpn/core/api.py:368:72: TRY401 Redundant exception object included in `logging.exception` call
+src/nyord_vpn/core/api.py:372:72: TRY401 Redundant exception object included in `logging.exception` call
     |
-366 |         except Exception as e:
-367 |             if self.verbose:
-368 |                 self.logger.exception(f"API connectivity test failed: {e}")
+370 |         except Exception as e:
+371 |             if self.verbose:
+372 |                 self.logger.exception(f"API connectivity test failed: {e}")
     |                                                                        ^ TRY401
-369 |             return False
+373 |             return False
     |
 
-src/nyord_vpn/core/base.py:245:30: ANN003 Missing type annotation for `**kwargs`
+src/nyord_vpn/core/base.py:250:30: ANN003 Missing type annotation for `**kwargs`
     |
-243 |         return sorted_cities[0] if sorted_cities else None
-244 |
-245 |     def list_countries(self, **kwargs) -> list[Country]:
+248 |         return sorted_cities[0] if sorted_cities else None
+249 |
+250 |     def list_countries(self, **kwargs) -> list[Country]:
     |                              ^^^^^^^^ ANN003
-246 |         """List all countries with server information.
+251 |         """List all countries with server information.
     |
 
-src/nyord_vpn/core/base.py:245:32: ARG002 Unused method argument: `kwargs`
+src/nyord_vpn/core/base.py:250:32: ARG002 Unused method argument: `kwargs`
     |
-243 |         return sorted_cities[0] if sorted_cities else None
-244 |
-245 |     def list_countries(self, **kwargs) -> list[Country]:
+248 |         return sorted_cities[0] if sorted_cities else None
+249 |
+250 |     def list_countries(self, **kwargs) -> list[Country]:
     |                                ^^^^^^ ARG002
-246 |         """List all countries with server information.
+251 |         """List all countries with server information.
     |
 
 src/nyord_vpn/core/client.py:217:19: TRY003 Avoid specifying long messages outside the exception class
@@ -1064,7 +1021,7 @@ src/nyord_vpn/core/client.py:384:19: TRY003 Avoid specifying long messages outsi
 
 src/nyord_vpn/core/client.py:414:23: TRY003 Avoid specifying long messages outside the exception class
     |
-412 |                 self.api_client.list_countries()
+412 |                 self.api_client.get_countries()
 413 |             except Exception as e:
 414 |                 raise VPNConnectionError("Failed to connect to NordVPN API") from e
     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
@@ -1224,552 +1181,579 @@ src/nyord_vpn/exceptions.py:227:9: D107 Missing docstring in `__init__`
 
 src/nyord_vpn/network/country.py:1:1: D100 Missing docstring in public module
 src/nyord_vpn/network/server.py:1:1: D100 Missing docstring in public module
-src/nyord_vpn/network/server.py:106:58: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `default`
+src/nyord_vpn/network/server.py:114:58: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `default`
     |
-106 | def _safe_dict_get(d: dict[str, Any], key: str, default: Any = None) -> Any:
+114 | def _safe_dict_get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     |                                                          ^^^ ANN401
-107 |     """Safely get a value from a dictionary."""
-108 |     return d.get(key, default) if isinstance(d, dict) else default
+115 |     """Safely get a value from a dictionary."""
+116 |     return d.get(key, default) if isinstance(d, dict) else default
     |
 
-src/nyord_vpn/network/server.py:106:73: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_dict_get`
+src/nyord_vpn/network/server.py:114:73: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_dict_get`
     |
-106 | def _safe_dict_get(d: dict[str, Any], key: str, default: Any = None) -> Any:
+114 | def _safe_dict_get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     |                                                                         ^^^ ANN401
-107 |     """Safely get a value from a dictionary."""
-108 |     return d.get(key, default) if isinstance(d, dict) else default
+115 |     """Safely get a value from a dictionary."""
+116 |     return d.get(key, default) if isinstance(d, dict) else default
     |
 
-src/nyord_vpn/network/server.py:111:60: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `default`
+src/nyord_vpn/network/server.py:119:60: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `default`
     |
-111 | def _safe_get(d: dict[str, Any] | None, key: str, default: Any = None) -> Any:
+119 | def _safe_get(d: dict[str, Any] | None, key: str, default: Any = None) -> Any:
     |                                                            ^^^ ANN401
-112 |     """Safely get a value from a dictionary that might be None."""
-113 |     if d is None:
+120 |     """Safely get a value from a dictionary that might be None."""
+121 |     if d is None:
     |
 
-src/nyord_vpn/network/server.py:111:75: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_get`
+src/nyord_vpn/network/server.py:119:75: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_get`
     |
-111 | def _safe_get(d: dict[str, Any] | None, key: str, default: Any = None) -> Any:
+119 | def _safe_get(d: dict[str, Any] | None, key: str, default: Any = None) -> Any:
     |                                                                           ^^^ ANN401
-112 |     """Safely get a value from a dictionary that might be None."""
-113 |     if d is None:
+120 |     """Safely get a value from a dictionary that might be None."""
+121 |     if d is None:
     |
 
-src/nyord_vpn/network/server.py:118:53: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `default`
+src/nyord_vpn/network/server.py:126:53: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `default`
     |
-118 | def _safe_str_get(s: str | None, key: str, default: Any = None) -> Any:
+126 | def _safe_str_get(s: str | None, key: str, default: Any = None) -> Any:
     |                                                     ^^^ ANN401
-119 |     """Safely get a value from a string that might be None."""
-120 |     if s is None:
+127 |     """Safely get a value from a string that might be None."""
+128 |     if s is None:
     |
 
-src/nyord_vpn/network/server.py:118:68: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_str_get`
+src/nyord_vpn/network/server.py:126:68: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_str_get`
     |
-118 | def _safe_str_get(s: str | None, key: str, default: Any = None) -> Any:
+126 | def _safe_str_get(s: str | None, key: str, default: Any = None) -> Any:
     |                                                                    ^^^ ANN401
-119 |     """Safely get a value from a string that might be None."""
-120 |     if s is None:
+127 |     """Safely get a value from a string that might be None."""
+128 |     if s is None:
     |
 
-src/nyord_vpn/network/server.py:128:55: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_dict_access`
+src/nyord_vpn/network/server.py:136:55: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `_safe_dict_access`
     |
-128 | def _safe_dict_access(d: dict[str, Any], key: str) -> Any:
+136 | def _safe_dict_access(d: dict[str, Any], key: str) -> Any:
     |                                                       ^^^ ANN401
-129 |     """Safely access a dictionary key that must exist."""
-130 |     if not isinstance(d, dict) or key not in d:
+137 |     """Safely access a dictionary key that must exist."""
+138 |     if not isinstance(d, dict) or key not in d:
     |
 
-src/nyord_vpn/network/server.py:131:15: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:139:15: TRY003 Avoid specifying long messages outside the exception class
     |
-129 |     """Safely access a dictionary key that must exist."""
-130 |     if not isinstance(d, dict) or key not in d:
-131 |         raise KeyError(f"Required key {key} not found in dictionary")
+137 |     """Safely access a dictionary key that must exist."""
+138 |     if not isinstance(d, dict) or key not in d:
+139 |         raise KeyError(f"Required key {key} not found in dictionary")
     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-132 |     return d[key]
+140 |     return d[key]
     |
 
-src/nyord_vpn/network/server.py:135:24: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `d`
+src/nyord_vpn/network/server.py:143:24: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `d`
     |
-135 | def _safe_dict_cast(d: Any) -> dict[str, Any]:
+143 | def _safe_dict_cast(d: Any) -> dict[str, Any]:
     |                        ^^^ ANN401
-136 |     """Cast a value to a dictionary if possible."""
-137 |     if not isinstance(d, dict):
+144 |     """Cast a value to a dictionary if possible."""
+145 |     if not isinstance(d, dict):
     |
 
-src/nyord_vpn/network/server.py:203:33: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `timestamp`
+src/nyord_vpn/network/server.py:211:33: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `timestamp`
     |
-203 | def _parse_timestamp(timestamp: Any) -> float:
+211 | def _parse_timestamp(timestamp: Any) -> float:
     |                                 ^^^ ANN401
-204 |     """Parse a timestamp value into a float.
+212 |     """Parse a timestamp value into a float.
     |
 
-src/nyord_vpn/network/server.py:254:9: TRY300 Consider moving this statement to an `else` block
+src/nyord_vpn/network/server.py:264:9: TRY300 Consider moving this statement to an `else` block
     |
-252 |         }
-253 |
-254 |         return cache_data
+262 |         }
+263 |
+264 |         return cache_data
     |         ^^^^^^^^^^^^^^^^^ TRY300
-255 |
-256 |     except (OSError, json.JSONDecodeError) as e:
+265 |
+266 |     except (OSError, json.JSONDecodeError) as e:
     |
 
-src/nyord_vpn/network/server.py:329:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:339:19: TRY003 Avoid specifying long messages outside the exception class
     |
-327 |         normalized = country_code.upper()
-328 |         if not isinstance(normalized, str) or len(normalized) != 2:
-329 |             raise ServerError(f"Invalid country code format: {country_code}")
+337 |         normalized = country_code.upper()
+338 |         if not isinstance(normalized, str) or len(normalized) != 2:
+339 |             raise ServerError(f"Invalid country code format: {country_code}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-330 |
-331 |         # Get servers from the new API
+340 |
+341 |         # Get servers from the new API
     |
 
-src/nyord_vpn/network/server.py:347:13: TRY301 Abstract `raise` to an inner function
+src/nyord_vpn/network/server.py:359:13: TRY301 Abstract `raise` to an inner function
     |
-345 |               })
-346 |
-347 | /             raise ServerError(
-348 | |                 f"Country code not found: {normalized}. "
-349 | |                 f"Available countries: {', '.join(available_countries)}"
-350 | |             )
+357 |               )
+358 |
+359 | /             raise ServerError(
+360 | |                 f"Country code not found: {normalized}. "
+361 | |                 f"Available countries: {', '.join(available_countries)}"
+362 | |             )
     | |_____________^ TRY301
-351 |
-352 |           except Exception:
+363 |
+364 |           except Exception:
     |
 
-src/nyord_vpn/network/server.py:347:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:359:19: TRY003 Avoid specifying long messages outside the exception class
     |
-345 |               })
-346 |
-347 |               raise ServerError(
+357 |               )
+358 |
+359 |               raise ServerError(
     |  ___________________^
-348 | |                 f"Country code not found: {normalized}. "
-349 | |                 f"Available countries: {', '.join(available_countries)}"
-350 | |             )
+360 | |                 f"Country code not found: {normalized}. "
+361 | |                 f"Available countries: {', '.join(available_countries)}"
+362 | |             )
     | |_____________^ TRY003
-351 |
-352 |           except Exception:
+363 |
+364 |           except Exception:
     |
 
-src/nyord_vpn/network/server.py:356:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+src/nyord_vpn/network/server.py:368:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
     |
-354 |             cache = self.get_servers_cache()
-355 |             if not cache:
-356 |                 raise ServerError("No server information available")
+366 |             cache = self.get_servers_cache()
+367 |             if not cache:
+368 |                 raise ServerError("No server information available")
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-357 |
-358 |             for location in cache["locations"].values():
+369 |
+370 |             for location in cache["locations"].values():
     |
 
-src/nyord_vpn/network/server.py:356:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:368:23: TRY003 Avoid specifying long messages outside the exception class
     |
-354 |             cache = self.get_servers_cache()
-355 |             if not cache:
-356 |                 raise ServerError("No server information available")
+366 |             cache = self.get_servers_cache()
+367 |             if not cache:
+368 |                 raise ServerError("No server information available")
     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-357 |
-358 |             for location in cache["locations"].values():
+369 |
+370 |             for location in cache["locations"].values():
     |
 
-src/nyord_vpn/network/server.py:371:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+src/nyord_vpn/network/server.py:383:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
     |
-369 |               )
-370 |
-371 | /             raise ServerError(
-372 | |                 f"Country code not found: {normalized}. "
-373 | |                 f"Available countries: {', '.join(available_countries)}"
-374 | |             )
+381 |               )
+382 |
+383 | /             raise ServerError(
+384 | |                 f"Country code not found: {normalized}. "
+385 | |                 f"Available countries: {', '.join(available_countries)}"
+386 | |             )
     | |_____________^ B904
-375 |
-376 |       def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
+387 |
+388 |       def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
     |
 
-src/nyord_vpn/network/server.py:371:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:383:19: TRY003 Avoid specifying long messages outside the exception class
     |
-369 |               )
-370 |
-371 |               raise ServerError(
+381 |               )
+382 |
+383 |               raise ServerError(
     |  ___________________^
-372 | |                 f"Country code not found: {normalized}. "
-373 | |                 f"Available countries: {', '.join(available_countries)}"
-374 | |             )
+384 | |                 f"Country code not found: {normalized}. "
+385 | |                 f"Available countries: {', '.join(available_countries)}"
+386 | |             )
     | |_____________^ TRY003
-375 |
-376 |       def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
+387 |
+388 |       def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
     |
 
-src/nyord_vpn/network/server.py:412:17: TRY301 Abstract `raise` to an inner function
+src/nyord_vpn/network/server.py:424:17: TRY301 Abstract `raise` to an inner function
     |
-410 |             hostname = getattr(best_server, "hostname", None)
-411 |             if not hostname:
-412 |                 raise ServerError("Best server has no hostname")
+422 |             hostname = getattr(best_server, "hostname", None)
+423 |             if not hostname:
+424 |                 raise ServerError("Best server has no hostname")
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
-413 |
-414 |             # Extract station (if available)
+425 |
+426 |             # Extract station (if available)
     |
 
-src/nyord_vpn/network/server.py:412:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:424:23: TRY003 Avoid specifying long messages outside the exception class
     |
-410 |             hostname = getattr(best_server, "hostname", None)
-411 |             if not hostname:
-412 |                 raise ServerError("Best server has no hostname")
+422 |             hostname = getattr(best_server, "hostname", None)
+423 |             if not hostname:
+424 |                 raise ServerError("Best server has no hostname")
     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-413 |
-414 |             # Extract station (if available)
+425 |
+426 |             # Extract station (if available)
     |
 
-src/nyord_vpn/network/server.py:417:13: TRY300 Consider moving this statement to an `else` block
+src/nyord_vpn/network/server.py:429:13: TRY300 Consider moving this statement to an `else` block
     |
-415 |             station = getattr(best_server, "station", "")
-416 |
-417 |             return hostname, station
+427 |             station = getattr(best_server, "station", "")
+428 |
+429 |             return hostname, station
     |             ^^^^^^^^^^^^^^^^^^^^^^^^ TRY300
-418 |
-419 |         except Exception as e:
+430 |
+431 |         except Exception as e:
     |
 
-src/nyord_vpn/network/server.py:422:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+src/nyord_vpn/network/server.py:434:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
     |
-420 |             if isinstance(e, ServerError):
-421 |                 raise
-422 |             raise ServerError(f"Failed to fetch server information: {e}")
+432 |             if isinstance(e, ServerError):
+433 |                 raise
+434 |             raise ServerError(f"Failed to fetch server information: {e}")
     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-423 |
-424 |     def get_servers_cache(self) -> ServerCache | None:
+435 |
+436 |     def get_servers_cache(self) -> ServerCache | None:
     |
 
-src/nyord_vpn/network/server.py:422:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:434:19: TRY003 Avoid specifying long messages outside the exception class
     |
-420 |             if isinstance(e, ServerError):
-421 |                 raise
-422 |             raise ServerError(f"Failed to fetch server information: {e}")
+432 |             if isinstance(e, ServerError):
+433 |                 raise
+434 |             raise ServerError(f"Failed to fetch server information: {e}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-423 |
-424 |     def get_servers_cache(self) -> ServerCache | None:
+435 |
+436 |     def get_servers_cache(self) -> ServerCache | None:
     |
 
-src/nyord_vpn/network/server.py:424:9: C901 `get_servers_cache` is too complex (22 > 10)
+src/nyord_vpn/network/server.py:436:9: C901 `get_servers_cache` is too complex (22 > 10)
     |
-422 |             raise ServerError(f"Failed to fetch server information: {e}")
-423 |
-424 |     def get_servers_cache(self) -> ServerCache | None:
+434 |             raise ServerError(f"Failed to fetch server information: {e}")
+435 |
+436 |     def get_servers_cache(self) -> ServerCache | None:
     |         ^^^^^^^^^^^^^^^^^ C901
-425 |         """Get server information from cache or API.
+437 |         """Get server information from cache or API.
     |
 
-src/nyord_vpn/network/server.py:424:9: PLR0912 Too many branches (21 > 12)
+src/nyord_vpn/network/server.py:436:9: PLR0912 Too many branches (21 > 12)
     |
-422 |             raise ServerError(f"Failed to fetch server information: {e}")
-423 |
-424 |     def get_servers_cache(self) -> ServerCache | None:
+434 |             raise ServerError(f"Failed to fetch server information: {e}")
+435 |
+436 |     def get_servers_cache(self) -> ServerCache | None:
     |         ^^^^^^^^^^^^^^^^^ PLR0912
-425 |         """Get server information from cache or API.
+437 |         """Get server information from cache or API.
     |
 
-src/nyord_vpn/network/server.py:424:9: PLR0915 Too many statements (65 > 50)
+src/nyord_vpn/network/server.py:436:9: PLR0915 Too many statements (65 > 50)
     |
-422 |             raise ServerError(f"Failed to fetch server information: {e}")
-423 |
-424 |     def get_servers_cache(self) -> ServerCache | None:
+434 |             raise ServerError(f"Failed to fetch server information: {e}")
+435 |
+436 |     def get_servers_cache(self) -> ServerCache | None:
     |         ^^^^^^^^^^^^^^^^^ PLR0915
-425 |         """Get server information from cache or API.
+437 |         """Get server information from cache or API.
     |
 
-src/nyord_vpn/network/server.py:501:17: TRY300 Consider moving this statement to an `else` block
+src/nyord_vpn/network/server.py:520:17: TRY300 Consider moving this statement to an `else` block
     |
-499 |                 cache_servers(cast(dict[str, Any], new_cache))
-500 |
-501 |                 return new_cache
+518 |                 cache_servers(cast(dict[str, Any], new_cache))
+519 |
+520 |                 return new_cache
     |                 ^^^^^^^^^^^^^^^^ TRY300
-502 |
-503 |             except Exception as e:
+521 |
+522 |             except Exception as e:
     |
 
-src/nyord_vpn/network/server.py:595:9: C901 `_ping_server` is too complex (22 > 10)
+src/nyord_vpn/network/server.py:660:9: C901 `_ping_server` is too complex (23 > 10)
     |
-593 |             return None
-594 |
-595 |     def _ping_server(self, hostname: str) -> float:
+658 |         return True
+659 |
+660 |     def _ping_server(self, hostname: str) -> float:
     |         ^^^^^^^^^^^^ C901
-596 |         """Ping a server and return response time in ms.
+661 |         """Ping a server and return response time in ms.
     |
 
-src/nyord_vpn/network/server.py:595:9: PLR0912 Too many branches (22 > 12)
+src/nyord_vpn/network/server.py:660:9: PLR0911 Too many return statements (7 > 6)
     |
-593 |             return None
-594 |
-595 |     def _ping_server(self, hostname: str) -> float:
+658 |         return True
+659 |
+660 |     def _ping_server(self, hostname: str) -> float:
+    |         ^^^^^^^^^^^^ PLR0911
+661 |         """Ping a server and return response time in ms.
+    |
+
+src/nyord_vpn/network/server.py:660:9: PLR0912 Too many branches (23 > 12)
+    |
+658 |         return True
+659 |
+660 |     def _ping_server(self, hostname: str) -> float:
     |         ^^^^^^^^^^^^ PLR0912
-596 |         """Ping a server and return response time in ms.
+661 |         """Ping a server and return response time in ms.
     |
 
-src/nyord_vpn/network/server.py:627:22: S603 `subprocess` call: check for execution of untrusted input
+src/nyord_vpn/network/server.py:660:9: PLR0915 Too many statements (52 > 50)
     |
-626 |             # Execute the command securely
-627 |             result = subprocess.run(
+658 |         return True
+659 |
+660 |     def _ping_server(self, hostname: str) -> float:
+    |         ^^^^^^^^^^^^ PLR0915
+661 |         """Ping a server and return response time in ms.
+    |
+
+src/nyord_vpn/network/server.py:702:22: S603 `subprocess` call: check for execution of untrusted input
+    |
+701 |             # Execute the command securely with resource limitations
+702 |             result = subprocess.run(
     |                      ^^^^^^^^^^^^^^ S603
-628 |                 cmd,
-629 |                 capture_output=True,
+703 |                 cmd,
+704 |                 capture_output=True,
     |
 
-src/nyord_vpn/network/server.py:652:29: TRY300 Consider moving this statement to an `else` block
+src/nyord_vpn/network/server.py:728:29: TRY300 Consider moving this statement to an `else` block
     |
-650 |                                     f"Parsed min time from stats: {min_time}ms",
-651 |                                 )
-652 |                             return min_time
+726 |                                     f"Parsed min time from stats: {min_time}ms",
+727 |                                 )
+728 |                             return min_time
     |                             ^^^^^^^^^^^^^^^ TRY300
-653 |                         except (IndexError, ValueError) as e:
-654 |                             if self.verbose:
+729 |                         except (IndexError, ValueError) as e:
+730 |                             if self.verbose:
     |
 
-src/nyord_vpn/network/server.py:716:40: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `server`
+src/nyord_vpn/network/server.py:777:40: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `server`
     |
-714 |         return bool(re.match(r"^[a-zA-Z0-9][a-zA-Z0-9\.-]{1,253}[a-zA-Z0-9]$", hostname))
-715 |
-716 |     def _is_valid_server(self, server: Any) -> bool:
+775 |             return float("inf")
+776 |
+777 |     def _is_valid_server(self, server: Any) -> bool:
     |                                        ^^^ ANN401
-717 |         """Check if a server is valid and usable.
+778 |         """Check if a server is valid and usable.
     |
 
-src/nyord_vpn/network/server.py:841:9: C901 `select_fastest_server` is too complex (17 > 10)
+src/nyord_vpn/network/server.py:812:36: ANN401 Dynamically typed expressions (typing.Any) are disallowed in `server`
     |
-839 |         return result
-840 |
-841 |     def select_fastest_server(
+810 |         return status == "online"
+811 |
+812 |     def _test_server(self, server: Any) -> tuple[Any, float]:
+    |                                    ^^^ ANN401
+813 |         """Test server response time and load.
+    |
+
+src/nyord_vpn/network/server.py:901:9: C901 `select_fastest_server` is too complex (17 > 10)
+    |
+899 |         return result
+900 |
+901 |     def select_fastest_server(
     |         ^^^^^^^^^^^^^^^^^^^^^ C901
-842 |         self, country_code: str | None = None
-843 |     ) -> list[dict[str, Any]]:
+902 |         self, country_code: str | None = None
+903 |     ) -> list[dict[str, Any]]:
     |
 
-src/nyord_vpn/network/server.py:841:9: PLR0912 Too many branches (16 > 12)
+src/nyord_vpn/network/server.py:901:9: PLR0912 Too many branches (16 > 12)
     |
-839 |         return result
-840 |
-841 |     def select_fastest_server(
+899 |         return result
+900 |
+901 |     def select_fastest_server(
     |         ^^^^^^^^^^^^^^^^^^^^^ PLR0912
-842 |         self, country_code: str | None = None
-843 |     ) -> list[dict[str, Any]]:
+902 |         self, country_code: str | None = None
+903 |     ) -> list[dict[str, Any]]:
     |
 
-src/nyord_vpn/network/server.py:881:17: TRY300 Consider moving this statement to an `else` block
+src/nyord_vpn/network/server.py:941:17: TRY300 Consider moving this statement to an `else` block
     |
-879 |                     server_dict["ping_time"] = ping_time
-880 |
-881 |                 return [server_dict]
+939 |                     server_dict["ping_time"] = ping_time
+940 |
+941 |                 return [server_dict]
     |                 ^^^^^^^^^^^^^^^^^^^^ TRY300
-882 |
-883 |             except Exception as e:
+942 |
+943 |             except Exception as e:
     |
 
-src/nyord_vpn/network/server.py:890:17: TRY301 Abstract `raise` to an inner function
+src/nyord_vpn/network/server.py:952:17: TRY301 Abstract `raise` to an inner function
     |
-888 |             cache = self.get_servers_cache()
-889 |             if not cache:
-890 |                 raise ServerError("No servers available")
+950 |             cache = self.get_servers_cache()
+951 |             if not cache:
+952 |                 raise ServerError("No servers available")
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
-891 |
-892 |             servers = cache["servers"]
+953 |
+954 |             servers = cache["servers"]
     |
 
-src/nyord_vpn/network/server.py:890:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:952:23: TRY003 Avoid specifying long messages outside the exception class
     |
-888 |             cache = self.get_servers_cache()
-889 |             if not cache:
-890 |                 raise ServerError("No servers available")
+950 |             cache = self.get_servers_cache()
+951 |             if not cache:
+952 |                 raise ServerError("No servers available")
     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-891 |
-892 |             servers = cache["servers"]
+953 |
+954 |             servers = cache["servers"]
     |
 
-src/nyord_vpn/network/server.py:896:17: TRY301 Abstract `raise` to an inner function
+src/nyord_vpn/network/server.py:958:17: TRY301 Abstract `raise` to an inner function
     |
-895 |             if not servers:
-896 |                 raise ServerError("No servers available")
+957 |             if not servers:
+958 |                 raise ServerError("No servers available")
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
-897 |
-898 |             # Create location lookup by ID
+959 |
+960 |             # Create location lookup by ID
     |
 
-src/nyord_vpn/network/server.py:896:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:958:23: TRY003 Avoid specifying long messages outside the exception class
     |
-895 |             if not servers:
-896 |                 raise ServerError("No servers available")
+957 |             if not servers:
+958 |                 raise ServerError("No servers available")
     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-897 |
-898 |             # Create location lookup by ID
+959 |
+960 |             # Create location lookup by ID
     |
 
-src/nyord_vpn/network/server.py:928:21: TRY301 Abstract `raise` to an inner function
+src/nyord_vpn/network/server.py:990:21: TRY301 Abstract `raise` to an inner function
     |
-926 |                           }
-927 |                       )
-928 | /                     raise ServerError(
-929 | |                         f"No servers available in {country_code}. "
-930 | |                         f"Available countries: {', '.join(available_countries)}"
-931 | |                     )
+988 |                           }
+989 |                       )
+990 | /                     raise ServerError(
+991 | |                         f"No servers available in {country_code}. "
+992 | |                         f"Available countries: {', '.join(available_countries)}"
+993 | |                     )
     | |_____________________^ TRY301
-932 |
-933 |               # Remove failed servers
+994 |
+995 |               # Remove failed servers
     |
 
-src/nyord_vpn/network/server.py:928:27: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:990:27: TRY003 Avoid specifying long messages outside the exception class
     |
-926 |                           }
-927 |                       )
-928 |                       raise ServerError(
+988 |                           }
+989 |                       )
+990 |                       raise ServerError(
     |  ___________________________^
-929 | |                         f"No servers available in {country_code}. "
-930 | |                         f"Available countries: {', '.join(available_countries)}"
-931 | |                     )
+991 | |                         f"No servers available in {country_code}. "
+992 | |                         f"Available countries: {', '.join(available_countries)}"
+993 | |                     )
     | |_____________________^ TRY003
-932 |
-933 |               # Remove failed servers
-    |
-
-src/nyord_vpn/network/server.py:961:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
-    |
-959 |             if isinstance(e, ServerError):
-960 |                 raise
-961 |             raise ServerError(f"Failed to select server: {e}")
-    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-962 |
-963 |     def get_country_info(self, country_code: str) -> dict[str, Any]:
-    |
-
-src/nyord_vpn/network/server.py:961:19: TRY003 Avoid specifying long messages outside the exception class
-    |
-959 |             if isinstance(e, ServerError):
-960 |                 raise
-961 |             raise ServerError(f"Failed to select server: {e}")
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-962 |
-963 |     def get_country_info(self, country_code: str) -> dict[str, Any]:
-    |
-
-src/nyord_vpn/network/server.py:979:19: TRY003 Avoid specifying long messages outside the exception class
-    |
-977 |         normalized_code = self._validate_country_code(country_code)
-978 |         if not normalized_code:
-979 |             raise ServerError(f"Invalid country code: {country_code}")
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-980 |
-981 |         # Try to use the new API first
-    |
-
-src/nyord_vpn/network/server.py:995:13: TRY301 Abstract `raise` to an inner function
-    |
-993 |                     }
 994 |
-995 |             raise ServerError(f"Country not found: {normalized_code}")
-    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
-996 |
-997 |         except Exception as e:
+995 |               # Remove failed servers
     |
 
-src/nyord_vpn/network/server.py:995:19: TRY003 Avoid specifying long messages outside the exception class
-    |
-993 |                     }
-994 |
-995 |             raise ServerError(f"Country not found: {normalized_code}")
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-996 |
-997 |         except Exception as e:
-    |
-
-src/nyord_vpn/network/server.py:1006:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+src/nyord_vpn/network/server.py:1023:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
      |
-1004 |             cache = self.get_servers_cache()
-1005 |             if not cache:
-1006 |                 raise ServerError("No server information available")
-     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-1007 |
-1008 |             # Find the country in locations
+1021 |             if isinstance(e, ServerError):
+1022 |                 raise
+1023 |             raise ServerError(f"Failed to select server: {e}")
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+1024 |
+1025 |     def get_country_info(self, country_code: str) -> dict[str, Any]:
      |
 
-src/nyord_vpn/network/server.py:1006:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:1023:19: TRY003 Avoid specifying long messages outside the exception class
      |
-1004 |             cache = self.get_servers_cache()
-1005 |             if not cache:
-1006 |                 raise ServerError("No server information available")
-     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-1007 |
-1008 |             # Find the country in locations
-     |
-
-src/nyord_vpn/network/server.py:1013:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
-     |
-1011 |                     return loc["country"]
-1012 |
-1013 |             raise ServerError(f"Country not found: {normalized_code}")
-     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-1014 |
-1015 |     def get_random_country(self) -> str:
+1021 |             if isinstance(e, ServerError):
+1022 |                 raise
+1023 |             raise ServerError(f"Failed to select server: {e}")
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
+1024 |
+1025 |     def get_country_info(self, country_code: str) -> dict[str, Any]:
      |
 
-src/nyord_vpn/network/server.py:1013:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:1041:19: TRY003 Avoid specifying long messages outside the exception class
      |
-1011 |                     return loc["country"]
-1012 |
-1013 |             raise ServerError(f"Country not found: {normalized_code}")
+1039 |         normalized_code = self._validate_country_code(country_code)
+1040 |         if not normalized_code:
+1041 |             raise ServerError(f"Invalid country code: {country_code}")
      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-1014 |
-1015 |     def get_random_country(self) -> str:
+1042 |
+1043 |         # Try to use the new API first
      |
 
-src/nyord_vpn/network/server.py:1038:17: TRY301 Abstract `raise` to an inner function
+src/nyord_vpn/network/server.py:1060:13: TRY301 Abstract `raise` to an inner function
      |
-1037 |             if not country_codes:
-1038 |                 raise ServerError("No countries available")
-     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
-1039 |
-1040 |             # Select a random country using cryptographically secure random
-     |
-
-src/nyord_vpn/network/server.py:1038:23: TRY003 Avoid specifying long messages outside the exception class
-     |
-1037 |             if not country_codes:
-1038 |                 raise ServerError("No countries available")
-     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-1039 |
-1040 |             # Select a random country using cryptographically secure random
+1058 |                     }
+1059 |
+1060 |             raise ServerError(f"Country not found: {normalized_code}")
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
+1061 |
+1062 |         except Exception as e:
      |
 
-src/nyord_vpn/network/server.py:1049:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+src/nyord_vpn/network/server.py:1060:19: TRY003 Avoid specifying long messages outside the exception class
      |
-1047 |             cache = self.get_servers_cache()
-1048 |             if not cache:
-1049 |                 raise ServerError("No server information available")
+1058 |                     }
+1059 |
+1060 |             raise ServerError(f"Country not found: {normalized_code}")
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
+1061 |
+1062 |         except Exception as e:
+     |
+
+src/nyord_vpn/network/server.py:1073:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+     |
+1071 |             cache = self.get_servers_cache()
+1072 |             if not cache:
+1073 |                 raise ServerError("No server information available")
      |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-1050 |
-1051 |             # Extract country codes
+1074 |
+1075 |             # Find the country in locations
      |
 
-src/nyord_vpn/network/server.py:1049:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:1073:23: TRY003 Avoid specifying long messages outside the exception class
      |
-1047 |             cache = self.get_servers_cache()
-1048 |             if not cache:
-1049 |                 raise ServerError("No server information available")
+1071 |             cache = self.get_servers_cache()
+1072 |             if not cache:
+1073 |                 raise ServerError("No server information available")
      |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-1050 |
-1051 |             # Extract country codes
+1074 |
+1075 |             # Find the country in locations
      |
 
-src/nyord_vpn/network/server.py:1059:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+src/nyord_vpn/network/server.py:1081:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
      |
-1058 |             if not country_codes:
-1059 |                 raise ServerError("No countries available")
-     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
-1060 |
-1061 |             # Select a random country using cryptographically secure random
+1079 |                 return country_dict
+1080 |
+1081 |             raise ServerError(f"Country not found: {normalized_code}")
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+1082 |
+1083 |     def get_random_country(self) -> str:
      |
 
-src/nyord_vpn/network/server.py:1059:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/server.py:1081:19: TRY003 Avoid specifying long messages outside the exception class
      |
-1058 |             if not country_codes:
-1059 |                 raise ServerError("No countries available")
+1079 |                 return country_dict
+1080 |
+1081 |             raise ServerError(f"Country not found: {normalized_code}")
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
+1082 |
+1083 |     def get_random_country(self) -> str:
+     |
+
+src/nyord_vpn/network/server.py:1106:17: TRY301 Abstract `raise` to an inner function
+     |
+1105 |             if not country_codes:
+1106 |                 raise ServerError("No countries available")
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY301
+1107 |
+1108 |             # Select a random country using cryptographically secure random
+     |
+
+src/nyord_vpn/network/server.py:1106:23: TRY003 Avoid specifying long messages outside the exception class
+     |
+1105 |             if not country_codes:
+1106 |                 raise ServerError("No countries available")
      |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-1060 |
-1061 |             # Select a random country using cryptographically secure random
+1107 |
+1108 |             # Select a random country using cryptographically secure random
+     |
+
+src/nyord_vpn/network/server.py:1119:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+     |
+1117 |             cache = self.get_servers_cache()
+1118 |             if not cache:
+1119 |                 raise ServerError("No server information available")
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+1120 |
+1121 |             # Extract country codes
+     |
+
+src/nyord_vpn/network/server.py:1119:23: TRY003 Avoid specifying long messages outside the exception class
+     |
+1117 |             cache = self.get_servers_cache()
+1118 |             if not cache:
+1119 |                 raise ServerError("No server information available")
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
+1120 |
+1121 |             # Extract country codes
+     |
+
+src/nyord_vpn/network/server.py:1131:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+     |
+1130 |             if not country_codes:
+1131 |                 raise ServerError("No countries available")
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+1132 |
+1133 |             # Select a random country using cryptographically secure random
+     |
+
+src/nyord_vpn/network/server.py:1131:23: TRY003 Avoid specifying long messages outside the exception class
+     |
+1130 |             if not country_codes:
+1131 |                 raise ServerError("No countries available")
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
+1132 |
+1133 |             # Select a random country using cryptographically secure random
      |
 
 src/nyord_vpn/network/vpn.py:75:1: F811 Redefinition of unused `OPENVPN_AUTH` from line 64
@@ -2746,95 +2730,95 @@ src/nyord_vpn/network/vpn.py:1196:19: TRY003 Avoid specifying long messages outs
      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
      |
 
-src/nyord_vpn/network/vpn_commands.py:163:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:169:19: TRY003 Avoid specifying long messages outside the exception class
     |
-161 |         # Check if config file exists
-162 |         if not self.config_path.exists():
-163 |             raise VPNConfigError(f"{CONFIG_FILE_NOT_FOUND}: {self.config_path}")
+167 |         # Check if config file exists
+168 |         if not self.config_path.exists():
+169 |             raise VPNConfigError(f"{CONFIG_FILE_NOT_FOUND}: {self.config_path}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-164 |
-165 |         # Check if auth file exists
+170 |
+171 |         # Check if auth file exists
     |
 
-src/nyord_vpn/network/vpn_commands.py:167:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:173:19: TRY003 Avoid specifying long messages outside the exception class
     |
-165 |         # Check if auth file exists
-166 |         if not self.auth_path.exists():
-167 |             raise VPNConfigError(f"{AUTH_FILE_NOT_FOUND}: {self.auth_path}")
+171 |         # Check if auth file exists
+172 |         if not self.auth_path.exists():
+173 |             raise VPNConfigError(f"{AUTH_FILE_NOT_FOUND}: {self.auth_path}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-168 |
-169 |         # Validate file permissions (should be readable)
+174 |
+175 |         # Validate file permissions (should be readable)
     |
 
-src/nyord_vpn/network/vpn_commands.py:174:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:180:19: TRY003 Avoid specifying long messages outside the exception class
     |
-172 |             self.auth_path.read_bytes()
-173 |         except (PermissionError, OSError) as e:
-174 |             raise VPNConfigError(f"{CANNOT_READ_FILES}: {e}") from e
+178 |             self.auth_path.read_bytes()
+179 |         except (PermissionError, OSError) as e:
+180 |             raise VPNConfigError(f"{CANNOT_READ_FILES}: {e}") from e
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-175 |
-176 |         # Create log directory if needed
+181 |
+182 |         # Create log directory if needed
     |
 
-src/nyord_vpn/network/vpn_commands.py:192:23: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:198:23: TRY003 Avoid specifying long messages outside the exception class
     |
-190 |         if isinstance(self.verbosity, int):
-191 |             if not 1 <= self.verbosity <= 6:
-192 |                 raise VPNConfigError(f"{INVALID_VERBOSITY}: {self.verbosity}")
+196 |         if isinstance(self.verbosity, int):
+197 |             if not 1 <= self.verbosity <= 6:
+198 |                 raise VPNConfigError(f"{INVALID_VERBOSITY}: {self.verbosity}")
     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-193 |             # Convert to enum for consistent handling
-194 |             with contextlib.suppress(ValueError):
+199 |             # Convert to enum for consistent handling
+200 |             with contextlib.suppress(ValueError):
     |
 
-src/nyord_vpn/network/vpn_commands.py:208:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:214:19: TRY003 Avoid specifying long messages outside the exception class
     |
-206 |         # Connect retry should be positive
-207 |         if self.connect_retry < 1:
-208 |             raise VPNConfigError(f"{INVALID_CONNECT_RETRY}: {self.connect_retry}")
+212 |         # Connect retry should be positive
+213 |         if self.connect_retry < 1:
+214 |             raise VPNConfigError(f"{INVALID_CONNECT_RETRY}: {self.connect_retry}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-209 |
-210 |         # Connect timeout should be positive
+215 |
+216 |         # Connect timeout should be positive
     |
 
-src/nyord_vpn/network/vpn_commands.py:212:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:218:19: TRY003 Avoid specifying long messages outside the exception class
     |
-210 |         # Connect timeout should be positive
-211 |         if self.connect_timeout < 1:
-212 |             raise VPNConfigError(f"{INVALID_CONNECT_TIMEOUT}: {self.connect_timeout}")
+216 |         # Connect timeout should be positive
+217 |         if self.connect_timeout < 1:
+218 |             raise VPNConfigError(f"{INVALID_CONNECT_TIMEOUT}: {self.connect_timeout}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-213 |
-214 |         # Ping interval should be positive
+219 |
+220 |         # Ping interval should be positive
     |
 
-src/nyord_vpn/network/vpn_commands.py:216:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:222:19: TRY003 Avoid specifying long messages outside the exception class
     |
-214 |         # Ping interval should be positive
-215 |         if self.ping_interval < 1:
-216 |             raise VPNConfigError(f"{INVALID_PING_INTERVAL}: {self.ping_interval}")
+220 |         # Ping interval should be positive
+221 |         if self.ping_interval < 1:
+222 |             raise VPNConfigError(f"{INVALID_PING_INTERVAL}: {self.ping_interval}")
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-217 |
-218 |         # Ping restart should be greater than ping interval
+223 |
+224 |         # Ping restart should be greater than ping interval
     |
 
-src/nyord_vpn/network/vpn_commands.py:220:19: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:226:19: TRY003 Avoid specifying long messages outside the exception class
     |
-218 |           # Ping restart should be greater than ping interval
-219 |           if self.ping_restart <= self.ping_interval:
-220 |               raise VPNConfigError(
+224 |           # Ping restart should be greater than ping interval
+225 |           if self.ping_restart <= self.ping_interval:
+226 |               raise VPNConfigError(
     |  ___________________^
-221 | |                 f"{INVALID_PING_RESTART}: {self.ping_restart} (ping_interval: {self.ping_interval})"
-222 | |             )
+227 | |                 f"{INVALID_PING_RESTART}: {self.ping_restart} (ping_interval: {self.ping_interval})"
+228 | |             )
     | |_____________^ TRY003
     |
 
-src/nyord_vpn/network/vpn_commands.py:244:15: TRY003 Avoid specifying long messages outside the exception class
+src/nyord_vpn/network/vpn_commands.py:250:15: TRY003 Avoid specifying long messages outside the exception class
     |
-242 |     # Check if openvpn is installed
-243 |     if not shutil.which("openvpn"):
-244 |         raise VPNConfigError(f"{OPENVPN_NOT_FOUND}. Please install OpenVPN first.")
+248 |     # Check if openvpn is installed
+249 |     if not shutil.which("openvpn"):
+250 |         raise VPNConfigError(f"{OPENVPN_NOT_FOUND}. Please install OpenVPN first.")
     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRY003
-245 |
-246 |     # Base command with common options
+251 |
+252 |     # Base command with common options
     |
 
 src/nyord_vpn/storage/state.py:1:1: D100 Missing docstring in public module
@@ -4425,7 +4409,7 @@ tests/test_server_manager.py:17:5: ANN201 Missing return type annotation for pub
 17 | def mock_api_client():
    |     ^^^^^^^^^^^^^^^ ANN201
 18 |     """Create a mock API client."""
-19 |     client = MagicMock(spec=NordVPNAPIClient)
+19 |     client = MagicMock(spec=NordVPNAPI)
    |
    = help: Add return type annotation
 
@@ -4660,20 +4644,20 @@ tests/test_v1_groups.py:92:29: ANN001 Missing type annotation for function argum
 94 |     with patch("requests.get") as mock_get:
    |
 
-tests/test_v1_groups.py:118:34: ANN001 Missing type annotation for function argument `sample_groups`
+tests/test_v1_groups.py:123:34: ANN001 Missing type annotation for function argument `sample_groups`
     |
-118 | def test_get_group_by_identifier(sample_groups) -> None:
+123 | def test_get_group_by_identifier(sample_groups) -> None:
     |                                  ^^^^^^^^^^^^^ ANN001
-119 |     """Test finding a group by its identifier."""
-120 |     with patch("requests.get") as mock_get:
+124 |     """Test finding a group by its identifier."""
+125 |     with patch("requests.get") as mock_get:
     |
 
-tests/test_v1_groups.py:139:28: PT011 `pytest.raises(ValueError)` is too broad, set the `match` parameter or use a more specific exception
+tests/test_v1_groups.py:144:28: PT011 `pytest.raises(ValueError)` is too broad, set the `match` parameter or use a more specific exception
     |
-138 |         # Test non-existent group
-139 |         with pytest.raises(ValueError):
+143 |         # Test non-existent group
+144 |         with pytest.raises(ValueError):
     |                            ^^^^^^^^^^ PT011
-140 |             get_group_by_identifier(groups, "unknown")
+145 |             get_group_by_identifier(groups, "unknown")
     |
 
 tests/test_v1_recommendations.py:33:20: ANN001 Missing type annotation for function argument `sample_city`
@@ -4694,64 +4678,68 @@ tests/test_v1_recommendations.py:44:21: ANN001 Missing type annotation for funct
 46 |     return {
    |
 
-tests/test_v1_recommendations.py:107:19: ANN001 Missing type annotation for function argument `sample_location`
+tests/test_v1_recommendations.py:108:5: ANN001 Missing type annotation for function argument `sample_location`
     |
 106 | @pytest.fixture
-107 | def sample_server(sample_location, sample_group, sample_service, sample_technology) -> dict:
-    |                   ^^^^^^^^^^^^^^^ ANN001
-108 |     """Create a sample server for testing."""
-109 |     return {
+107 | def sample_server(
+108 |     sample_location, sample_group, sample_service, sample_technology
+    |     ^^^^^^^^^^^^^^^ ANN001
+109 | ) -> dict:
+110 |     """Create a sample server for testing."""
     |
 
-tests/test_v1_recommendations.py:107:36: ANN001 Missing type annotation for function argument `sample_group`
+tests/test_v1_recommendations.py:108:22: ANN001 Missing type annotation for function argument `sample_group`
     |
 106 | @pytest.fixture
-107 | def sample_server(sample_location, sample_group, sample_service, sample_technology) -> dict:
-    |                                    ^^^^^^^^^^^^ ANN001
-108 |     """Create a sample server for testing."""
-109 |     return {
+107 | def sample_server(
+108 |     sample_location, sample_group, sample_service, sample_technology
+    |                      ^^^^^^^^^^^^ ANN001
+109 | ) -> dict:
+110 |     """Create a sample server for testing."""
     |
 
-tests/test_v1_recommendations.py:107:50: ANN001 Missing type annotation for function argument `sample_service`
+tests/test_v1_recommendations.py:108:36: ANN001 Missing type annotation for function argument `sample_service`
     |
 106 | @pytest.fixture
-107 | def sample_server(sample_location, sample_group, sample_service, sample_technology) -> dict:
-    |                                                  ^^^^^^^^^^^^^^ ANN001
-108 |     """Create a sample server for testing."""
-109 |     return {
+107 | def sample_server(
+108 |     sample_location, sample_group, sample_service, sample_technology
+    |                                    ^^^^^^^^^^^^^^ ANN001
+109 | ) -> dict:
+110 |     """Create a sample server for testing."""
     |
 
-tests/test_v1_recommendations.py:107:66: ANN001 Missing type annotation for function argument `sample_technology`
+tests/test_v1_recommendations.py:108:52: ANN001 Missing type annotation for function argument `sample_technology`
     |
 106 | @pytest.fixture
-107 | def sample_server(sample_location, sample_group, sample_service, sample_technology) -> dict:
-    |                                                                  ^^^^^^^^^^^^^^^^^ ANN001
-108 |     """Create a sample server for testing."""
-109 |     return {
+107 | def sample_server(
+108 |     sample_location, sample_group, sample_service, sample_technology
+    |                                                    ^^^^^^^^^^^^^^^^^ ANN001
+109 | ) -> dict:
+110 |     """Create a sample server for testing."""
     |
 
-tests/test_v1_recommendations.py:128:32: ANN001 Missing type annotation for function argument `sample_server`
+tests/test_v1_recommendations.py:130:32: ANN001 Missing type annotation for function argument `sample_server`
     |
-128 | def test_fetch_recommendations(sample_server) -> None:
+130 | def test_fetch_recommendations(sample_server) -> None:
     |                                ^^^^^^^^^^^^^ ANN001
-129 |     """Test fetching server recommendations from the API."""
-130 |     with patch("requests.get") as mock_get:
+131 |     """Test fetching server recommendations from the API."""
+132 |     with patch("requests.get") as mock_get:
     |
 
-tests/test_v1_recommendations.py:151:41: ANN001 Missing type annotation for function argument `sample_server`
+tests/test_v1_recommendations.py:153:41: ANN001 Missing type annotation for function argument `sample_server`
     |
-151 | def test_get_recommendations_by_country(sample_server) -> None:
+153 | def test_get_recommendations_by_country(sample_server) -> None:
     |                                         ^^^^^^^^^^^^^ ANN001
-152 |     """Test filtering recommendations by country code."""
-153 |     with patch("requests.get") as mock_get:
+154 |     """Test filtering recommendations by country code."""
+155 |     with patch("requests.get") as mock_get:
     |
 
-tests/test_v1_recommendations.py:175:39: ANN001 Missing type annotation for function argument `sample_server`
+tests/test_v1_recommendations.py:177:39: ANN001 Missing type annotation for function argument `sample_server`
     |
-175 | def test_get_recommendations_by_group(sample_server) -> None:
+177 | def test_get_recommendations_by_group(sample_server) -> None:
     |                                       ^^^^^^^^^^^^^ ANN001
-176 |     """Test filtering recommendations by group identifier."""
-177 |     with patch("requests.get") as mock_get:
+178 |     """Test filtering recommendations by group identifier."""
+179 |     with patch("requests.get") as mock_get:
     |
 
 tests/test_v1_technologies.py:32:25: ANN001 Missing type annotation for function argument `sample_technology`
@@ -4787,208 +4775,207 @@ tests/test_v1_technologies.py:95:28: PT011 `pytest.raises(ValueError)` is too br
 96 |             get_technology_by_identifier(technologies, "unknown")
    |
 
-tests/test_v2_servers.py:58:22: ANN001 Missing type annotation for function argument `sample_ip`
+tests/test_v2_servers.py:46:22: ANN001 Missing type annotation for function argument `sample_ip`
    |
-57 | @pytest.fixture
-58 | def sample_server_ip(sample_ip) -> dict:
+45 | @pytest.fixture
+46 | def sample_server_ip(sample_ip) -> dict:
    |                      ^^^^^^^^^ ANN001
-59 |     """Create a sample server IP for testing."""
-60 |     return {
+47 |     """Create a sample server IP for testing."""
+48 |     return {
    |
 
-tests/test_v2_servers.py:81:26: ANN001 Missing type annotation for function argument `sample_specification_value`
+tests/test_v2_servers.py:66:26: ANN001 Missing type annotation for function argument `sample_specification_value`
    |
-80 | @pytest.fixture
-81 | def sample_specification(sample_specification_value) -> dict:
+65 | @pytest.fixture
+66 | def sample_specification(sample_specification_value) -> dict:
    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^ ANN001
-82 |     """Create a sample specification for testing."""
-83 |     return {
+67 |     """Create a sample specification for testing."""
+68 |     return {
    |
 
-tests/test_v2_servers.py:104:18: ANN001 Missing type annotation for function argument `sample_group_type`
-    |
-103 | @pytest.fixture
-104 | def sample_group(sample_group_type) -> dict:
-    |                  ^^^^^^^^^^^^^^^^^ ANN001
-105 |     """Create a sample group for testing."""
-106 |     return {
-    |
+tests/test_v2_servers.py:89:18: ANN001 Missing type annotation for function argument `sample_group_type`
+   |
+88 | @pytest.fixture
+89 | def sample_group(sample_group_type) -> dict:
+   |                  ^^^^^^^^^^^^^^^^^ ANN001
+90 |     """Create a sample group for testing."""
+91 |     return {
+   |
 
-tests/test_v2_servers.py:142:20: ANN001 Missing type annotation for function argument `sample_city`
+tests/test_v2_servers.py:127:20: ANN001 Missing type annotation for function argument `sample_city`
     |
-141 | @pytest.fixture
-142 | def sample_country(sample_city) -> dict:
+126 | @pytest.fixture
+127 | def sample_country(sample_city) -> dict:
     |                    ^^^^^^^^^^^ ANN001
-143 |     """Create a sample country for testing."""
-144 |     return {
+128 |     """Create a sample country for testing."""
+129 |     return {"id": 1, "name": "United States", "code": "US", "city": sample_city}
     |
 
-tests/test_v2_servers.py:153:21: ANN001 Missing type annotation for function argument `sample_country`
+tests/test_v2_servers.py:133:21: ANN001 Missing type annotation for function argument `sample_country`
     |
-152 | @pytest.fixture
-153 | def sample_location(sample_country) -> dict:
+132 | @pytest.fixture
+133 | def sample_location(sample_country) -> dict:
     |                     ^^^^^^^^^^^^^^ ANN001
-154 |     """Create a sample location for testing."""
-155 |     return {
+134 |     """Create a sample location for testing."""
+135 |     return {
     |
 
-tests/test_v2_servers.py:166:5: PLR0913 Too many arguments in function definition (6 > 5)
+tests/test_v2_servers.py:146:5: PLR0913 Too many arguments in function definition (6 > 5)
     |
-165 | @pytest.fixture
-166 | def sample_server(
+145 | @pytest.fixture
+146 | def sample_server(
     |     ^^^^^^^^^^^^^ PLR0913
-167 |     sample_server_ip,
-168 |     sample_specification,
+147 |     sample_server_ip,
+148 |     sample_specification,
     |
 
-tests/test_v2_servers.py:167:5: ANN001 Missing type annotation for function argument `sample_server_ip`
+tests/test_v2_servers.py:147:5: ANN001 Missing type annotation for function argument `sample_server_ip`
     |
-165 | @pytest.fixture
-166 | def sample_server(
-167 |     sample_server_ip,
+145 | @pytest.fixture
+146 | def sample_server(
+147 |     sample_server_ip,
     |     ^^^^^^^^^^^^^^^^ ANN001
-168 |     sample_specification,
-169 |     sample_tech,
+148 |     sample_specification,
+149 |     sample_tech,
     |
 
-tests/test_v2_servers.py:168:5: ANN001 Missing type annotation for function argument `sample_specification`
+tests/test_v2_servers.py:148:5: ANN001 Missing type annotation for function argument `sample_specification`
     |
-166 | def sample_server(
-167 |     sample_server_ip,
-168 |     sample_specification,
+146 | def sample_server(
+147 |     sample_server_ip,
+148 |     sample_specification,
     |     ^^^^^^^^^^^^^^^^^^^^ ANN001
-169 |     sample_tech,
-170 |     sample_group,
+149 |     sample_tech,
+150 |     sample_group,
     |
 
-tests/test_v2_servers.py:169:5: ANN001 Missing type annotation for function argument `sample_tech`
+tests/test_v2_servers.py:149:5: ANN001 Missing type annotation for function argument `sample_tech`
     |
-167 |     sample_server_ip,
-168 |     sample_specification,
-169 |     sample_tech,
+147 |     sample_server_ip,
+148 |     sample_specification,
+149 |     sample_tech,
     |     ^^^^^^^^^^^ ANN001
-170 |     sample_group,
-171 |     sample_service,
+150 |     sample_group,
+151 |     sample_service,
     |
 
-tests/test_v2_servers.py:170:5: ANN001 Missing type annotation for function argument `sample_group`
+tests/test_v2_servers.py:150:5: ANN001 Missing type annotation for function argument `sample_group`
     |
-168 |     sample_specification,
-169 |     sample_tech,
-170 |     sample_group,
+148 |     sample_specification,
+149 |     sample_tech,
+150 |     sample_group,
     |     ^^^^^^^^^^^^ ANN001
-171 |     sample_service,
-172 |     sample_location,
+151 |     sample_service,
+152 |     sample_location,
     |
 
-tests/test_v2_servers.py:171:5: ANN001 Missing type annotation for function argument `sample_service`
+tests/test_v2_servers.py:151:5: ANN001 Missing type annotation for function argument `sample_service`
     |
-169 |     sample_tech,
-170 |     sample_group,
-171 |     sample_service,
+149 |     sample_tech,
+150 |     sample_group,
+151 |     sample_service,
     |     ^^^^^^^^^^^^^^ ANN001
-172 |     sample_location,
-173 | ) -> dict:
+152 |     sample_location,
+153 | ) -> dict:
     |
 
-tests/test_v2_servers.py:172:5: ANN001 Missing type annotation for function argument `sample_location`
+tests/test_v2_servers.py:152:5: ANN001 Missing type annotation for function argument `sample_location`
     |
-170 |     sample_group,
-171 |     sample_service,
-172 |     sample_location,
+150 |     sample_group,
+151 |     sample_service,
+152 |     sample_location,
     |     ^^^^^^^^^^^^^^^ ANN001
-173 | ) -> dict:
-174 |     """Create a sample server for testing."""
+153 | ) -> dict:
+154 |     """Create a sample server for testing."""
     |
 
-tests/test_v2_servers.py:196:5: ANN001 Missing type annotation for function argument `sample_server`
+tests/test_v2_servers.py:176:5: ANN001 Missing type annotation for function argument `sample_server`
     |
-194 | @pytest.fixture
-195 | def sample_api_response(
-196 |     sample_server,
+174 | @pytest.fixture
+175 | def sample_api_response(
+176 |     sample_server,
     |     ^^^^^^^^^^^^^ ANN001
-197 |     sample_group,
-198 |     sample_service,
+177 |     sample_group,
+178 |     sample_service,
     |
 
-tests/test_v2_servers.py:197:5: ANN001 Missing type annotation for function argument `sample_group`
+tests/test_v2_servers.py:177:5: ANN001 Missing type annotation for function argument `sample_group`
     |
-195 | def sample_api_response(
-196 |     sample_server,
-197 |     sample_group,
+175 | def sample_api_response(
+176 |     sample_server,
+177 |     sample_group,
     |     ^^^^^^^^^^^^ ANN001
-198 |     sample_service,
-199 |     sample_location,
+178 |     sample_service,
+179 |     sample_location,
     |
 
-tests/test_v2_servers.py:198:5: ANN001 Missing type annotation for function argument `sample_service`
+tests/test_v2_servers.py:178:5: ANN001 Missing type annotation for function argument `sample_service`
     |
-196 |     sample_server,
-197 |     sample_group,
-198 |     sample_service,
+176 |     sample_server,
+177 |     sample_group,
+178 |     sample_service,
     |     ^^^^^^^^^^^^^^ ANN001
-199 |     sample_location,
-200 |     sample_tech,
+179 |     sample_location,
+180 |     sample_tech,
     |
 
-tests/test_v2_servers.py:199:5: ANN001 Missing type annotation for function argument `sample_location`
+tests/test_v2_servers.py:179:5: ANN001 Missing type annotation for function argument `sample_location`
     |
-197 |     sample_group,
-198 |     sample_service,
-199 |     sample_location,
+177 |     sample_group,
+178 |     sample_service,
+179 |     sample_location,
     |     ^^^^^^^^^^^^^^^ ANN001
-200 |     sample_tech,
-201 | ) -> dict:
+180 |     sample_tech,
+181 | ) -> dict:
     |
 
-tests/test_v2_servers.py:200:5: ANN001 Missing type annotation for function argument `sample_tech`
+tests/test_v2_servers.py:180:5: ANN001 Missing type annotation for function argument `sample_tech`
     |
-198 |     sample_service,
-199 |     sample_location,
-200 |     sample_tech,
+178 |     sample_service,
+179 |     sample_location,
+180 |     sample_tech,
     |     ^^^^^^^^^^^ ANN001
-201 | ) -> dict:
-202 |     """Create a sample API response for testing."""
+181 | ) -> dict:
+182 |     """Create a sample API response for testing."""
     |
 
-tests/test_v2_servers.py:212:20: ANN001 Missing type annotation for function argument `sample_api_response`
+tests/test_v2_servers.py:192:20: ANN001 Missing type annotation for function argument `sample_api_response`
     |
-212 | def test_fetch_all(sample_api_response) -> None:
+192 | def test_fetch_all(sample_api_response) -> None:
     |                    ^^^^^^^^^^^^^^^^^^^ ANN001
-213 |     """Test fetching all server data from the API."""
-214 |     with patch("requests.get") as mock_get:
+193 |     """Test fetching all server data from the API."""
+194 |     with patch("requests.get") as mock_get:
     |
 
-tests/test_v2_servers.py:255:33: ANN001 Missing type annotation for function argument `sample_api_response`
+tests/test_v2_servers.py:235:33: ANN001 Missing type annotation for function argument `sample_api_response`
     |
-255 | def test_get_servers_by_country(sample_api_response) -> None:
+235 | def test_get_servers_by_country(sample_api_response) -> None:
     |                                 ^^^^^^^^^^^^^^^^^^^ ANN001
-256 |     """Test filtering servers by country code."""
-257 |     with patch("requests.get") as mock_get:
+236 |     """Test filtering servers by country code."""
+237 |     with patch("requests.get") as mock_get:
     |
 
-tests/test_v2_servers.py:279:31: ANN001 Missing type annotation for function argument `sample_api_response`
+tests/test_v2_servers.py:259:31: ANN001 Missing type annotation for function argument `sample_api_response`
     |
-279 | def test_get_servers_by_group(sample_api_response) -> None:
+259 | def test_get_servers_by_group(sample_api_response) -> None:
     |                               ^^^^^^^^^^^^^^^^^^^ ANN001
-280 |     """Test filtering servers by group identifier."""
-281 |     with patch("requests.get") as mock_get:
+260 |     """Test filtering servers by group identifier."""
+261 |     with patch("requests.get") as mock_get:
     |
 
-Found 601 errors (140 fixed, 461 remaining).
+Found 464 errors.
 
-2025-02-24 21:52:28 - 12 files reformatted, 34 files left unchanged
+2025-02-25 00:10:47 - 46 files left unchanged
 
-2025-02-24 21:52:28 - >>>
+2025-02-25 00:10:47 - >>>
 >>> Running type checks...
 >>> TODO: Check the errors!
 >>>
-2025-02-24 21:52:28 - >>>
+2025-02-25 00:10:47 - >>>
 >>> Checking for _potentially_ unused code...
 >>> TODO: Check the errors!
 >>>
-2025-02-24 21:52:29 - src/nyord_vpn/__main__.py:68: unused method 'update' (60% confidence)
-src/nyord_vpn/api/api.py:52: unused variable 'T' (60% confidence)
+2025-02-25 00:10:47 - src/nyord_vpn/api/api.py:52: unused variable 'T' (60% confidence)
 src/nyord_vpn/api/api.py:134: unused method 'get_technologies' (60% confidence)
 src/nyord_vpn/api/api.py:386: unused method 'get_server_stats' (60% confidence)
 src/nyord_vpn/api/v1_countries.py:39: unused variable 'latitude' (60% confidence)
@@ -5078,6 +5065,7 @@ src/nyord_vpn/api/v2_servers.py:197: unused variable 'services' (60% confidence)
 src/nyord_vpn/api/v2_servers.py:320: unused attribute 'services' (60% confidence)
 src/nyord_vpn/api/v2_servers.py:339: unused function 'get_servers_by_country' (60% confidence)
 src/nyord_vpn/api/v2_servers.py:361: unused function 'get_servers_by_group' (60% confidence)
+src/nyord_vpn/core/api.py:62: unused class 'NordVPNAPIClient' (60% confidence)
 src/nyord_vpn/core/api.py:199: unused method 'get_country_by_name' (60% confidence)
 src/nyord_vpn/core/api.py:224: unused method 'get_available_locations' (60% confidence)
 src/nyord_vpn/core/api.py:250: unused method 'get_best_city' (60% confidence)
@@ -5094,24 +5082,24 @@ src/nyord_vpn/core/client.py:88: unused variable 'latitude' (60% confidence)
 src/nyord_vpn/core/client.py:89: unused variable 'longitude' (60% confidence)
 src/nyord_vpn/core/client.py:91: unused variable 'serverCount' (60% confidence)
 src/nyord_vpn/core/client.py:101: unused variable 'serverCount' (60% confidence)
-src/nyord_vpn/core/client.py:388: unused method 'init' (60% confidence)
-src/nyord_vpn/core/client.py:433: unused method '_save_state' (60% confidence)
+src/nyord_vpn/core/client.py:386: unused method 'init' (60% confidence)
+src/nyord_vpn/core/client.py:431: unused method '_save_state' (60% confidence)
 src/nyord_vpn/exceptions.py:91: unused class 'ServerNotFoundError' (60% confidence)
 src/nyord_vpn/exceptions.py:123: unused class 'VPNServerError' (60% confidence)
 src/nyord_vpn/exceptions.py:155: unused class 'VPNTimeoutError' (60% confidence)
 src/nyord_vpn/exceptions.py:171: unused class 'VPNProcessError' (60% confidence)
 src/nyord_vpn/exceptions.py:203: unused class 'VPNDisconnectionError' (60% confidence)
-src/nyord_vpn/network/server.py:111: unused function '_safe_get' (60% confidence)
-src/nyord_vpn/network/server.py:118: unused function '_safe_str_get' (60% confidence)
-src/nyord_vpn/network/server.py:128: unused function '_safe_dict_access' (60% confidence)
-src/nyord_vpn/network/server.py:135: unused function '_safe_dict_cast' (60% confidence)
-src/nyord_vpn/network/server.py:142: unused function '_safe_dict_get_str' (60% confidence)
-src/nyord_vpn/network/server.py:148: unused function '_safe_dict_get_int' (60% confidence)
-src/nyord_vpn/network/server.py:380: unused method 'fetch_server_info' (60% confidence)
-src/nyord_vpn/network/server.py:452: unused variable 'technologies_data' (60% confidence)
-src/nyord_vpn/network/server.py:730: unused method '_is_valid_server' (60% confidence)
-src/nyord_vpn/network/server.py:978: unused method 'get_country_info' (60% confidence)
-src/nyord_vpn/network/server.py:1035: unused method 'get_random_country' (60% confidence)
+src/nyord_vpn/network/server.py:119: unused function '_safe_get' (60% confidence)
+src/nyord_vpn/network/server.py:126: unused function '_safe_str_get' (60% confidence)
+src/nyord_vpn/network/server.py:136: unused function '_safe_dict_access' (60% confidence)
+src/nyord_vpn/network/server.py:143: unused function '_safe_dict_cast' (60% confidence)
+src/nyord_vpn/network/server.py:150: unused function '_safe_dict_get_str' (60% confidence)
+src/nyord_vpn/network/server.py:156: unused function '_safe_dict_get_int' (60% confidence)
+src/nyord_vpn/network/server.py:388: unused method 'fetch_server_info' (60% confidence)
+src/nyord_vpn/network/server.py:460: unused variable 'technologies_data' (60% confidence)
+src/nyord_vpn/network/server.py:777: unused method '_is_valid_server' (60% confidence)
+src/nyord_vpn/network/server.py:1025: unused method 'get_country_info' (60% confidence)
+src/nyord_vpn/network/server.py:1083: unused method 'get_random_country' (60% confidence)
 src/nyord_vpn/network/vpn.py:127: unused attribute '_cached_ip' (60% confidence)
 src/nyord_vpn/network/vpn.py:128: unused attribute '_cached_ip_time' (60% confidence)
 src/nyord_vpn/network/vpn.py:129: unused attribute '_ip_cache_ttl' (60% confidence)
@@ -5147,11 +5135,11 @@ src/nyord_vpn/utils/utils.py:171: unused function 'is_process_running' (60% conf
 src/nyord_vpn/utils/utils.py:202: unused variable 'NORDVPN_COUNTRY_IDS' (60% confidence)
 src/nyord_vpn/utils/utils.py:205: unused variable 'NORDVPN_COUNTRY_IDS' (60% confidence)
 
-2025-02-24 21:52:29 - >>>
+2025-02-25 00:10:47 - >>>
 >>> Running tests...
 >>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!
 >>>
-2025-02-24 21:52:35 - ============================= test session starts ==============================
+2025-02-25 00:10:53 - ============================= test session starts ==============================
 platform darwin -- Python 3.12.8, pytest-8.3.4, pluggy-1.5.0 -- /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 cachedir: .pytest_cache
 rootdir: /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn
@@ -5166,14 +5154,14 @@ created: 8/8 workers
 
 scheduling tests via LoadScheduling
 
-tests/test_api.py::test_get_countries 
-tests/test_server_manager.py::test_server_filtering 
-tests/test_api.py::test_get_technologies 
 tests/test_package.py::test_version 
-tests/test_v1_recommendations.py::test_fetch_recommendations 
-tests/test_v1_groups.py::test_get_groups_by_type 
 tests/test_v1_countries.py::test_get_country_by_code 
 tests/test_v1_countries.py::test_get_city_by_name 
+tests/test_server_manager.py::test_server_filtering 
+tests/test_api.py::test_get_countries 
+tests/test_v1_recommendations.py::test_fetch_recommendations 
+tests/test_v1_groups.py::test_get_groups_by_type 
+tests/test_api.py::test_get_technologies 
 [gw2] [  4%] PASSED tests/test_package.py::test_version 
 [gw5] [  9%] PASSED tests/test_v1_countries.py::test_get_city_by_name 
 [gw4] [ 13%] PASSED tests/test_v1_countries.py::test_get_country_by_code 
@@ -5181,23 +5169,23 @@ tests/test_server_manager.py::test_openvpn_tcp_validation
 [gw7] [ 18%] PASSED tests/test_v1_recommendations.py::test_fetch_recommendations 
 tests/test_v1_groups.py::test_fetch_groups 
 tests/test_v1_countries.py::test_get_countries_by_min_servers 
-[gw4] [ 22%] PASSED tests/test_v1_countries.py::test_get_countries_by_min_servers 
 tests/test_v1_recommendations.py::test_get_recommendations_by_country 
-tests/test_v1_technologies.py::test_get_technology_by_identifier 
+[gw4] [ 22%] PASSED tests/test_v1_countries.py::test_get_countries_by_min_servers 
 [gw1] [ 27%] PASSED tests/test_api.py::test_get_technologies 
+tests/test_v1_technologies.py::test_get_technology_by_identifier 
 [gw7] [ 31%] PASSED tests/test_v1_recommendations.py::test_get_recommendations_by_country 
 tests/test_api.py::test_get_servers 
-[gw4] [ 36%] PASSED tests/test_v1_technologies.py::test_get_technology_by_identifier 
 tests/test_v2_servers.py::test_fetch_all 
+[gw4] [ 36%] PASSED tests/test_v1_technologies.py::test_get_technology_by_identifier 
 tests/test_v2_servers.py::test_get_servers_by_country 
 [gw2] [ 40%] FAILED tests/test_server_manager.py::test_openvpn_tcp_validation 
 tests/test_v1_recommendations.py::test_get_recommendations_by_group 
 [gw2] [ 45%] PASSED tests/test_v1_recommendations.py::test_get_recommendations_by_group 
 [gw6] [ 50%] FAILED tests/test_v1_groups.py::test_get_groups_by_type 
 tests/test_v1_groups.py::test_get_group_by_identifier 
-[gw4] [ 54%] FAILED tests/test_v2_servers.py::test_get_servers_by_country 
-[gw7] [ 59%] FAILED tests/test_v2_servers.py::test_fetch_all 
-[gw5] [ 63%] FAILED tests/test_v1_groups.py::test_fetch_groups 
+[gw5] [ 54%] FAILED tests/test_v1_groups.py::test_fetch_groups 
+[gw4] [ 59%] FAILED tests/test_v2_servers.py::test_get_servers_by_country 
+[gw7] [ 63%] FAILED tests/test_v2_servers.py::test_fetch_all 
 tests/test_v1_technologies.py::test_fetch_technologies 
 [gw5] [ 68%] PASSED tests/test_v1_technologies.py::test_fetch_technologies 
 [gw0] [ 72%] FAILED tests/test_api.py::test_get_countries 
@@ -5270,7 +5258,7 @@ E   ModuleNotFoundError: No module named 'nyord_vpn.core.exceptions'
 _________________________ test_openvpn_tcp_validation __________________________
 [gw2] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-server_manager = <nyord_vpn.network.server.ServerManager object at 0x1065ecdd0>
+server_manager = <nyord_vpn.network.server.ServerManager object at 0x10ca17c50>
 
     def test_openvpn_tcp_validation(server_manager) -> None:
         """Test OpenVPN TCP technology validation."""
@@ -5312,13 +5300,13 @@ server_manager = <nyord_vpn.network.server.ServerManager object at 0x1065ecdd0>
 >       assert server_manager._is_valid_server(server) is False
 E       AssertionError: assert True is False
 E        +  where True = _is_valid_server({'country': {'code': 'US', 'name': 'United States'}, 'hostname': 'test.nordvpn.com', 'load': 50, 'status': 'online', ...})
-E        +    where _is_valid_server = <nyord_vpn.network.server.ServerManager object at 0x1065ecdd0>._is_valid_server
+E        +    where _is_valid_server = <nyord_vpn.network.server.ServerManager object at 0x10ca17c50>._is_valid_server
 
 tests/test_server_manager.py:68: AssertionError
 ___________________________ test_get_groups_by_type ____________________________
 [gw6] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10834da00>
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10eee3530>
 
     def fetch_groups(self) -> list[Group]:
         """Fetch available server groups from the v1 API.
@@ -5338,7 +5326,7 @@ self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10834da00>
 >           return [Group.model_validate(group) for group in data]
 E           pydantic_core._pydantic_core.ValidationError: 1 validation error for Group
 E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x108949440>, input_type=function]
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10ee90ae0>, input_type=function]
 E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
 
 src/nyord_vpn/api/v1_groups.py:98: ValidationError
@@ -5360,7 +5348,7 @@ sample_groups = [{'created_at': '2024-01-01T00:00:00Z', 'id': 1, 'identifier': '
 tests/test_v1_groups.py:100: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10834da00>
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10eee3530>
 
     def fetch_groups(self) -> list[Group]:
         """Fetch available server groups from the v1 API.
@@ -5396,16 +5384,16 @@ self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10834da00>
 E           nyord_vpn.exceptions.VPNAPIError: Failed to parse server groups from v1 API
 E           Details: 1 validation error for Group
 E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x108949440>, input_type=function]
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10ee90ae0>, input_type=function]
 E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
 E           Cause: 1 validation error for Group
 E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x108949440>, input_type=function]
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10ee90ae0>, input_type=function]
 E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
 
 src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
 ----------------------------- Captured stdout call -----------------------------
-[02/24/25 21:52:34] ERROR    2025-02-24 21:52:34.971 | ERROR    v1_groups.py:108
+[02/25/25 00:10:52] ERROR    2025-02-25 00:10:52.682 | ERROR    v1_groups.py:108
                              |                                                  
                              nyord_vpn.api.v1_groups:fetch_grou                 
                              ps:108 - Failed to parse NordVPN                   
@@ -5416,7 +5404,113 @@ src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
                              dictionary or instance of                          
                              GroupType [type=model_type,                        
                              input_value=<function                              
-                             sample_group_type at 0x108949440>,                 
+                             sample_group_type at 0x10ee90ae0>,                 
+                             input_type=function]                               
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.10/v                 
+                             /model_type                                        
+______________________________ test_fetch_groups _______________________________
+[gw5] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
+
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10640a870>
+
+    def fetch_groups(self) -> list[Group]:
+        """Fetch available server groups from the v1 API.
+    
+        Returns:
+            List of server groups.
+    
+        Raises:
+            VPNAPIError: If the API request fails or returns invalid data.
+    
+        """
+        try:
+            response = requests.get(GROUPS_V1_ENDPOINT, timeout=self.timeout)
+            response.raise_for_status()
+            data = response.json()
+    
+>           return [Group.model_validate(group) for group in data]
+E           pydantic_core._pydantic_core.ValidationError: 1 validation error for Group
+E           type
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x106accae0>, input_type=function]
+E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
+
+src/nyord_vpn/api/v1_groups.py:98: ValidationError
+
+During handling of the above exception, another exception occurred:
+
+sample_groups = [{'created_at': '2024-01-01T00:00:00Z', 'id': 1, 'identifier': 'legacy_p2p', 'title': 'P2P', ...}, {'created_at': '202... 'Standard VPN', ...}, {'created_at': '2024-01-01T00:00:00Z', 'id': 3, 'identifier': 'europe', 'title': 'Europe', ...}]
+
+    def test_fetch_groups(sample_groups) -> None:
+        """Test fetching server groups from the API."""
+        with patch("requests.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = sample_groups
+            mock_get.return_value = mock_response
+    
+            client = NordVPNGroupsV1()
+>           groups = client.fetch_groups()
+
+tests/test_v1_groups.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10640a870>
+
+    def fetch_groups(self) -> list[Group]:
+        """Fetch available server groups from the v1 API.
+    
+        Returns:
+            List of server groups.
+    
+        Raises:
+            VPNAPIError: If the API request fails or returns invalid data.
+    
+        """
+        try:
+            response = requests.get(GROUPS_V1_ENDPOINT, timeout=self.timeout)
+            response.raise_for_status()
+            data = response.json()
+    
+            return [Group.model_validate(group) for group in data]
+    
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch NordVPN server groups: {e}")
+            raise VPNAPIError(
+                "Failed to fetch server groups from v1 API",
+                details=str(e),
+                cause=e,
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to parse NordVPN server groups: {e}")
+>           raise VPNAPIError(
+                "Failed to parse server groups from v1 API",
+                details=str(e),
+                cause=e,
+            )
+E           nyord_vpn.exceptions.VPNAPIError: Failed to parse server groups from v1 API
+E           Details: 1 validation error for Group
+E           type
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x106accae0>, input_type=function]
+E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
+E           Cause: 1 validation error for Group
+E           type
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x106accae0>, input_type=function]
+E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
+
+src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
+----------------------------- Captured stdout call -----------------------------
+[02/25/25 00:10:52] ERROR    2025-02-25 00:10:52.686 | ERROR    v1_groups.py:108
+                             |                                                  
+                             nyord_vpn.api.v1_groups:fetch_grou                 
+                             ps:108 - Failed to parse NordVPN                   
+                             server groups: 1 validation error                  
+                             for Group                                          
+                             type                                               
+                               Input should be a valid                          
+                             dictionary or instance of                          
+                             GroupType [type=model_type,                        
+                             input_value=<function                              
+                             sample_group_type at 0x106accae0>,                 
                              input_type=function]                               
                                  For further information visit                  
                              https://errors.pydantic.dev/2.10/v                 
@@ -5479,116 +5573,10 @@ E            +  where 0 = len([])
 E            +    where [] = Server(id=1, created_at=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=TzInfo(UTC)), updated_at=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=TzInfo(UTC)), name='us1234.nordvpn.com', station='us1234', ipv6_station='', hostname='us1234.nordvpn.com', status='online', load=45, ips=[ServerIP(id=1, created_at=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=TzInfo(UTC)), updated_at=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=TzInfo(UTC)), server_id=1, ip_id=1, type='primary', ip=IP(id=1, ip='192.168.1.1', version=4))], specifications=[Specification(id=1, title='Bandwidth', identifier='bandwidth', values=[SpecificationValue(id=1, value='1 Gbps')])], technologies=[Technology(id=1, name='OpenVPN UDP', identifier='openvpn_udp', created_at=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=TzInfo(UTC)), updated_at=datetime.datetime(2024, 1, 1, 0, 0, tzinfo=TzInfo(UTC)), status='active', metadata=[TechnologyMetadata(name='port', value='1194')])], groups=[], services=[], locations=[]).groups
 
 tests/test_v2_servers.py:217: AssertionError
-______________________________ test_fetch_groups _______________________________
-[gw5] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
-
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10c7177d0>
-
-    def fetch_groups(self) -> list[Group]:
-        """Fetch available server groups from the v1 API.
-    
-        Returns:
-            List of server groups.
-    
-        Raises:
-            VPNAPIError: If the API request fails or returns invalid data.
-    
-        """
-        try:
-            response = requests.get(GROUPS_V1_ENDPOINT, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-    
->           return [Group.model_validate(group) for group in data]
-E           pydantic_core._pydantic_core.ValidationError: 1 validation error for Group
-E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10c67d440>, input_type=function]
-E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
-
-src/nyord_vpn/api/v1_groups.py:98: ValidationError
-
-During handling of the above exception, another exception occurred:
-
-sample_groups = [{'created_at': '2024-01-01T00:00:00Z', 'id': 1, 'identifier': 'legacy_p2p', 'title': 'P2P', ...}, {'created_at': '202... 'Standard VPN', ...}, {'created_at': '2024-01-01T00:00:00Z', 'id': 3, 'identifier': 'europe', 'title': 'Europe', ...}]
-
-    def test_fetch_groups(sample_groups) -> None:
-        """Test fetching server groups from the API."""
-        with patch("requests.get") as mock_get:
-            mock_response = MagicMock()
-            mock_response.json.return_value = sample_groups
-            mock_get.return_value = mock_response
-    
-            client = NordVPNGroupsV1()
->           groups = client.fetch_groups()
-
-tests/test_v1_groups.py:82: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10c7177d0>
-
-    def fetch_groups(self) -> list[Group]:
-        """Fetch available server groups from the v1 API.
-    
-        Returns:
-            List of server groups.
-    
-        Raises:
-            VPNAPIError: If the API request fails or returns invalid data.
-    
-        """
-        try:
-            response = requests.get(GROUPS_V1_ENDPOINT, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-    
-            return [Group.model_validate(group) for group in data]
-    
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to fetch NordVPN server groups: {e}")
-            raise VPNAPIError(
-                "Failed to fetch server groups from v1 API",
-                details=str(e),
-                cause=e,
-            )
-        except (ValueError, TypeError) as e:
-            logger.error(f"Failed to parse NordVPN server groups: {e}")
->           raise VPNAPIError(
-                "Failed to parse server groups from v1 API",
-                details=str(e),
-                cause=e,
-            )
-E           nyord_vpn.exceptions.VPNAPIError: Failed to parse server groups from v1 API
-E           Details: 1 validation error for Group
-E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10c67d440>, input_type=function]
-E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
-E           Cause: 1 validation error for Group
-E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10c67d440>, input_type=function]
-E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
-
-src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
------------------------------ Captured stdout call -----------------------------
-[02/24/25 21:52:34] ERROR    2025-02-24 21:52:34.975 | ERROR    v1_groups.py:108
-                             |                                                  
-                             nyord_vpn.api.v1_groups:fetch_grou                 
-                             ps:108 - Failed to parse NordVPN                   
-                             server groups: 1 validation error                  
-                             for Group                                          
-                             type                                               
-                               Input should be a valid                          
-                             dictionary or instance of                          
-                             GroupType [type=model_type,                        
-                             input_value=<function                              
-                             sample_group_type at 0x10c67d440>,                 
-                             input_type=function]                               
-                                 For further information visit                  
-                             https://errors.pydantic.dev/2.10/v                 
-                             /model_type                                        
 ______________________________ test_get_countries ______________________________
 [gw0] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-self = <nyord_vpn.api.v1_countries.NordVPNCountriesV1 object at 0x10e03f440>
+self = <nyord_vpn.api.v1_countries.NordVPNCountriesV1 object at 0x11100bb30>
 
     def fetch_countries(self) -> list[Country]:
         """Fetch available countries and their server information from the v1 API.
@@ -5636,7 +5624,7 @@ src/nyord_vpn/api/api.py:220: in get_countries
     self._countries = self.countries.fetch_countries()
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <nyord_vpn.api.v1_countries.NordVPNCountriesV1 object at 0x10e03f440>
+self = <nyord_vpn.api.v1_countries.NordVPNCountriesV1 object at 0x11100bb30>
 
     def fetch_countries(self) -> list[Country]:
         """Fetch available countries and their server information from the v1 API.
@@ -5687,7 +5675,7 @@ E               For further information visit https://errors.pydantic.dev/2.10/v
 
 src/nyord_vpn/api/v1_countries.py:108: VPNAPIError
 ----------------------------- Captured stdout call -----------------------------
-[02/24/25 21:52:34] ERROR    2025-02-24 21:52:34.975 | ERROR v1_countries.py:107
+[02/25/25 00:10:52] ERROR    2025-02-25 00:10:52.686 | ERROR v1_countries.py:107
                              |                                                  
                              nyord_vpn.api.v1_countries:fetc                    
                              h_countries:107 - Failed to                        
@@ -5714,7 +5702,7 @@ src/nyord_vpn/api/v1_countries.py:108: VPNAPIError
 _________________________ test_get_group_by_identifier _________________________
 [gw6] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x108932ed0>
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10bfc43e0>
 
     def fetch_groups(self) -> list[Group]:
         """Fetch available server groups from the v1 API.
@@ -5734,7 +5722,7 @@ self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x108932ed0>
 >           return [Group.model_validate(group) for group in data]
 E           pydantic_core._pydantic_core.ValidationError: 1 validation error for Group
 E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x108949440>, input_type=function]
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10ee90ae0>, input_type=function]
 E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
 
 src/nyord_vpn/api/v1_groups.py:98: ValidationError
@@ -5756,7 +5744,7 @@ sample_groups = [{'created_at': '2024-01-01T00:00:00Z', 'id': 1, 'identifier': '
 tests/test_v1_groups.py:131: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x108932ed0>
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10bfc43e0>
 
     def fetch_groups(self) -> list[Group]:
         """Fetch available server groups from the v1 API.
@@ -5792,16 +5780,16 @@ self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x108932ed0>
 E           nyord_vpn.exceptions.VPNAPIError: Failed to parse server groups from v1 API
 E           Details: 1 validation error for Group
 E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x108949440>, input_type=function]
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10ee90ae0>, input_type=function]
 E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
 E           Cause: 1 validation error for Group
 E           type
-E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x108949440>, input_type=function]
+E             Input should be a valid dictionary or instance of GroupType [type=model_type, input_value=<function sample_group_type at 0x10ee90ae0>, input_type=function]
 E               For further information visit https://errors.pydantic.dev/2.10/v/model_type
 
 src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
 ----------------------------- Captured stdout call -----------------------------
-                    ERROR    2025-02-24 21:52:34.996 | ERROR    v1_groups.py:108
+                    ERROR    2025-02-25 00:10:52.704 | ERROR    v1_groups.py:108
                              |                                                  
                              nyord_vpn.api.v1_groups:fetch_grou                 
                              ps:108 - Failed to parse NordVPN                   
@@ -5812,7 +5800,7 @@ src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
                              dictionary or instance of                          
                              GroupType [type=model_type,                        
                              input_value=<function                              
-                             sample_group_type at 0x108949440>,                 
+                             sample_group_type at 0x10ee90ae0>,                 
                              input_type=function]                               
                                  For further information visit                  
                              https://errors.pydantic.dev/2.10/v                 
@@ -5820,7 +5808,7 @@ src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
 _______________________________ test_get_servers _______________________________
 [gw1] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-self = <nyord_vpn.api.v2_servers.NordVPNServersV2 object at 0x1129dc500>
+self = <nyord_vpn.api.v2_servers.NordVPNServersV2 object at 0x10f810170>
 
     def fetch_all(
         self,
@@ -5927,7 +5915,7 @@ src/nyord_vpn/api/api.py:247: in get_servers
     result = self.servers.fetch_all()
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <nyord_vpn.api.v2_servers.NordVPNServersV2 object at 0x1129dc500>
+self = <nyord_vpn.api.v2_servers.NordVPNServersV2 object at 0x10f810170>
 
     def fetch_all(
         self,
@@ -5976,7 +5964,7 @@ E                       For further information visit https://errors.pydantic.de
 
 src/nyord_vpn/api/v2_servers.py:262: VPNAPIError
 ----------------------------- Captured stdout call -----------------------------
-[02/24/25 21:52:34] ERROR    2025-02-24 21:52:34.983 | ERROR   v2_servers.py:261
+[02/25/25 00:10:52] ERROR    2025-02-25 00:10:52.692 | ERROR   v2_servers.py:261
                              |                                                  
                              nyord_vpn.api.v2_servers:fetch_al                  
                              l:261 - Failed to parse servers                    
@@ -5994,7 +5982,7 @@ src/nyord_vpn/api/v2_servers.py:262: VPNAPIError
 _______________________________ test_get_groups ________________________________
 [gw0] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10e05d190>
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x11175eab0>
 
     def fetch_groups(self) -> list[Group]:
         """Fetch available server groups from the v1 API.
@@ -6039,7 +6027,7 @@ src/nyord_vpn/api/api.py:189: in get_groups
     self._groups = self.groups.fetch_groups()
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x10e05d190>
+self = <nyord_vpn.api.v1_groups.NordVPNGroupsV1 object at 0x11175eab0>
 
     def fetch_groups(self) -> list[Group]:
         """Fetch available server groups from the v1 API.
@@ -6084,7 +6072,7 @@ E               For further information visit https://errors.pydantic.dev/2.10/v
 
 src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
 ----------------------------- Captured stdout call -----------------------------
-[02/24/25 21:52:35] ERROR    2025-02-24 21:52:35.018 | ERROR    v1_groups.py:108
+                    ERROR    2025-02-25 00:10:52.716 | ERROR    v1_groups.py:108
                              |                                                  
                              nyord_vpn.api.v1_groups:fetch_grou                 
                              ps:108 - Failed to parse NordVPN                   
@@ -6101,8 +6089,8 @@ src/nyord_vpn/api/v1_groups.py:109: VPNAPIError
 ____________________________ test_server_filtering _____________________________
 [gw3] darwin -- Python 3.12.8 /Users/adam/Developer/vcs/github.twardoch/pub/nyord_vpn/.venv/bin/python
 
-server_manager = <nyord_vpn.network.server.ServerManager object at 0x10e87f9e0>
-mock_api_client = <MagicMock spec='NordVPNAPIClient' id='4532724480'>
+server_manager = <nyord_vpn.network.server.ServerManager object at 0x10d84ef00>
+mock_api_client = <MagicMock spec='NordVPNAPI' id='4521782560'>
 
     def test_server_filtering(server_manager, mock_api_client) -> None:
         """Test server filtering in get_servers_cache."""
@@ -6149,7 +6137,7 @@ mock_api_client = <MagicMock spec='NordVPNAPIClient' id='4532724480'>
 tests/test_server_manager.py:146: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock spec='NordVPNAPIClient' id='4532724480'>, name = 'get'
+self = <MagicMock spec='NordVPNAPI' id='4521782560'>, name = 'get'
 
     def __getattr__(self, name):
         if name in {'_mock_methods', '_mock_unsafe'}:
@@ -6183,23 +6171,21 @@ E            +  where 0 = len([])
 
 tests/test_v2_servers.py:271: AssertionError
 ============================= slowest 10 durations =============================
-0.02s call     tests/test_api.py::test_get_countries
-0.02s call     tests/test_api.py::test_get_servers
+0.01s call     tests/test_api.py::test_get_countries
+0.01s call     tests/test_api.py::test_get_servers
 0.01s call     tests/test_v1_groups.py::test_get_groups_by_type
-0.01s call     tests/test_api.py::test_get_groups
 0.01s call     tests/test_v1_groups.py::test_fetch_groups
+0.01s call     tests/test_api.py::test_get_groups
 0.01s call     tests/test_api.py::test_get_technologies
-0.01s call     tests/test_v1_groups.py::test_get_group_by_identifier
 0.01s call     tests/test_v2_servers.py::test_fetch_all
-0.01s call     tests/test_v2_servers.py::test_get_servers_by_country
 
-(1 durations < 0.005s hidden.  Use -vv to show these durations.)
+(3 durations < 0.005s hidden.  Use -vv to show these durations.)
 =========================== short test summary info ============================
 FAILED tests/test_server_manager.py::test_openvpn_tcp_validation - AssertionE...
 FAILED tests/test_v1_groups.py::test_get_groups_by_type - nyord_vpn.exception...
+FAILED tests/test_v1_groups.py::test_fetch_groups - nyord_vpn.exceptions.VPNA...
 FAILED tests/test_v2_servers.py::test_get_servers_by_country - assert 0 == 1
 FAILED tests/test_v2_servers.py::test_fetch_all - AssertionError: assert 0 == 1
-FAILED tests/test_v1_groups.py::test_fetch_groups - nyord_vpn.exceptions.VPNA...
 FAILED tests/test_api.py::test_get_countries - nyord_vpn.exceptions.VPNAPIErr...
 FAILED tests/test_v1_groups.py::test_get_group_by_identifier - nyord_vpn.exce...
 FAILED tests/test_api.py::test_get_servers - nyord_vpn.exceptions.VPNAPIError...
@@ -6212,13 +6198,13 @@ ERROR tests/integration/test_errors.py
 ERROR tests/integration/test_validation_integration.py
 ERROR tests/test_client.py
 ERROR tests/test_legacy_api.py
-=================== 11 failed, 11 passed, 6 errors in 2.57s ====================
+=================== 11 failed, 11 passed, 6 errors in 2.52s ====================
 
-2025-02-24 21:52:35 - >>>
+2025-02-25 00:10:53 - >>>
 >>> Running repomix analysis...
 >>> TODO: Check the output!
 >>>
-2025-02-24 21:52:36 - 
+2025-02-25 00:10:54 - 
 📦 Repomix v0.2.29
 
 No custom config found at repomix.config.json or global config at /Users/adam/.config/repomix/repomix.config.json.
@@ -6226,23 +6212,23 @@ You can add a config file for additional settings. Please check https://github.c
 ⠙ Collecting files...
 [2K[1A[2K[G⠹ Collecting files...
 [2K[1A[2K[G⠸ Running security check...
-[2K[1A[2K[G⠼ Running security check... (20/59) src/nyord_vpn/network/vpn_commands.py
+[2K[1A[2K[G⠼ Running security check... (58/59) README.md
 [2K[1A[2K[G⠴ Processing files...
-[2K[1A[2K[G⠦ Processing file... (12/59) src/nyord_vpn/core/__init__.py
-[2K[1A[2K[G⠧ Processing file... (48/59) tests/test_v1_recommendations.py
+[2K[1A[2K[G⠦ Processing file... (18/59) src/nyord_vpn/network/country.py
+[2K[1A[2K[G⠧ Writing output file...
 [2K[1A[2K[G⠇ Calculating metrics...
 [2K[1A[2K[G⠏ Calculating metrics...
 [2K[1A[2K[G⠋ Calculating metrics...
-[2K[1A[2K[G⠙ Calculating metrics...
+[2K[1A[2K[G⠙ Calculating metrics... (6/59) src/nyord_vpn/api/api.py
 [2K[1A[2K[G✔ Packing completed successfully!
 
 📈 Top 5 Files by Character Count and Token Count:
 ──────────────────────────────────────────────────
-1.  src/nyord_vpn/network/vpn.py (12,932 chars, 2,421 tokens)
-2.  src/nyord_vpn/network/server.py (11,355 chars, 2,359 tokens)
-3.  .cursor/rules/filetree.mdc (7,862 chars, 3,548 tokens)
-4.  TODO.md (7,629 chars, 1,809 tokens)
-5.  pyproject.toml (7,099 chars, 2,437 tokens)
+1.  PROGRESS.md (30,598 chars, 6,522 tokens)
+2.  TODO.md (16,832 chars, 3,727 tokens)
+3.  src/nyord_vpn/network/vpn.py (12,932 chars, 2,421 tokens)
+4.  src/nyord_vpn/network/server.py (11,805 chars, 2,459 tokens)
+5.  .cursor/rules/filetree.mdc (8,109 chars, 3,649 tokens)
 
 🔎 Security Check:
 ──────────────────
@@ -6251,8 +6237,8 @@ You can add a config file for additional settings. Please check https://github.c
 📊 Pack Summary:
 ────────────────
   Total Files: 59 files
-  Total Chars: 140,478 chars
- Total Tokens: 34,285 tokens
+  Total Chars: 176,696 chars
+ Total Tokens: 41,764 tokens
        Output: nyord_vpn.txt
      Security: ✔ No suspicious files detected
 
@@ -6261,10 +6247,10 @@ Your repository has been successfully packed.
 
 💡 Repomix is now available in your browser! Try it at https://repomix.com
 
-2025-02-24 21:52:36 - All checks completed
-2025-02-24 21:52:36 - 
+2025-02-25 00:10:54 - All checks completed
+2025-02-25 00:10:54 - 
 === TODO.md ===
-2025-02-24 21:52:36 - # TODO
+2025-02-25 00:10:54 - # TODO
 
 A modern Python client for NordVPN with automatic API fallback support, providing both a CLI interface and a Python library.
 
@@ -6284,7 +6270,7 @@ nyord-vpn bye  # Disconnect
 
 ## DEVELOPMENT
 
-After each set of changes, update @TODO.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+After each set of changes, update @PROGRESS.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
 
 Periodically do:
 
@@ -6335,173 +6321,313 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [x] Rename `ConnectionError` to `VPNConnectionError`
 - [x] Make boolean parameters keyword-only
 - [x] Move main blocks to test files
+- [x] API Module (`src/nyord_vpn/api/`)
+  - [x] `src/nyord_vpn/api/api.py`: Implement central API interface
+  - [x] `src/nyord_vpn/api/v1_*.py`: Add deprecation notices and clean up
+  - [x] `src/nyord_vpn/api/v2_servers.py`: Fix linting and improve type hints
+- [x] Core Module - Initial cleanup
+  - [x] `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`: Add deprecation warnings
+- [x] Network Module - `vpn_commands.py`
+  - [x] Create `OpenVPNConfig` dataclass with proper validation
+  - [x] Implement `get_openvpn_command` function with proper validation
+- [x] Network Module - `server.py`
+  - [x] Replace random module with secrets module for secure randomization
+  - [x] Fix type compatibility issues in server.py
+  - [x] Address security issues in subprocess calls by validating input
+  - [x] Add comprehensive type hints for functions and variables
+- [x] Core Module (`src/nyord_vpn/core/`)
+  - [x] `src/nyord_vpn/core/client.py`: Update to use the new `NordVPNAPI` class
 
-## Remaining Tasks
+## Remaining Tasks (Prioritized)
 
-### API Module (`src/nyord_vpn/api/`)
+### High Priority Items
 
-#### `src/nyord_vpn/api/api.py`
+#### Core Module (`src/nyord_vpn/core/`)
 
-**Action**: Modify to make this the central API interface.
+##### `src/nyord_vpn/core/client.py`
 
-- [ ] Remove shebang and any commented-out code at the top
-- [ ] Implement `NordVPNAPI` class with proper docstrings and type hints
-- [ ] Add `find_best_server` method with v2 API support and v1 fallback
-- [ ] Update v1 methods with deprecation notices and keyword-only arguments
+**Action**: Continue refactoring to improve quality.
 
-#### `src/nyord_vpn/api/v1_*.py` files
+- [!] Improve error handling and user feedback
+  - [!] Add more detailed error messages with troubleshooting steps
+  - [!] Implement proper exception handling with specific exception types
+  - [!] Add recovery suggestions in error messages
+- [!] Break down complex methods into smaller helper functions
+  - [!] Refactor the `go()` method into smaller functions for each step
+  - [!] Extract connection validation logic into separate functions
+  - [!] Create helper functions for environment variable handling
+- [!] Fix boolean arguments and other linting issues
+  - [!] Make all boolean parameters keyword-only arguments
+  - [!] Fix type annotations for better static analysis
+  - [!] Add proper validation for function parameters
 
-**Action**: Keep but mark as deprecated and clean up.
+### Medium Priority Items
 
-- [ ] Add deprecation notices to docstrings
-- [ ] Fix boolean positional arguments
-- [ ] Fix ambiguous variable names
-- [ ] Add proper docstrings to classes and methods
-- [ ] Update error handling to use specific exceptions from exceptions.py
+#### Network Module (`src/nyord_vpn/network/`)
 
-#### `src/nyord_vpn/api/v2_servers.py`
-
-**Action**: Refine and improve.
-
-- [ ] Fix linting issues, particularly ambiguous variable names (E741)
-- [ ] Add proper docstrings to methods
-- [ ] Add comprehensive type hints where missing
-
-### Core Module (`src/nyord_vpn/core/`)
-
-#### `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`
-
-**Action**: Deprecate and eventually remove.
-
-- [ ] Add deprecation warnings
-- [ ] Fix boolean positional arguments and other linting issues
-
-#### `src/nyord_vpn/core/client.py`
-
-**Action**: Refactor significantly to use the new API.
-
-- [ ] Update to use the new `NordVPNAPI` class
-- [ ] Improve error handling and user feedback
-- [ ] Break down complex methods into smaller helper functions
-- [ ] Fix boolean arguments and other linting issues
-
-### Network Module (`src/nyord_vpn/network/`)
-
-#### `src/nyord_vpn/network/server.py`
-
-**Action**: Refactor to use new API.
-
-- [ ] Add type hints for functions and variables
-- [ ] Replace random.randrange and random.choice with secrets module
-- [ ] Address security issues in subprocess calls by validating input
-- [ ] Reduce complexity by extracting helper functions
-
-#### `src/nyord_vpn/network/vpn.py`
+##### `src/nyord_vpn/network/vpn.py`
 
 **Action**: Refactor for better maintainability.
 
-- [ ] Make boolean arguments keyword-only
-- [ ] Add type hints
-- [ ] Add retry logic for connection attempts
-- [ ] Break down complex methods
-- [ ] Replace random.uniform with secrets.SystemRandom().uniform
-- [ ] Improve error handling
+- [!] Make boolean arguments keyword-only
+- [!] Add comprehensive type hints for all functions and methods
+- [ ] Implement retry logic for connection attempts with tenacity
+- [ ] Break down complex methods:
+  - [ ] Split `setup_connection()` into smaller focused functions
+  - [ ] Refactor `connect()` method to improve readability
+  - [ ] Extract IP validation logic into a utility function
+- [ ] Replace random.uniform with secrets.SystemRandom().uniform for better security
+- [ ] Improve error handling with specific exception types and recovery mechanisms
 
-#### `src/nyord_vpn/network/vpn_commands.py`
-
-**Action**: Refactor for better usability.
-
-- [ ] Create `OpenVPNConfig` dataclass
-- [ ] Implement `get_openvpn_command` function with proper validation
-
-### Utils Module (`src/nyord_vpn/utils/`)
-
-#### `src/nyord_vpn/utils/templates.py`
-
-**Action**: Simplify with tenacity.
-
-- [ ] Implement retry logic with tenacity
-- [ ] Break down complex functions into smaller ones
-- [ ] Improve docstrings and type hints
-
-### Main Module Files
-
-#### `src/nyord_vpn/__main__.py`
-
-**Action**: Update to use new API.
-
-- [ ] Update CLI class to use the updated Client
-- [ ] Improve error handling and user feedback
-
-### Tests
+#### Tests
 
 **Action**: Update to reflect code changes.
 
+- [!] Fix import error in `tests/test_client.py` (change import from nyord_vpn.core.exceptions to nyord_vpn.exceptions)
+- [!] Update test fixtures to include missing fields:
+  - Add `type` field to Group model in test fixtures
+  - Add `server_count` field to Country and City models in test fixtures 
+- [!] Fix validation errors in models and tests:
+  - Fix test mocks to have all required fields in API responses
+  - Update model validation to handle missing fields gracefully
+  - Fix server filtering test failures in test_v2_servers.py
+- [!] Fix mock setup in `tests/test_server_manager.py` (AttributeError: Mock object has no attribute 'get')
 - [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
-- [ ] Update test fixtures to match model requirements
-- [ ] Fix validation errors in tests
-- [ ] Update integration tests to use correct import paths
+- [ ] Fix test failures in integration tests
 
-### Documentation
+### Lower Priority Items
+
+#### Utils Module (`src/nyord_vpn/utils/`)
+
+##### `src/nyord_vpn/utils/templates.py`
+
+**Action**: Simplify with tenacity.
+
+- [!] Fix security vulnerabilities in subprocess calls (S603, S607)
+- [!] Replace datetime.now() and datetime.fromtimestamp() with timezone-aware versions (DTZ005, DTZ006)
+- [!] Fix exception handling issues:
+  - Replace long error messages with proper exception classes (TRY003)
+  - Use `raise ... from err` consistently (B904)
+  - Move try/except out of loops for better performance (PERF203)
+  - Use `else` blocks appropriately after try/except (TRY300)
+- [ ] Implement retry logic with tenacity for network operations
+- [ ] Break down complex functions into smaller ones
+- [ ] Improve docstrings and type hints
+- [ ] Add more detailed logging for debugging purposes
+- [ ] Replace random module usage with secrets module (S311)
+
+##### `src/nyord_vpn/utils/utils.py`
+
+**Action**: Update file handling and security.
+
+- [!] Replace os.path functions with pathlib equivalents (PTH110, PTH118, PTH123)
+- [!] Fix security vulnerability in subprocess call (S603)
+- [!] Fix error handling to use `else` blocks appropriately (TRY300)
+- [ ] Implement atomic file operations for state management
+- [ ] Add better error handling for file operations
+- [ ] Improve type annotations and docstrings
+
+#### Main Module Files
+
+##### `src/nyord_vpn/__main__.py`
+
+**Action**: Update to use new API.
+
+- [!] Update CLI class to use the updated Client API
+  - [!] Replace any usage of deprecated classes/methods with their updated counterparts
+  - [!] Update command-line arguments to match new API structure
+  - [!] Ensure all commands use the new Client implementation
+- [!] Improve error handling and user feedback
+  - [!] Add specific error handling for common user errors (e.g., invalid credentials, connection failures)
+  - [!] Provide clear, actionable error messages with recovery steps
+  - [!] Add verbose output mode for troubleshooting
+- [ ] Add more detailed help messages and documentation
+  - [ ] Enhance command-line help with examples and parameter descriptions
+  - [ ] Add context-specific help for each command
+  - [ ] Include version information and system requirements
+- [ ] Implement command auto-completion for better user experience
+  - [ ] Add shell completion scripts (Bash, Zsh, Fish)
+  - [ ] Provide dynamic completion for country/server names
+  - [ ] Document how to enable command completion
+
+#### Documentation
 
 **Action**: Update documentation.
 
-- [ ] Update README.md with installation and usage instructions
-- [ ] Add API documentation
-- [ ] Add usage examples
+- [!] Update README.md with installation and usage instructions
+  - [!] Add clear step-by-step installation guide for different platforms
+  - [!] Include dependency installation instructions
+  - [!] Update usage examples with the new API
+- [ ] Add API documentation with example usage
+  - [ ] Document the public API classes and methods
+  - [ ] Provide usage examples for common scenarios
+  - [ ] Include type information and error handling patterns
+- [ ] Create usage examples for common scenarios
+  - [ ] Basic connection and disconnection
+  - [ ] Connecting to specific countries/servers
+  - [ ] Handling connection failures
+  - [ ] Using different protocols and settings
+- [ ] Document troubleshooting steps for common issues
+  - [ ] Authentication problems
+  - [ ] Connection failures
+  - [ ] OpenVPN configuration issues
+  - [ ] Platform-specific troubleshooting
+- [ ] Add architecture overview diagrams
+  - [ ] Component interaction diagram
+  - [ ] Class hierarchy diagram
+  - [ ] API request flows
+  - [ ] Error handling paths
+
+## Next Steps
+
+Based on the prioritized tasks, the immediate next steps should be:
+
+1. **Improve error handling in client.py**
+   - Add structured error message catalog with troubleshooting steps
+   - Create helper methods for consistent error handling
+   - Implement recovery mechanisms with exponential backoff
+   - Refactor the `go()` method into smaller, focused functions:
+     - `_validate_country_code()`
+     - `_resolve_server()`
+     - `_connect_to_server()`
+     - `_verify_connection()`
+   - Update the `VPNError` exception to include troubleshooting steps
+   - Update method docstrings with error handling information
+
+2. **Fix test fixtures**
+   - Update `sample_group_type` and `sample_group` fixtures to properly handle the type reference
+   - Add `server_count` field to `sample_city` and `sample_country` fixtures
+   - Fix the server groups issue in the `test_fetch_all` test by ensuring server objects have proper group references
+   - Update the mock setup in `test_server_manager.py` to correctly mock the API methods
+   - Add model configuration for better validation handling with `Config` class
+
+3. **Make boolean arguments keyword-only in vpn.py**
+   - Update function signatures to use the `*` parameter separator
+   - Update all function calls to use keyword arguments
+   - Add proper validation for boolean parameters
+   - Update docstrings to clarify which parameters are keyword-only
+
+4. **Fix security vulnerabilities in templates.py**
+   - Replace subprocess calls with safer alternatives by properly escaping input
+   - Fix datetime timezone issues by using timezone-aware versions
+   - Improve exception handling with `raise ... from err`
+   - Move try/except blocks out of loops for better performance
+   - Add proper `else` blocks after try/except where appropriate
+
+These tasks should be implemented in the order presented for maximum impact on code quality and stability.
+
+## Implementation Notes
+
+### Improving Error Handling in client.py
+
+The following approach is recommended for improving error handling in the Client class:
+
+1. **Define structured error messages**:
+   ```python
+   ERROR_MESSAGES = {
+       "auth_failed": {
+           "message": "Authentication failed with NordVPN servers",
+           "troubleshooting": [
+               "Check that your username and password are correct",
+               "Verify your internet connection",
+               "Try again in a few minutes"
+           ]
+       },
+       "connection_failed": {
+           "message": "Failed to establish VPN connection",
+           "troubleshooting": [
+               "Check if OpenVPN is installed",
+               "Verify you have sufficient permissions",
+               "Try connecting to a different server"
+           ]
+       },
+       # Add more structured error messages
+   }
+   ```
+
+2. **Create helper functions for error handling**:
+   ```python
+   def _handle_error(self, error_code: str, details: str = None) -> None:
+       """Handle errors with consistent messaging and logging."""
+       error_info = self.ERROR_MESSAGES.get(error_code, {"message": "An unknown error occurred"})
+       message = error_info["message"]
+       if details:
+           message = f"{message}: {details}"
+           
+       # Log the error
+       logger.error(f"Error {error_code}: {message}")
+       
+       # Raise a specific exception with troubleshooting steps
+       troubleshooting = error_info.get("troubleshooting", [])
+       raise VPNError(message, troubleshooting=troubleshooting)
+   ```
+
+3. **Add recovery mechanisms**:
+   ```python
+   def _try_reconnect(self, country_code: str, max_attempts: int = 3) -> bool:
+       """Attempt to reconnect to VPN after a failure."""
+       for attempt in range(max_attempts):
+           try:
+               logger.info(f"Reconnection attempt {attempt + 1}/{max_attempts}")
+               # Try with a different server
+               self._connect(country_code, bypass_cache=True)
+               return True
+           except VPNError as e:
+               logger.warning(f"Reconnection attempt {attempt + 1} failed: {e}")
+               time.sleep(2 ** attempt)  # Exponential backoff
+       
+       return False
+   ```
+
+4. **Break down the `go()` method**:
+   ```python
+   def go(self, country_code: str) -> None:
+       """Connect to VPN in specified country."""
+       try:
+           # Validate country code
+           self._validate_country_code(country_code)
+           
+           # Resolve server for country
+           server = self._resolve_server(country_code)
+           
+           # Connect to server
+           self._connect_to_server(server)
+           
+           # Verify connection
+           self._verify_connection()
+           
+       except VPNError as e:
+           # Try recovery based on error type
+           if self._try_recovery(e, country_code):
+               logger.info("Recovery successful")
+           else:
+               raise  # Re-raise if recovery failed
+   ```
+
+5. **Update docstrings to include error handling information**:
+   ```python
+   def disconnect(self) -> None:
+       """Disconnect from VPN.
+       
+       Terminates all OpenVPN processes and cleans up connection state.
+       
+       Raises:
+           VPNError: If disconnection fails (e.g., process termination issues).
+               Check if OpenVPN processes are still running manually.
+       """
+   ```
+
+By implementing these changes, the client.py module will have significantly improved error handling with clear messages, recovery options, and better guidance for users.
 
 
-2025-02-24 21:52:36 -  M .cursor/rules/filetree.mdc
- M .cursor/rules/nyord-vpn.mdc
+2025-02-25 00:10:54 -  M .cursor/rules/filetree.mdc
  M CLEANUP.txt
+ M PROGRESS.md
  M TODO.md
  M cleanup.py
  M nyord_vpn.txt
- M src/nyord_vpn/__init__.py
- M src/nyord_vpn/api/api.py
- M src/nyord_vpn/api/v1_countries.py
- M src/nyord_vpn/api/v1_groups.py
- M src/nyord_vpn/api/v1_recommendations.py
- M src/nyord_vpn/api/v1_technologies.py
- M src/nyord_vpn/api/v2_servers.py
- M src/nyord_vpn/core/api.py
- M src/nyord_vpn/core/base.py
- M src/nyord_vpn/core/client.py
- M src/nyord_vpn/exceptions.py
  M src/nyord_vpn/network/server.py
- M src/nyord_vpn/network/vpn.py
- M src/nyord_vpn/network/vpn_commands.py
- M src/nyord_vpn/storage/__init__.py
- M src/nyord_vpn/storage/models.py
- M tests/conftest.py
  M tests/test_server_manager.py
-?? .specstory/history/2025-02-24_19-08-tracking-todo-and-progress-updates.md
-?? .specstory/history/2025-02-24_19-49-review-and-update-project-documentation.md
-?? .specstory/history/2025-02-24_20-10-task-management-for-nyord-vpn-project.md
-?? .specstory/history/2025-02-24_20-54-placeholder-message.md
-?? PROGRESS.md
-?? src/nyord_vpn/api/__init__.py
-?? tests/test_api.py
-?? tests/test_v1_countries.py
-?? tests/test_v1_groups.py
-?? tests/test_v1_recommendations.py
-?? tests/test_v1_technologies.py
-?? tests/test_v2_servers.py
+?? .specstory/history/2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
 
-2025-02-24 21:52:36 - Changes detected in repository
-2025-02-24 21:52:37 - [main 50c0ba6] Update repository files
- 36 files changed, 16281 insertions(+), 4630 deletions(-)
- create mode 100644 .specstory/history/2025-02-24_19-08-tracking-todo-and-progress-updates.md
- create mode 100644 .specstory/history/2025-02-24_19-49-review-and-update-project-documentation.md
- create mode 100644 .specstory/history/2025-02-24_20-10-task-management-for-nyord-vpn-project.md
- create mode 100644 .specstory/history/2025-02-24_20-54-placeholder-message.md
- create mode 100644 PROGRESS.md
- create mode 100644 src/nyord_vpn/api/__init__.py
- create mode 100644 tests/test_api.py
- create mode 100644 tests/test_v1_countries.py
- create mode 100644 tests/test_v1_groups.py
- create mode 100644 tests/test_v1_recommendations.py
- create mode 100644 tests/test_v1_technologies.py
- create mode 100644 tests/test_v2_servers.py
-
-2025-02-24 21:52:37 - Changes committed successfully
+2025-02-25 00:10:54 - Changes detected in repository

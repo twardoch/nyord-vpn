@@ -97,8 +97,17 @@ For CLI Python scripts, use fire & rich, and start the script with
 **Action**: Continue refactoring to improve quality.
 
 - [!] Improve error handling and user feedback
+  - [!] Add more detailed error messages with troubleshooting steps
+  - [!] Implement proper exception handling with specific exception types
+  - [!] Add recovery suggestions in error messages
 - [!] Break down complex methods into smaller helper functions
+  - [!] Refactor the `go()` method into smaller functions for each step
+  - [!] Extract connection validation logic into separate functions
+  - [!] Create helper functions for environment variable handling
 - [!] Fix boolean arguments and other linting issues
+  - [!] Make all boolean parameters keyword-only arguments
+  - [!] Fix type annotations for better static analysis
+  - [!] Add proper validation for function parameters
 
 ### Medium Priority Items
 
@@ -109,11 +118,14 @@ For CLI Python scripts, use fire & rich, and start the script with
 **Action**: Refactor for better maintainability.
 
 - [!] Make boolean arguments keyword-only
-- [ ] Add comprehensive type hints
-- [ ] Implement retry logic for connection attempts
-- [ ] Break down complex methods
-- [ ] Replace random.uniform with secrets.SystemRandom().uniform
-- [ ] Improve error handling
+- [!] Add comprehensive type hints for all functions and methods
+- [ ] Implement retry logic for connection attempts with tenacity
+- [ ] Break down complex methods:
+  - [ ] Split `setup_connection()` into smaller focused functions
+  - [ ] Refactor `connect()` method to improve readability
+  - [ ] Extract IP validation logic into a utility function
+- [ ] Replace random.uniform with secrets.SystemRandom().uniform for better security
+- [ ] Improve error handling with specific exception types and recovery mechanisms
 
 #### Tests
 
@@ -123,8 +135,13 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [!] Update test fixtures to include missing fields:
   - Add `type` field to Group model in test fixtures
   - Add `server_count` field to Country and City models in test fixtures 
+- [!] Fix validation errors in models and tests:
+  - Fix test mocks to have all required fields in API responses
+  - Update model validation to handle missing fields gracefully
+  - Fix server filtering test failures in test_v2_servers.py
+- [!] Fix mock setup in `tests/test_server_manager.py` (AttributeError: Mock object has no attribute 'get')
 - [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
-- [ ] Fix validation errors in tests
+- [ ] Fix test failures in integration tests
 
 ### Lower Priority Items
 
@@ -134,9 +151,29 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 **Action**: Simplify with tenacity.
 
-- [ ] Implement retry logic with tenacity
+- [!] Fix security vulnerabilities in subprocess calls (S603, S607)
+- [!] Replace datetime.now() and datetime.fromtimestamp() with timezone-aware versions (DTZ005, DTZ006)
+- [!] Fix exception handling issues:
+  - Replace long error messages with proper exception classes (TRY003)
+  - Use `raise ... from err` consistently (B904)
+  - Move try/except out of loops for better performance (PERF203)
+  - Use `else` blocks appropriately after try/except (TRY300)
+- [ ] Implement retry logic with tenacity for network operations
 - [ ] Break down complex functions into smaller ones
 - [ ] Improve docstrings and type hints
+- [ ] Add more detailed logging for debugging purposes
+- [ ] Replace random module usage with secrets module (S311)
+
+##### `src/nyord_vpn/utils/utils.py`
+
+**Action**: Update file handling and security.
+
+- [!] Replace os.path functions with pathlib equivalents (PTH110, PTH118, PTH123)
+- [!] Fix security vulnerability in subprocess call (S603)
+- [!] Fix error handling to use `else` blocks appropriately (TRY300)
+- [ ] Implement atomic file operations for state management
+- [ ] Add better error handling for file operations
+- [ ] Improve type annotations and docstrings
 
 #### Main Module Files
 
@@ -144,14 +181,189 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 **Action**: Update to use new API.
 
-- [ ] Update CLI class to use the updated Client
-- [ ] Improve error handling and user feedback
+- [!] Update CLI class to use the updated Client API
+  - [!] Replace any usage of deprecated classes/methods with their updated counterparts
+  - [!] Update command-line arguments to match new API structure
+  - [!] Ensure all commands use the new Client implementation
+- [!] Improve error handling and user feedback
+  - [!] Add specific error handling for common user errors (e.g., invalid credentials, connection failures)
+  - [!] Provide clear, actionable error messages with recovery steps
+  - [!] Add verbose output mode for troubleshooting
+- [ ] Add more detailed help messages and documentation
+  - [ ] Enhance command-line help with examples and parameter descriptions
+  - [ ] Add context-specific help for each command
+  - [ ] Include version information and system requirements
+- [ ] Implement command auto-completion for better user experience
+  - [ ] Add shell completion scripts (Bash, Zsh, Fish)
+  - [ ] Provide dynamic completion for country/server names
+  - [ ] Document how to enable command completion
 
 #### Documentation
 
 **Action**: Update documentation.
 
-- [ ] Update README.md with installation and usage instructions
-- [ ] Add API documentation
-- [ ] Add usage examples
+- [!] Update README.md with installation and usage instructions
+  - [!] Add clear step-by-step installation guide for different platforms
+  - [!] Include dependency installation instructions
+  - [!] Update usage examples with the new API
+- [ ] Add API documentation with example usage
+  - [ ] Document the public API classes and methods
+  - [ ] Provide usage examples for common scenarios
+  - [ ] Include type information and error handling patterns
+- [ ] Create usage examples for common scenarios
+  - [ ] Basic connection and disconnection
+  - [ ] Connecting to specific countries/servers
+  - [ ] Handling connection failures
+  - [ ] Using different protocols and settings
+- [ ] Document troubleshooting steps for common issues
+  - [ ] Authentication problems
+  - [ ] Connection failures
+  - [ ] OpenVPN configuration issues
+  - [ ] Platform-specific troubleshooting
+- [ ] Add architecture overview diagrams
+  - [ ] Component interaction diagram
+  - [ ] Class hierarchy diagram
+  - [ ] API request flows
+  - [ ] Error handling paths
+
+## Next Steps
+
+Based on the prioritized tasks, the immediate next steps should be:
+
+1. **Improve error handling in client.py**
+   - Add structured error message catalog with troubleshooting steps
+   - Create helper methods for consistent error handling
+   - Implement recovery mechanisms with exponential backoff
+   - Refactor the `go()` method into smaller, focused functions:
+     - `_validate_country_code()`
+     - `_resolve_server()`
+     - `_connect_to_server()`
+     - `_verify_connection()`
+   - Update the `VPNError` exception to include troubleshooting steps
+   - Update method docstrings with error handling information
+
+2. **Fix test fixtures**
+   - Update `sample_group_type` and `sample_group` fixtures to properly handle the type reference
+   - Add `server_count` field to `sample_city` and `sample_country` fixtures
+   - Fix the server groups issue in the `test_fetch_all` test by ensuring server objects have proper group references
+   - Update the mock setup in `test_server_manager.py` to correctly mock the API methods
+   - Add model configuration for better validation handling with `Config` class
+
+3. **Make boolean arguments keyword-only in vpn.py**
+   - Update function signatures to use the `*` parameter separator
+   - Update all function calls to use keyword arguments
+   - Add proper validation for boolean parameters
+   - Update docstrings to clarify which parameters are keyword-only
+
+4. **Fix security vulnerabilities in templates.py**
+   - Replace subprocess calls with safer alternatives by properly escaping input
+   - Fix datetime timezone issues by using timezone-aware versions
+   - Improve exception handling with `raise ... from err`
+   - Move try/except blocks out of loops for better performance
+   - Add proper `else` blocks after try/except where appropriate
+
+These tasks should be implemented in the order presented for maximum impact on code quality and stability.
+
+## Implementation Notes
+
+### Improving Error Handling in client.py
+
+The following approach is recommended for improving error handling in the Client class:
+
+1. **Define structured error messages**:
+   ```python
+   ERROR_MESSAGES = {
+       "auth_failed": {
+           "message": "Authentication failed with NordVPN servers",
+           "troubleshooting": [
+               "Check that your username and password are correct",
+               "Verify your internet connection",
+               "Try again in a few minutes"
+           ]
+       },
+       "connection_failed": {
+           "message": "Failed to establish VPN connection",
+           "troubleshooting": [
+               "Check if OpenVPN is installed",
+               "Verify you have sufficient permissions",
+               "Try connecting to a different server"
+           ]
+       },
+       # Add more structured error messages
+   }
+   ```
+
+2. **Create helper functions for error handling**:
+   ```python
+   def _handle_error(self, error_code: str, details: str = None) -> None:
+       """Handle errors with consistent messaging and logging."""
+       error_info = self.ERROR_MESSAGES.get(error_code, {"message": "An unknown error occurred"})
+       message = error_info["message"]
+       if details:
+           message = f"{message}: {details}"
+           
+       # Log the error
+       logger.error(f"Error {error_code}: {message}")
+       
+       # Raise a specific exception with troubleshooting steps
+       troubleshooting = error_info.get("troubleshooting", [])
+       raise VPNError(message, troubleshooting=troubleshooting)
+   ```
+
+3. **Add recovery mechanisms**:
+   ```python
+   def _try_reconnect(self, country_code: str, max_attempts: int = 3) -> bool:
+       """Attempt to reconnect to VPN after a failure."""
+       for attempt in range(max_attempts):
+           try:
+               logger.info(f"Reconnection attempt {attempt + 1}/{max_attempts}")
+               # Try with a different server
+               self._connect(country_code, bypass_cache=True)
+               return True
+           except VPNError as e:
+               logger.warning(f"Reconnection attempt {attempt + 1} failed: {e}")
+               time.sleep(2 ** attempt)  # Exponential backoff
+       
+       return False
+   ```
+
+4. **Break down the `go()` method**:
+   ```python
+   def go(self, country_code: str) -> None:
+       """Connect to VPN in specified country."""
+       try:
+           # Validate country code
+           self._validate_country_code(country_code)
+           
+           # Resolve server for country
+           server = self._resolve_server(country_code)
+           
+           # Connect to server
+           self._connect_to_server(server)
+           
+           # Verify connection
+           self._verify_connection()
+           
+       except VPNError as e:
+           # Try recovery based on error type
+           if self._try_recovery(e, country_code):
+               logger.info("Recovery successful")
+           else:
+               raise  # Re-raise if recovery failed
+   ```
+
+5. **Update docstrings to include error handling information**:
+   ```python
+   def disconnect(self) -> None:
+       """Disconnect from VPN.
+       
+       Terminates all OpenVPN processes and cleans up connection state.
+       
+       Raises:
+           VPNError: If disconnection fails (e.g., process termination issues).
+               Check if OpenVPN processes are still running manually.
+       """
+   ```
+
+By implementing these changes, the client.py module will have significantly improved error handling with clear messages, recovery options, and better guidance for users.
 

@@ -10,13 +10,13 @@ import pytest
 from unittest.mock import MagicMock
 
 from nyord_vpn.network.server import ServerManager
-from nyord_vpn.core.api import NordVPNAPIClient
+from nyord_vpn.api.api import NordVPNAPI
 
 
 @pytest.fixture
 def mock_api_client():
     """Create a mock API client."""
-    client = MagicMock(spec=NordVPNAPIClient)
+    client = MagicMock(spec=NordVPNAPI)
     client.verbose = True
     client.logger = MagicMock()
     return client
