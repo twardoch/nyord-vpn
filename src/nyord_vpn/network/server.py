@@ -2,11 +2,9 @@ import json
 import random
 import subprocess
 import time
-import asyncio
 import socket
-from typing import Any, TypedDict, List, Tuple
+from typing import Any, TypedDict
 from concurrent.futures import ThreadPoolExecutor
-from loguru import logger
 
 import requests
 
@@ -613,7 +611,7 @@ class ServerManager:
         load = server.get("load")
         return not (not isinstance(load, int | float) or load < 0 or load > 100)
 
-    def _test_server(self, server: dict[str, Any]) -> Tuple[dict[str, Any], float]:
+    def _test_server(self, server: dict[str, Any]) -> tuple[dict[str, Any], float]:
         """Test a server's response time using both ping and TCP connection.
 
         Args:
@@ -622,6 +620,7 @@ class ServerManager:
         Returns:
             Tuple of (server, score) where score is combined ping/TCP time
             Lower score is better, float('inf') means failed
+
         """
         hostname = server.get("hostname")
         if not hostname:
@@ -644,7 +643,7 @@ class ServerManager:
                 self.logger.debug(f"Running ping command: {' '.join(cmd)}")
 
             # Run ping
-            ping_result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+            ping_result = subprocess.run(cmd, capture_output=True, text=True, timeout=2, check=False)
 
             if ping_result.returncode != 0:
                 if self.api_client.verbose:
@@ -692,7 +691,7 @@ class ServerManager:
             try:
                 with socket.create_connection((hostname, 443), timeout=2):
                     tcp_time = (time.time() - start) * 1000  # Convert to ms
-            except (socket.timeout, socket.error) as e:
+            except (TimeoutError, OSError) as e:
                 if self.api_client.verbose:
                     self.logger.debug(f"TCP connection failed for {hostname}: {e}")
                 return server, float("inf")
@@ -730,6 +729,7 @@ class ServerManager:
 
         Returns:
             List of selected servers
+
         """
         # Group servers by region/continent
         regions = {}
@@ -779,6 +779,7 @@ class ServerManager:
 
         Raises:
             ServerError: If country code is invalid or no servers are available
+
         """
         try:
             # Validate country code if provided
@@ -851,7 +852,7 @@ class ServerManager:
 
                 except Exception as e:
                     if self.api_client.verbose:
-                        self.logger.error(f"Recommendations API fallback failed: {e}")
+                        self.logger.exception(f"Recommendations API fallback failed: {e}")
                     return None
 
             try:
@@ -933,11 +934,11 @@ class ServerManager:
                 return best_server
 
             except Exception as e:
-                self.logger.error(f"Error selecting server: {e}")
+                self.logger.exception(f"Error selecting server: {e}")
                 return None
 
         except Exception as e:
-            self.logger.error(f"Error selecting server: {e}")
+            self.logger.exception(f"Error selecting server: {e}")
             return None
 
     def _get_country_id(self, country_code: str) -> str:
@@ -948,6 +949,7 @@ class ServerManager:
 
         Returns:
             Country ID or empty string if not found
+
         """
         try:
             # First check our cache
@@ -956,9 +958,8 @@ class ServerManager:
                 if (
                     server.get("country", {}).get("code", "").upper()
                     == country_code.upper()
-                ):
-                    if country_id := server.get("country", {}).get("id"):
-                        return str(country_id)
+                ) and (country_id := server.get("country", {}).get("id")):
+                    return str(country_id)
 
             # If not in cache, try API
             response = requests.get(

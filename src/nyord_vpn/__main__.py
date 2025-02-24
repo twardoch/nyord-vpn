@@ -2,13 +2,9 @@
 
 import os
 import sys
-import json
-import subprocess
-import time
 
 import fire
 from rich.console import Console
-from rich.table import Table
 from dotenv import load_dotenv
 
 from nyord_vpn.core.client import Client, VPNError

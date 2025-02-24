@@ -100,6 +100,7 @@ def check_root() -> bool:
 
     Returns:
         bool: True if already running as root, False if needs elevation
+
     """
     return os.geteuid() == 0
 
@@ -119,6 +120,7 @@ def ensure_root() -> None:
     Note:
         This is required for OpenVPN operations which need
         root access to configure network interfaces.
+
     """
     if not check_root():
         try:
@@ -173,6 +175,7 @@ def is_process_running(process_id: int) -> bool | None:
 
     Returns:
         bool: True if running, False if not, None if check fails
+
     """
     try:
         os.kill(process_id, 0)
@@ -237,6 +240,7 @@ def save_vpn_state(state: dict) -> None:
         and status monitoring. Failed saves are logged
         but don't raise exceptions to prevent disrupting
         VPN operations.
+
     """
     try:
         # If we're saving a disconnected state, update normal_ip
@@ -283,6 +287,7 @@ def load_vpn_state() -> dict:
         The state is considered stale after 5 minutes
         to prevent using outdated connection information.
         Failed loads return a safe default state.
+
     """
     try:
         if STATE_FILE.exists():

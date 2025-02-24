@@ -8,7 +8,6 @@ and proper configuration across the application.
 """
 
 from pathlib import Path
-from typing import List
 
 from nyord_vpn.exceptions import VPNConfigError
 
@@ -22,7 +21,7 @@ def get_openvpn_command(
     connect_timeout: int = 10,
     ping_interval: int = 10,
     ping_restart: int = 60,
-) -> List[str]:
+) -> list[str]:
     """Construct OpenVPN command with all necessary arguments.
 
     This is the central place for OpenVPN command construction. It provides
@@ -48,6 +47,7 @@ def get_openvpn_command(
     Note:
         The command includes security-focused defaults and robust
         error handling parameters to ensure stable VPN connections.
+
     """
     # Validate required files
     if not config_path.exists():

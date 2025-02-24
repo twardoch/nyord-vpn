@@ -31,13 +31,10 @@ Example usage:
     client.disconnect()  # Disconnect from VPN
 """
 
-import os
-import sys
 import time
 from pathlib import Path
-from typing import TypedDict, Any, cast
+from typing import TypedDict, Any
 
-import requests
 from dotenv import load_dotenv
 from loguru import logger
 from rich.console import Console
@@ -45,11 +42,9 @@ from rich.logging import RichHandler
 
 from nyord_vpn.storage.models import (
     ConnectionError,
-    CredentialsError,
     VPNError,
 )
 from nyord_vpn.utils.utils import (
-    API_HEADERS,
     CACHE_DIR,
     CONFIG_DIR,
     DATA_DIR,
@@ -186,13 +181,14 @@ class Client:
     4. User feedback and logging
     """
 
-    def __init__(self, username_str: str, password_str: str, verbose: bool = False):
+    def __init__(self, username_str: str, password_str: str, verbose: bool = False) -> None:
         """Initialize NordVPN client.
 
         Args:
             username_str: NordVPN username
             password_str: NordVPN password
             verbose: Whether to enable verbose output
+
         """
         self.verbose = verbose
         self.logger = logger
@@ -215,6 +211,7 @@ class Client:
                 - normal_ip (str): IP when not connected to VPN
                 - server (str): Connected server if any
                 - country (str): Connected country if any
+
         """
         return self.vpn_manager.status()
 
@@ -226,6 +223,7 @@ class Client:
 
         Raises:
             VPNError: If connection fails
+
         """
         if not check_root():
             ensure_root()
@@ -284,7 +282,7 @@ class Client:
         except Exception as e:
             if isinstance(e, VPNError):
                 raise
-            raise VPNError(f"Failed to connect: {str(e)}")
+            raise VPNError(f"Failed to connect: {e!s}")
 
     def bye(self) -> None:
         """Disconnect from VPN."""
