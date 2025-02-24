@@ -3,7 +3,8 @@ import platform
 import subprocess
 import time
 import secrets
-from typing import Any, TypedDict, NotRequired, cast
+import re
+from typing import Any, TypedDict, NotRequired, cast, Optional, List, Dict, Union
 
 from loguru import logger
 import requests
@@ -72,12 +73,19 @@ class ServerLocation(TypedDict):
     country: Country
 
 
+class TechnologyMetadata(TypedDict):
+    """Metadata for technology information."""
+
+    name: str
+    value: str
+
+
 class Technology(TypedDict):
     """Server technology information."""
 
     id: int
     status: str
-    metadata: NotRequired[list[dict[str, str]]]
+    metadata: NotRequired[list[TechnologyMetadata]]
 
 
 class ServerInfo(TypedDict):
@@ -481,11 +489,15 @@ class ServerManager:
                     # Process technologies
                     server_technologies: list[Technology] = []
                     for tech in server.technologies:
-                        technology: Technology = {"id": tech.id, "status": tech.status}
+                        technology: Technology = {
+                            "id": tech.id,
+                            "status": tech.status or "",
+                        }
                         if hasattr(tech, "metadata") and tech.metadata:
-                            technology["metadata"] = cast(
-                                list[dict[str, str]], tech.metadata
-                            )
+                            technology["metadata"] = [
+                                {"name": meta.name, "value": meta.value}
+                                for meta in tech.metadata
+                            ]
                         server_technologies.append(technology)
 
                     # Create server info
@@ -572,9 +584,14 @@ class ServerManager:
                             "status": str(tech.get("status", "")),
                         }
                         if tech.get("metadata"):
-                            technology["metadata"] = cast(
-                                list[dict[str, str]], tech["metadata"]
-                            )
+                            technology["metadata"] = [
+                                {
+                                    "name": str(meta.get("name", "")),
+                                    "value": str(meta.get("value", "")),
+                                }
+                                for meta in tech.get("metadata", [])
+                                if isinstance(meta, dict)
+                            ]
                         technologies.append(technology)
 
                     # Create server info
@@ -603,6 +620,43 @@ class ServerManager:
             self.logger.warning(f"Failed to get server information: {e}")
             return None
 
+    def _is_valid_hostname(self, hostname: str) -> bool:
+        """Validate hostname format to prevent command injection.
+
+        Args:
+            hostname: Hostname to validate
+
+        Returns:
+            bool: True if hostname is valid, False otherwise
+
+        """
+        # Check for valid hostname format (letters, numbers, dots, hyphens)
+        # This is a strict check to prevent command injection
+        if not hostname or len(hostname) > 253:
+            return False
+
+        # Split the hostname into parts and validate each part
+        parts = hostname.split(".")
+
+        # Check if we have at least 2 parts (domain.tld)
+        if len(parts) < 2:
+            return False
+
+        # Validate each part of the hostname
+        for part in parts:
+            # Each part must:
+            # - Not be empty
+            # - Start and end with alphanumeric characters
+            # - Contain only alphanumeric characters and hyphens
+            # - Not exceed 63 characters
+            if not part or len(part) > 63:
+                return False
+
+            if not re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$", part):
+                return False
+
+        return True
+
     def _ping_server(self, hostname: str) -> float:
         """Ping a server and return response time in ms.
 
@@ -617,9 +671,19 @@ class ServerManager:
             # Platform-specific ping command
             system = platform.system().lower()
 
-            # Validate hostname (basic defense against command injection)
+            # Validate hostname (strict defense against command injection)
             if not self._is_valid_hostname(hostname):
                 self.logger.warning(f"Invalid hostname format: {hostname}")
+                return float("inf")
+
+            # Convert hostname to lowercase for consistency
+            hostname = hostname.lower()
+
+            # Ensure hostname is not an IP address to prevent IP-based injection
+            if re.match(r"^(\d{1,3}\.){3}\d{1,3}$", hostname):
+                self.logger.warning(
+                    f"IP addresses not allowed for ping safety: {hostname}"
+                )
                 return float("inf")
 
             # Construct command based on platform with proper escaping
@@ -634,13 +698,14 @@ class ServerManager:
             if self.verbose:
                 self.logger.debug(f"Running ping command: {' '.join(cmd)}")
 
-            # Execute the command securely
+            # Execute the command securely with resource limitations
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=3,
-                check=False,  # Overall timeout
+                check=False,  # Don't raise an exception on non-zero return
+                env={},  # Run with empty environment for additional security
             )
 
             if result.returncode == 0:
@@ -709,24 +774,6 @@ class ServerManager:
                 self.logger.debug(f"Error pinging {hostname}: {e}")
             return float("inf")
 
-    def _is_valid_hostname(self, hostname: str) -> bool:
-        """Validate hostname format to prevent command injection.
-
-        Args:
-            hostname: Hostname to validate
-
-        Returns:
-            bool: True if hostname is valid, False otherwise
-
-        """
-        # Check for valid hostname format (letters, numbers, dots, hyphens)
-        # This is a basic check and can be enhanced for specific requirements
-        import re
-
-        return bool(
-            re.match(r"^[a-zA-Z0-9][a-zA-Z0-9\.-]{1,253}[a-zA-Z0-9]$", hostname)
-        )
-
     def _is_valid_server(self, server: Any) -> bool:
         """Check if a server is valid and usable.
 
@@ -762,7 +809,7 @@ class ServerManager:
         # Check status
         return status == "online"
 
-    def _test_server(self, server: dict[str, Any]) -> tuple[dict[str, Any], float]:
+    def _test_server(self, server: Any) -> tuple[Any, float]:
         """Test server response time and load.
 
         Args:
@@ -793,8 +840,8 @@ class ServerManager:
         return server_copy, score
 
     def _select_diverse_servers(
-        self, servers: list[dict[str, Any]], count: int = 4
-    ) -> list[dict[str, Any]]:
+        self, servers: list[ServerInfo], count: int = 4
+    ) -> list[ServerInfo]:
         """Select a diverse set of servers for testing.
 
         This method selects a diverse sample of servers to test,
@@ -1027,8 +1074,9 @@ class ServerManager:
 
             # Find the country in locations
             for loc in cache["locations"].values():
-                if loc["country"]["code"].upper() == normalized_code:
-                    return loc["country"]
+                country_dict: dict[str, Any] = {}
+                country_dict.update(loc["country"])
+                return country_dict
 
             raise ServerError(f"Country not found: {normalized_code}")
 

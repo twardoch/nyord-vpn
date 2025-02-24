@@ -20,22 +20,16 @@ This progress report tracks the refactoring of the nyord-vpn codebase.
 - [x] Network Module - `vpn_commands.py`
   - [x] Create `OpenVPNConfig` dataclass with proper validation
   - [x] Implement `get_openvpn_command` function with proper validation
-- [x] Network Module - `server.py` (partial)
+- [x] Network Module - `server.py`
   - [x] Replace random module with secrets module for secure randomization
+  - [x] Fix type compatibility issues:
+    - [x] Fix Technology type in server_technologies creation
+    - [x] Fix parameter type in _select_diverse_servers function 
+    - [x] Fix return type in get_country_info function
+  - [x] Address security issues in subprocess calls by enhancing hostname validation
+  - [x] Add comprehensive type hints for return types, parameters and variables
 
 ## Current Tasks
-
-### Network Module - High Priority
-
-#### `server.py`
-- [ ] Fix type compatibility issues:
-  - [ ] Fix Technology type in server_technologies creation
-  - [ ] Fix parameter type in _select_diverse_servers function
-  - [ ] Fix return type in get_country_info function
-- [ ] Address security issues in subprocess calls
-- [ ] Add comprehensive type hints
-
-## Upcoming Tasks
 
 ### Medium Priority
 

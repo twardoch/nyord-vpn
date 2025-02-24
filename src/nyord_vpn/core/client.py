@@ -6,7 +6,7 @@ This module contains the main Client class that coordinates all VPN operations.
 It serves as the primary entry point for both CLI and library usage, orchestrating:
 
 Components:
-- API interactions via NordVPNAPIClient (core/api.py) for authentication and server info
+- API interactions via NordVPNAPI (api/api.py) for authentication and server info
 - VPN connections via VPNConnectionManager (network/vpn.py) for OpenVPN management
 - Server selection via ServerManager (network/server.py) for optimal server choice
 - State persistence via utils/utils.py for connection recovery
@@ -52,7 +52,7 @@ from nyord_vpn.utils.utils import (
     save_vpn_state,
 )
 from nyord_vpn.network.server import ServerManager
-from nyord_vpn.core.api import NordVPNAPIClient
+from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.network.vpn import VPNConnectionManager
 
 load_dotenv()
@@ -219,9 +219,7 @@ class Client:
             )
 
         # Initialize components in the correct order
-        self.api_client = NordVPNAPIClient(
-            self.username, self.password, verbose=verbose
-        )
+        self.api_client = NordVPNAPI(timeout=10)
         self.server_manager = ServerManager(self.api_client)
         self.vpn_manager = VPNConnectionManager(
             api_client=self.api_client,

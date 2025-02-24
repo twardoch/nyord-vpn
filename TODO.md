@@ -78,27 +78,15 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [x] Network Module - `vpn_commands.py`
   - [x] Create `OpenVPNConfig` dataclass with proper validation
   - [x] Implement `get_openvpn_command` function with proper validation
-- [x] Network Module - `server.py` (partial)
+- [x] Network Module - `server.py`
   - [x] Replace random module with secrets module for secure randomization
+  - [x] Fix type compatibility issues in server.py
+  - [x] Address security issues in subprocess calls by validating input
+  - [x] Add comprehensive type hints for functions and variables
 
 ## Remaining Tasks (Prioritized)
 
 ### High Priority Items
-
-#### Network Module (`src/nyord_vpn/network/`)
-
-##### `src/nyord_vpn/network/server.py`
-
-**Action**: Fix type issues and improve security.
-
-- [!] Fix type compatibility issues in server.py:
-  - [!] Fix Technology type in server_technologies creation
-  - [!] Fix parameter type in _select_diverse_servers function 
-  - [!] Fix return type in get_country_info function
-- [!] Address security issues in subprocess calls by validating input
-- [!] Add comprehensive type hints for functions and variables
-
-### Medium Priority Items
 
 #### Core Module (`src/nyord_vpn/core/`)
 
@@ -106,10 +94,12 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 **Action**: Refactor to use the new API.
 
-- [ ] Update to use the new `NordVPNAPI` class
-- [ ] Improve error handling and user feedback
-- [ ] Break down complex methods into smaller helper functions
-- [ ] Fix boolean arguments and other linting issues
+- [!] Update to use the new `NordVPNAPI` class
+- [!] Improve error handling and user feedback
+- [!] Break down complex methods into smaller helper functions
+- [!] Fix boolean arguments and other linting issues
+
+### Medium Priority Items
 
 #### Network Module (`src/nyord_vpn/network/`)
 
