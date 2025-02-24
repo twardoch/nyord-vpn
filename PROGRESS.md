@@ -17,6 +17,9 @@ This progress report tracks the refactoring of the nyord-vpn codebase.
 - [x] Core Module initial clean-up
   - [x] Add deprecation warnings to `api.py` and `base.py`
   - [x] Fix boolean positional arguments
+- [x] Network Module - `vpn_commands.py`
+  - [x] Create `OpenVPNConfig` dataclass with proper validation
+  - [x] Implement `get_openvpn_command` function with proper validation
 
 ## Current Tasks
 
@@ -30,11 +33,6 @@ This progress report tracks the refactoring of the nyord-vpn codebase.
 - [ ] Replace random module with secrets module
 - [ ] Address security issues in subprocess calls
 - [ ] Add comprehensive type hints
-
-#### `vpn_commands.py`
-- [ ] Create `OpenVPNConfig` dataclass with proper validation
-- [ ] Implement `get_openvpn_command` function with proper validation
-- [ ] Add security enhancements for command generation
 
 ## Upcoming Tasks
 

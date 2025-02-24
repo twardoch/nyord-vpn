@@ -75,6 +75,9 @@ For CLI Python scripts, use fire & rich, and start the script with
   - [x] `src/nyord_vpn/api/v2_servers.py`: Fix linting and improve type hints
 - [x] Core Module - Initial cleanup
   - [x] `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`: Add deprecation warnings
+- [x] Network Module - `vpn_commands.py`
+  - [x] Create `OpenVPNConfig` dataclass with proper validation
+  - [x] Implement `get_openvpn_command` function with proper validation
 
 ## Remaining Tasks (Prioritized)
 
@@ -93,14 +96,6 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [!] Replace random module with secrets module for secure randomization
 - [!] Address security issues in subprocess calls by validating input
 - [!] Add comprehensive type hints for functions and variables
-
-##### `src/nyord_vpn/network/vpn_commands.py`
-
-**Action**: Refactor for better usability.
-
-- [!] Create `OpenVPNConfig` dataclass with proper validation
-- [!] Implement `get_openvpn_command` function with proper validation
-- [!] Add security enhancements for command generation
 
 ### Medium Priority Items
 
