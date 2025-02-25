@@ -42,6 +42,12 @@ class GroupType(BaseModel):
     title: str
     identifier: str
 
+    class Config:
+        """Model configuration for validation handling."""
+
+        extra = "ignore"  # Ignore extra fields
+        protected_namespaces = ()  # Allow arbitrary attribute access
+
 
 class Group(BaseModel):
     """Server group information from the v1 API."""
@@ -52,6 +58,12 @@ class Group(BaseModel):
     title: str
     identifier: str
     type: GroupType
+
+    class Config:
+        """Model configuration for validation handling."""
+
+        extra = "ignore"  # Ignore extra fields
+        protected_namespaces = ()  # Allow arbitrary attribute access
 
 
 class NordVPNGroupsV1:

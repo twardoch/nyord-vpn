@@ -783,6 +783,11 @@ class ServerManager:
         Returns:
             bool: True if server is valid, False otherwise
 
+        A valid server must:
+        1. Be online
+        2. Have a valid hostname (not in failed servers list)
+        3. Support OpenVPN TCP technology
+
         """
         # Basic validation for dictionary-like objects
         if not hasattr(server, "get") and not hasattr(server, "__dict__"):
@@ -807,7 +812,34 @@ class ServerManager:
         )
 
         # Check status
-        return status == "online"
+        if status != "online":
+            return False
+
+        # Check for OpenVPN TCP support
+        technologies = (
+            server.get("technologies", [])
+            if hasattr(server, "get")
+            else getattr(server, "technologies", [])
+        )
+
+        # Look for OpenVPN TCP in technologies
+        has_openvpn_tcp = False
+        for tech in technologies:
+            if hasattr(tech, "get"):
+                tech_name = tech.get("name", "")
+            else:
+                tech_name = getattr(tech, "name", "")
+
+            if "OpenVPN TCP" in tech_name:
+                if self.verbose:
+                    self.logger.debug(f"Found OpenVPN TCP support: {tech_name}")
+                has_openvpn_tcp = True
+                break
+
+        if not has_openvpn_tcp and self.verbose:
+            self.logger.debug(f"Server {hostname} does not support OpenVPN TCP")
+
+        return has_openvpn_tcp
 
     def _test_server(self, server: Any) -> tuple[Any, float]:
         """Test server response time and load.

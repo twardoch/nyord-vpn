@@ -114,6 +114,12 @@ class Group(BaseModel):
     identifier: str
     type: GroupType
 
+    class Config:
+        """Model configuration for validation handling."""
+
+        extra = "ignore"  # Ignore extra fields
+        protected_namespaces = ()  # Allow arbitrary attribute access
+
 
 class Service(BaseModel):
     """Service provided by the server."""

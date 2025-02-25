@@ -79,19 +79,20 @@ globs:
 │       ├── [ 47K]  2025-02-24_20-54-placeholder-message.md
 │       ├── [ 64K]  2025-02-24_21-51-codebase-review-and-task-prioritization.md
 │       ├── [ 54K]  2025-02-24_22-08-reviewing-progress-and-todo-for-codebase-tasks.md
-│       └── [204K]  2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
+│       ├── [271K]  2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
+│       └── [108K]  2025-02-25_00-29-codebase-todo-and-progress-update.md
 ├── [ 160]  CLEANUP.txt
 ├── [1.0K]  LICENSE
-├── [ 30K]  PROGRESS.md
+├── [9.9K]  PROGRESS.md
 ├── [5.5K]  README.md
-├── [ 16K]  TODO.md
+├── [ 13K]  TODO.md
 ├── [ 13K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
 ├── [174K]  nyord_vpn.txt
 ├── [ 426]  package.toml
 ├── [6.9K]  pyproject.toml
-├── [ 160]  src
+├── [ 192]  src
 │   ├── [   0]  __init__.py
 │   └── [ 448]  nyord_vpn
 │       ├── [2.4K]  __init__.py
@@ -102,7 +103,7 @@ globs:
 │       │   ├── [ 27K]  v1_countries.json
 │       │   ├── [5.4K]  v1_countries.py
 │       │   ├── [5.2K]  v1_groups.json
-│       │   ├── [4.6K]  v1_groups.py
+│       │   ├── [5.0K]  v1_groups.py
 │       │   ├── [ 67K]  v1_recommendations.json
 │       │   ├── [7.0K]  v1_recommendations.py
 │       │   ├── [4.2K]  v1_technologies.json
@@ -124,7 +125,7 @@ globs:
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 38K]  server.py
+│       │   ├── [ 39K]  server.py
 │       │   ├── [ 47K]  vpn.py
 │       │   └── [ 14K]  vpn_commands.py
 │       ├── [ 192]  scripts
@@ -149,16 +150,16 @@ globs:
 │   │   ├── [2.9K]  test_connection.py
 │   │   ├── [9.3K]  test_errors.py
 │   │   └── [1.4K]  test_validation_integration.py
-│   ├── [5.9K]  test_api.py
+│   ├── [6.5K]  test_api.py
 │   ├── [2.0K]  test_client.py
 │   ├── [3.5K]  test_legacy_api.py
 │   ├── [ 159]  test_package.py
 │   ├── [6.4K]  test_server_manager.py
 │   ├── [4.2K]  test_v1_countries.py
-│   ├── [4.4K]  test_v1_groups.py
+│   ├── [4.7K]  test_v1_groups.py
 │   ├── [5.7K]  test_v1_recommendations.py
 │   ├── [3.2K]  test_v1_technologies.py
-│   └── [7.8K]  test_v2_servers.py
+│   └── [8.6K]  test_v2_servers.py
 └── [264K]  uv.lock
 
-22 directories, 136 files
+22 directories, 137 files

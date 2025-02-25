@@ -62,46 +62,35 @@ For CLI Python scripts, use fire & rich, and start the script with
 # this_file: PATH_TO_CURRENT_FILE
 ```
 
-# Nyord VPN Codebase Refactoring Specification
-
-## Completed Tasks
-- [x] Add module docstrings to all files
-- [x] Rename `ConnectionError` to `VPNConnectionError`
-- [x] Make boolean parameters keyword-only
-- [x] Move main blocks to test files
-- [x] API Module (`src/nyord_vpn/api/`)
-  - [x] `src/nyord_vpn/api/api.py`: Implement central API interface
-  - [x] `src/nyord_vpn/api/v1_*.py`: Add deprecation notices and clean up
-  - [x] `src/nyord_vpn/api/v2_servers.py`: Fix linting and improve type hints
-- [x] Core Module - Initial cleanup
-  - [x] `src/nyord_vpn/core/api.py` and `src/nyord_vpn/core/base.py`: Add deprecation warnings
-- [x] Network Module - `vpn_commands.py`
-  - [x] Create `OpenVPNConfig` dataclass with proper validation
-  - [x] Implement `get_openvpn_command` function with proper validation
-- [x] Network Module - `server.py`
-  - [x] Replace random module with secrets module for secure randomization
-  - [x] Fix type compatibility issues in server.py
-  - [x] Address security issues in subprocess calls by validating input
-  - [x] Add comprehensive type hints for functions and variables
-- [x] Core Module (`src/nyord_vpn/core/`)
-  - [x] `src/nyord_vpn/core/client.py`: Update to use the new `NordVPNAPI` class
+# Nyord VPN Codebase Refactoring TODO
 
 ## Remaining Tasks (Prioritized)
 
 ### High Priority Items
 
-#### Core Module (`src/nyord_vpn/core/`)
+#### Fix Test Failures
+- [!] Fix test_openvpn_tcp_validation failure in ServerManager class
+  - Update `_is_valid_server()` method to correctly check for OpenVPN TCP support
+  - Add debug logging to diagnose technology validation issues
+- [!] Fix test_fetch_all, test_get_servers_by_country, and test_get_servers_by_group failures
+  - Update sample fixtures to include proper server relationships
+  - Ensure server-to-group relationships are properly established
+  - Ensure server-to-location relationships are properly established
+- [!] Fix test_get_servers test failure related to locations relationship
+- [!] Fix test_server_filtering failure related to mock implementation
 
-##### `src/nyord_vpn/core/client.py`
+#### Fix Import Errors in Integration Tests
+- [!] Update import statements in integration tests
+  - Change `from nyord_vpn.core.exceptions import ...` to `from nyord_vpn.exceptions import ...`
+  - Replace references to `VPNClient` with `Client`
+- [!] Fix mock setup in test_server_manager.py to correctly simulate API response structure
 
-**Action**: Continue refactoring to improve quality.
-
-- [!] Improve error handling and user feedback
-  - [!] Add more detailed error messages with troubleshooting steps
-  - [!] Implement proper exception handling with specific exception types
-  - [!] Add recovery suggestions in error messages
+#### Core Module - `client.py`
 - [!] Break down complex methods into smaller helper functions
-  - [!] Refactor the `go()` method into smaller functions for each step
+  - [!] Refactor the `go()` method into smaller functions for each step:
+    - Extract server selection logic into a separate method
+    - Create a dedicated method for connection validation
+    - Implement retry logic with proper error handling
   - [!] Extract connection validation logic into separate functions
   - [!] Create helper functions for environment variable handling
 - [!] Fix boolean arguments and other linting issues
@@ -111,12 +100,7 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 ### Medium Priority Items
 
-#### Network Module (`src/nyord_vpn/network/`)
-
-##### `src/nyord_vpn/network/vpn.py`
-
-**Action**: Refactor for better maintainability.
-
+#### Network Module - `vpn.py`
 - [!] Make boolean arguments keyword-only
 - [!] Add comprehensive type hints for all functions and methods
 - [ ] Implement retry logic for connection attempts with tenacity
@@ -127,243 +111,185 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [ ] Replace random.uniform with secrets.SystemRandom().uniform for better security
 - [ ] Improve error handling with specific exception types and recovery mechanisms
 
-#### Tests
-
-**Action**: Update to reflect code changes.
-
-- [!] Fix import error in `tests/test_client.py` (change import from nyord_vpn.core.exceptions to nyord_vpn.exceptions)
-- [!] Update test fixtures to include missing fields:
-  - Add `type` field to Group model in test fixtures
-  - Add `server_count` field to Country and City models in test fixtures 
-- [!] Fix validation errors in models and tests:
-  - Fix test mocks to have all required fields in API responses
-  - Update model validation to handle missing fields gracefully
-  - Fix server filtering test failures in test_v2_servers.py
-- [!] Fix mock setup in `tests/test_server_manager.py` (AttributeError: Mock object has no attribute 'get')
-- [ ] Update imports to use `VPNConnectionError` instead of `ConnectionError`
-- [ ] Fix test failures in integration tests
-
-### Lower Priority Items
-
-#### Utils Module (`src/nyord_vpn/utils/`)
-
-##### `src/nyord_vpn/utils/templates.py`
-
-**Action**: Simplify with tenacity.
-
+#### Utils Module - `templates.py`
 - [!] Fix security vulnerabilities in subprocess calls (S603, S607)
 - [!] Replace datetime.now() and datetime.fromtimestamp() with timezone-aware versions (DTZ005, DTZ006)
 - [!] Fix exception handling issues:
-  - Replace long error messages with proper exception classes (TRY003)
-  - Use `raise ... from err` consistently (B904)
-  - Move try/except out of loops for better performance (PERF203)
-  - Use `else` blocks appropriately after try/except (TRY300)
-- [ ] Implement retry logic with tenacity for network operations
-- [ ] Break down complex functions into smaller ones
-- [ ] Improve docstrings and type hints
-- [ ] Add more detailed logging for debugging purposes
-- [ ] Replace random module usage with secrets module (S311)
+  - [!] Replace long error messages with proper exception classes (TRY003)
+  - [!] Use `raise ... from err` consistently (B904)
+  - [!] Move try/except out of loops for better performance (PERF203)
+  - [!] Use `else` blocks appropriately after try/except (TRY300)
 
-##### `src/nyord_vpn/utils/utils.py`
+### Lower Priority Items
 
-**Action**: Update file handling and security.
-
+#### Utils Module - `utils.py`
 - [!] Replace os.path functions with pathlib equivalents (PTH110, PTH118, PTH123)
 - [!] Fix security vulnerability in subprocess call (S603)
 - [!] Fix error handling to use `else` blocks appropriately (TRY300)
 - [ ] Implement atomic file operations for state management
-- [ ] Add better error handling for file operations
-- [ ] Improve type annotations and docstrings
 
-#### Main Module Files
-
-##### `src/nyord_vpn/__main__.py`
-
-**Action**: Update to use new API.
-
+#### Main Module - `__main__.py`
 - [!] Update CLI class to use the updated Client API
   - [!] Replace any usage of deprecated classes/methods with their updated counterparts
   - [!] Update command-line arguments to match new API structure
   - [!] Ensure all commands use the new Client implementation
 - [!] Improve error handling and user feedback
-  - [!] Add specific error handling for common user errors (e.g., invalid credentials, connection failures)
+  - [!] Add specific error handling for common user errors
   - [!] Provide clear, actionable error messages with recovery steps
   - [!] Add verbose output mode for troubleshooting
-- [ ] Add more detailed help messages and documentation
-  - [ ] Enhance command-line help with examples and parameter descriptions
-  - [ ] Add context-specific help for each command
-  - [ ] Include version information and system requirements
-- [ ] Implement command auto-completion for better user experience
-  - [ ] Add shell completion scripts (Bash, Zsh, Fish)
-  - [ ] Provide dynamic completion for country/server names
-  - [ ] Document how to enable command completion
 
-#### Documentation
+## Implementation Steps
 
-**Action**: Update documentation.
+### Fixing Test Failures
 
-- [!] Update README.md with installation and usage instructions
-  - [!] Add clear step-by-step installation guide for different platforms
-  - [!] Include dependency installation instructions
-  - [!] Update usage examples with the new API
-- [ ] Add API documentation with example usage
-  - [ ] Document the public API classes and methods
-  - [ ] Provide usage examples for common scenarios
-  - [ ] Include type information and error handling patterns
-- [ ] Create usage examples for common scenarios
-  - [ ] Basic connection and disconnection
-  - [ ] Connecting to specific countries/servers
-  - [ ] Handling connection failures
-  - [ ] Using different protocols and settings
-- [ ] Document troubleshooting steps for common issues
-  - [ ] Authentication problems
-  - [ ] Connection failures
-  - [ ] OpenVPN configuration issues
-  - [ ] Platform-specific troubleshooting
-- [ ] Add architecture overview diagrams
-  - [ ] Component interaction diagram
-  - [ ] Class hierarchy diagram
-  - [ ] API request flows
-  - [ ] Error handling paths
+#### 1. Fix the OpenVPN TCP validation issue in server_manager.py
 
-## Next Steps
+```python
+def _is_valid_server(self, server: dict) -> bool:
+    """Check if a server is valid for OpenVPN TCP connection."""
+    # Add debug logging for technologies to diagnose the issue
+    if self.verbose:
+        technologies = server.get("technologies", [])
+        self.logger.debug(f"Server technologies: {technologies}")
+        
+    # Check server status
+    if server.get("status") != "online":
+        if self.verbose:
+            self.logger.debug(f"Server {server.get('hostname')} is not online")
+        return False
+        
+    # Check hostname
+    hostname = server.get("hostname", "")
+    if not hostname.endswith(".nordvpn.com"):
+        if self.verbose:
+            self.logger.debug(f"Invalid hostname: {hostname}")
+        return False
+    
+    # Check load
+    load = server.get("load", -1)
+    if not (0 <= load <= 100):
+        if self.verbose:
+            self.logger.debug(f"Server {hostname} has invalid load: {load}")
+        return False
+    
+    # Fix the OpenVPN TCP check:
+    has_openvpn_tcp = False
+    for tech in server.get("technologies", []):
+        if isinstance(tech, dict) and "name" in tech:
+            tech_name = tech.get("name", "")
+            if "OpenVPN TCP" in tech_name:
+                has_openvpn_tcp = True
+                break
+    
+    if not has_openvpn_tcp:
+        if self.verbose:
+            self.logger.debug(f"Server {hostname} does not support OpenVPN TCP")
+        return False
+    
+    return True
+```
 
-Based on the prioritized tasks, the immediate next steps should be:
+#### 2. Fix model relationship issues in test fixtures
 
-1. **Improve error handling in client.py**
-   - Add structured error message catalog with troubleshooting steps
-   - Create helper methods for consistent error handling
-   - Implement recovery mechanisms with exponential backoff
-   - Refactor the `go()` method into smaller, focused functions:
-     - `_validate_country_code()`
-     - `_resolve_server()`
-     - `_connect_to_server()`
-     - `_verify_connection()`
-   - Update the `VPNError` exception to include troubleshooting steps
-   - Update method docstrings with error handling information
+Update sample_server fixture:
+```python
+@pytest.fixture
+def sample_server(sample_group, sample_location, sample_technology):
+    """Create a sample server with proper relationships."""
+    return {
+        "id": 1,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+        "name": "us1234.nordvpn.com",
+        "station": "us1234",
+        "hostname": "us1234.nordvpn.com",
+        "ipv6_station": "",
+        "status": "online",
+        "load": 45,
+        "groups": [{"id": 1, "pivot": {"server_id": 1, "group_id": 1}}],
+        "locations": [{"id": 1, "pivot": {"server_id": 1, "location_id": 1}}],
+        "technologies": [sample_technology],
+    }
+```
 
-2. **Fix test fixtures**
-   - Update `sample_group_type` and `sample_group` fixtures to properly handle the type reference
-   - Add `server_count` field to `sample_city` and `sample_country` fixtures
-   - Fix the server groups issue in the `test_fetch_all` test by ensuring server objects have proper group references
-   - Update the mock setup in `test_server_manager.py` to correctly mock the API methods
-   - Add model configuration for better validation handling with `Config` class
+### Refactoring the Client.go() Method
 
-3. **Make boolean arguments keyword-only in vpn.py**
-   - Update function signatures to use the `*` parameter separator
-   - Update all function calls to use keyword arguments
-   - Add proper validation for boolean parameters
-   - Update docstrings to clarify which parameters are keyword-only
+Break down the go() method into smaller functions:
 
-4. **Fix security vulnerabilities in templates.py**
-   - Replace subprocess calls with safer alternatives by properly escaping input
-   - Fix datetime timezone issues by using timezone-aware versions
-   - Improve exception handling with `raise ... from err`
-   - Move try/except blocks out of loops for better performance
-   - Add proper `else` blocks after try/except where appropriate
+```python
+def _validate_country_code(self, country_code: str) -> None:
+    """Validate that the country code is valid."""
+    if not country_code or not isinstance(country_code, str) or len(country_code) != 2:
+        raise VPNError(f"Country code must be a two-letter code, got: {country_code!r}")
+    
+    # Optionally validate against known country codes
+    countries = self.list_countries()
+    country_codes = [c["code"].lower() for c in countries]
+    
+    if country_code.lower() not in country_codes:
+        raise VPNError(f"Country code '{country_code}' not found in available countries: {', '.join(country_codes)}")
 
-These tasks should be implemented in the order presented for maximum impact on code quality and stability.
+def _select_server(self, country_code: str) -> dict:
+    """Select the best server for the specified country."""
+    servers = self.server_manager.select_fastest_server(country_code)
+    if not servers:
+        raise VPNError(f"No servers available in {country_code}")
 
-## Implementation Notes
+    # Take the first (fastest) server
+    server = servers[0]
+    hostname = server.get("hostname")
+    if not hostname:
+        raise VPNError("Selected server has no hostname")
 
-### Improving Error Handling in client.py
+    if self.verbose:
+        self.logger.info(f"Selected server: {hostname}")
+        
+    return server
 
-The following approach is recommended for improving error handling in the Client class:
+def _establish_connection(self, server: dict) -> None:
+    """Establish the VPN connection to the specified server."""
+    hostname = server.get("hostname")
+    
+    # Set up VPN configuration
+    if not self.username or not self.password:
+        raise VPNError("Missing VPN credentials")
+        
+    self.vpn_manager.setup_connection(hostname, self.username, self.password)
 
-1. **Define structured error messages**:
-   ```python
-   ERROR_MESSAGES = {
-       "auth_failed": {
-           "message": "Authentication failed with NordVPN servers",
-           "troubleshooting": [
-               "Check that your username and password are correct",
-               "Verify your internet connection",
-               "Try again in a few minutes"
-           ]
-       },
-       "connection_failed": {
-           "message": "Failed to establish VPN connection",
-           "troubleshooting": [
-               "Check if OpenVPN is installed",
-               "Verify you have sufficient permissions",
-               "Try connecting to a different server"
-           ]
-       },
-       # Add more structured error messages
-   }
-   ```
+    # Connect to VPN
+    if self.verbose:
+        self.logger.info("Establishing VPN connection...")
+        
+    # Connect and wait for result
+    self.vpn_manager.connect([server])  # Pass server to try
 
-2. **Create helper functions for error handling**:
-   ```python
-   def _handle_error(self, error_code: str, details: str = None) -> None:
-       """Handle errors with consistent messaging and logging."""
-       error_info = self.ERROR_MESSAGES.get(error_code, {"message": "An unknown error occurred"})
-       message = error_info["message"]
-       if details:
-           message = f"{message}: {details}"
-           
-       # Log the error
-       logger.error(f"Error {error_code}: {message}")
-       
-       # Raise a specific exception with troubleshooting steps
-       troubleshooting = error_info.get("troubleshooting", [])
-       raise VPNError(message, troubleshooting=troubleshooting)
-   ```
+def go(self, country_code: str) -> None:
+    """Connect to VPN in specified country."""
+    try:
+        # First check if we're already connected
+        status = self.status()
+        if status.get("connected", False):
+            # VPN manager will handle disconnection automatically
+            if self.verbose:
+                self.logger.info("Already connected, will disconnect before connecting to new server")
 
-3. **Add recovery mechanisms**:
-   ```python
-   def _try_reconnect(self, country_code: str, max_attempts: int = 3) -> bool:
-       """Attempt to reconnect to VPN after a failure."""
-       for attempt in range(max_attempts):
-           try:
-               logger.info(f"Reconnection attempt {attempt + 1}/{max_attempts}")
-               # Try with a different server
-               self._connect(country_code, bypass_cache=True)
-               return True
-           except VPNError as e:
-               logger.warning(f"Reconnection attempt {attempt + 1} failed: {e}")
-               time.sleep(2 ** attempt)  # Exponential backoff
-       
-       return False
-   ```
+        # Validate the country code
+        self._validate_country_code(country_code)
+        
+        # Select the best server
+        server = self._select_server(country_code)
+        
+        # Establish the connection
+        self._establish_connection(server)
 
-4. **Break down the `go()` method**:
-   ```python
-   def go(self, country_code: str) -> None:
-       """Connect to VPN in specified country."""
-       try:
-           # Validate country code
-           self._validate_country_code(country_code)
-           
-           # Resolve server for country
-           server = self._resolve_server(country_code)
-           
-           # Connect to server
-           self._connect_to_server(server)
-           
-           # Verify connection
-           self._verify_connection()
-           
-       except VPNError as e:
-           # Try recovery based on error type
-           if self._try_recovery(e, country_code):
-               logger.info("Recovery successful")
-           else:
-               raise  # Re-raise if recovery failed
-   ```
+        # Get status for display
+        status = self.status()
+        console.print("[green]Successfully connected to VPN[/green]")
+        console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+        console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+        console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
 
-5. **Update docstrings to include error handling information**:
-   ```python
-   def disconnect(self) -> None:
-       """Disconnect from VPN.
-       
-       Terminates all OpenVPN processes and cleans up connection state.
-       
-       Raises:
-           VPNError: If disconnection fails (e.g., process termination issues).
-               Check if OpenVPN processes are still running manually.
-       """
-   ```
-
-By implementing these changes, the client.py module will have significantly improved error handling with clear messages, recovery options, and better guidance for users.
+    except Exception as e:
+        raise VPNError(f"Failed to connect: {e}")
+```
 

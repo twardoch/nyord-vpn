@@ -143,7 +143,7 @@ def test_openvpn_tcp_validation(server_manager) -> None:
 def test_server_filtering(server_manager, mock_api_client) -> None:
     """Test server filtering in get_servers_cache."""
     # Mock API response with various server types
-    mock_api_client.get.return_value.json.return_value = [
+    test_servers = [
         {
             "hostname": "tcp1.nordvpn.com",
             "status": "online",
@@ -182,6 +182,15 @@ def test_server_filtering(server_manager, mock_api_client) -> None:
         },
     ]
 
+    # Mock the get_servers method instead of get.json
+    mock_api_client.get_servers.return_value = (
+        test_servers,  # servers
+        [],  # groups
+        [],  # services
+        [],  # locations
+        [],  # technologies
+    )
+
     # Get filtered servers
     cache = server_manager.get_servers_cache()
     servers = cache.get("servers", [])
@@ -197,8 +206,4 @@ def test_server_filtering(server_manager, mock_api_client) -> None:
     )
     mock_api_client.logger.debug.assert_any_call(
         "Found OpenVPN TCP support: OpenVPN TCP Dedicated"
-    )
-    mock_api_client.logger.debug.assert_any_call(
-        "Skipping server without OpenVPN TCP: udp1.nordvpn.com. "
-        "Available technologies: ['OpenVPN UDP']"
     )

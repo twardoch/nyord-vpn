@@ -19,6 +19,7 @@ def sample_country() -> dict:
         "id": 1,
         "name": "United States",
         "code": "US",
+        "server_count": 100,
         "cities": [
             {
                 "id": 1,
@@ -27,13 +28,26 @@ def sample_country() -> dict:
                 "longitude": -74.0060,
                 "dns_name": "us-nyc.nordvpn.com",
                 "hub_score": 1.0,
+                "server_count": 50,
             }
         ],
     }
 
 
 @pytest.fixture
-def sample_group() -> dict:
+def sample_group_type() -> dict:
+    """Create a sample group type for testing."""
+    return {
+        "id": 1,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+        "title": "Legacy Groups",
+        "identifier": "legacy_group_category",
+    }
+
+
+@pytest.fixture
+def sample_group(sample_group_type) -> dict:
     """Create a sample group for testing."""
     return {
         "id": 1,
@@ -41,6 +55,7 @@ def sample_group() -> dict:
         "identifier": "p2p",
         "created_at": "2024-01-01T00:00:00Z",
         "updated_at": "2024-01-01T00:00:00Z",
+        "type": sample_group_type,
     }
 
 
@@ -58,7 +73,7 @@ def sample_technology() -> dict:
 
 
 @pytest.fixture
-def sample_server() -> dict:
+def sample_server(sample_group_type) -> dict:
     """Create a sample server for testing."""
     return {
         "id": 1,
@@ -72,6 +87,17 @@ def sample_server() -> dict:
         "ipv6_station": "",
         "ips": [],
         "specifications": [],
+        "groups": [
+            {
+                "id": 1,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+                "title": "P2P",
+                "identifier": "legacy_p2p",
+                "type": sample_group_type,
+                "pivot": {"server_id": 1, "group_id": 1},
+            }
+        ],
         "locations": [
             {
                 "id": 1,
@@ -83,6 +109,7 @@ def sample_server() -> dict:
                     "id": 1,
                     "name": "United States",
                     "code": "US",
+                    "server_count": 100,
                     "city": {
                         "id": 1,
                         "name": "New York",
@@ -90,6 +117,7 @@ def sample_server() -> dict:
                         "longitude": -74.0060,
                         "dns_name": "us-nyc.nordvpn.com",
                         "hub_score": 1,
+                        "server_count": 50,
                     },
                 },
             }
@@ -103,16 +131,6 @@ def sample_server() -> dict:
                 "updated_at": "2024-01-01T00:00:00Z",
             }
         ],
-        "groups": [
-            {
-                "id": 1,
-                "title": "P2P",
-                "identifier": "p2p",
-                "created_at": "2024-01-01T00:00:00Z",
-                "updated_at": "2024-01-01T00:00:00Z",
-            }
-        ],
-        "services": [],
     }
 
 

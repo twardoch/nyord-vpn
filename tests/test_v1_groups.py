@@ -42,10 +42,17 @@ def sample_group(sample_group_type) -> dict:
 
 
 @pytest.fixture
-def sample_groups(sample_group) -> list[dict]:
+def sample_groups(sample_group_type) -> list[dict]:
     """Create a list of sample groups for testing."""
     return [
-        sample_group,
+        {
+            "id": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "title": "P2P",
+            "identifier": "legacy_p2p",
+            "type": sample_group_type,
+        },
         {
             "id": 2,
             "created_at": "2024-01-01T00:00:00Z",

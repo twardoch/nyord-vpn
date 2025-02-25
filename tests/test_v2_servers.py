@@ -120,13 +120,20 @@ def sample_city() -> dict:
         "longitude": -74.0060,
         "dns_name": "us-nyc.nordvpn.com",
         "hub_score": 1,
+        "server_count": 50,
     }
 
 
 @pytest.fixture
 def sample_country(sample_city) -> dict:
     """Create a sample country for testing."""
-    return {"id": 1, "name": "United States", "code": "US", "city": sample_city}
+    return {
+        "id": 1,
+        "name": "United States",
+        "code": "US",
+        "city": sample_city,
+        "server_count": 100,
+    }
 
 
 @pytest.fixture
@@ -165,9 +172,27 @@ def sample_server(
         "ips": [sample_server_ip],
         "specifications": [sample_specification],
         "technologies": [sample_tech],
-        "groups": [sample_group],
+        "groups": [
+            {
+                "id": sample_group["id"],
+                "title": sample_group["title"],
+                "identifier": sample_group["identifier"],
+                "created_at": sample_group["created_at"],
+                "updated_at": sample_group["updated_at"],
+                "type": sample_group["type"],
+                "pivot": {"server_id": 1, "group_id": sample_group["id"]},
+            }
+        ],
         "services": [sample_service],
-        "locations": [sample_location],
+        "locations": [
+            {
+                "id": sample_location["id"],
+                "created_at": sample_location["created_at"],
+                "updated_at": sample_location["updated_at"],
+                "country": sample_location["country"],
+                "pivot": {"server_id": 1, "location_id": sample_location["id"]},
+            }
+        ],
     }
 
 

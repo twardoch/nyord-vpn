@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 import json
 
-from nyord_vpn.core.client import VPNClient
+from nyord_vpn.core.client import Client
 from nyord_vpn.core.config import VPNConfig
 from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
@@ -26,7 +26,7 @@ async def test_file_loading(temp_dir) -> None:
     config_file.write_text(json.dumps(config_data))
 
     # Test loading with VPNClient
-    client = VPNClient.from_file(config_file)
+    client = Client.from_file(config_file)
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
     assert client.config.default_country == "Sweden"
@@ -56,7 +56,7 @@ async def test_environment_loading_unprefixed(monkeypatch) -> None:
     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "4")
 
     # Test loading with VPNClient
-    client = VPNClient.from_env()
+    client = Client.from_env()
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
     assert client.config.default_country == "Norway"
@@ -73,7 +73,7 @@ async def test_environment_loading_prefixed(monkeypatch) -> None:
     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "5")
 
     # Test loading with VPNClient
-    client = VPNClient.from_env()
+    client = Client.from_env()
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
     assert client.config.default_country == "Sweden"
@@ -90,7 +90,7 @@ async def test_environment_loading_precedence(monkeypatch) -> None:
     monkeypatch.setenv("NORDVPN_PASSWORD", "prefixed_pass")
 
     # Unprefixed should take precedence
-    client = VPNClient.from_env()
+    client = Client.from_env()
     assert client.config.username == "unprefixed_user"
     assert client.config.password.get_secret_value() == "unprefixed_pass"
 
@@ -109,7 +109,7 @@ async def test_default_values() -> None:
     assert config.api_timeout == 30
 
     # Test with VPNClient
-    client = VPNClient(username="test", password="test")
+    client = Client(username="test", password="test")
     assert client.config.username == "test"
     assert client.config.password.get_secret_value() == "test"
     assert client.config.default_country == "United States"
@@ -139,7 +139,7 @@ async def test_config_file_precedence(temp_dir, monkeypatch) -> None:
     monkeypatch.setenv("NORDVPN_API_TIMEOUT", "45")
 
     # Test with VPNClient - explicit args > file > env > defaults
-    client = VPNClient.from_file(
+    client = Client.from_file(
         config_file,
         username="arg_user",
         password=TEST_PASSWORD.get_secret_value(),
@@ -225,7 +225,7 @@ def test_load_from_file(tmp_path: Path) -> None:
     config_path.write_text(json.dumps(config_data))
 
     # Test client initialization from file
-    client = VPNClient(config_file=config_path)
+    client = Client(config_file=config_path)
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
     assert client.config.api_timeout == 30
@@ -248,7 +248,7 @@ def test_load_from_env(monkeypatch) -> None:
     monkeypatch.setenv("NORDVPN_RETRY_ATTEMPTS", "5")
 
     # Test client initialization from env
-    client = VPNClient()  # Will load from env by default
+    client = Client()  # Will load from env by default
     assert client.config.username == TEST_USERNAME
     assert client.config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
     assert client.config.api_timeout == 30
@@ -273,7 +273,7 @@ def test_direct_initialization() -> None:
     assert config.password.get_secret_value() == TEST_PASSWORD.get_secret_value()
 
     # Test client initialization
-    client = VPNClient(
+    client = Client(
         username=TEST_USERNAME,
         password=TEST_PASSWORD.get_secret_value(),
     )
