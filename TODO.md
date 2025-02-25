@@ -68,7 +68,25 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 ### 6.1. High Priority Items
 
-#### 6.1.1. Fix Test Failures
+#### 6.1.1. Minimize Output Messages Without Verbose Flag
+
+- [!] Configure logging to only show debug/info logs when --verbose is used
+  - [!] Update logger configuration in client.py to respect verbose flag
+  - [!] Set default log level to WARNING when verbose=False
+  - [!] Ensure critical errors are still shown regardless of verbose setting
+
+- [!] Implement minimalistic output in commands
+  - [!] Create helper method in Client class to format minimal output
+  - [!] Update info() method to show only "IPADDRESS: -" or "IPADDRESS: VPNSERVERNAME"
+  - [!] Update go() method to show only minimal output after successful connection
+  - [!] Update bye() method to show only minimal output after disconnection
+
+- [!] Testing and verification
+  - [!] Test output with and without --verbose flag
+  - [!] Verify each command produces correct minimalistic format when verbose=False
+  - [!] Ensure error messages are still displayed appropriately
+
+#### 6.1.2. Fix Test Failures
 
 - [!] Fix test_openvpn_tcp_validation failure in ServerManager class
   - Update `_is_valid_server()` method to correctly check for OpenVPN TCP support
@@ -80,14 +98,14 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [!] Fix test_get_servers test failure related to locations relationship
 - [!] Fix test_server_filtering failure related to mock implementation
 
-#### 6.1.2. Fix Import Errors in Integration Tests
+#### 6.1.3. Fix Import Errors in Integration Tests
 
 - [!] Update import statements in integration tests
   - Change `from nyord_vpn.core.exceptions import ...` to `from nyord_vpn.exceptions import ...`
   - Replace references to `VPNClient` with `Client`
 - [!] Fix mock setup in test_server_manager.py to correctly simulate API response structure
 
-#### 6.1.3. Core Module - `client.py`
+#### 6.1.4. Core Module - `client.py`
 
 - [!] Break down complex methods into smaller helper functions
   - [!] Refactor the `go()` method into smaller functions for each step:
@@ -299,4 +317,90 @@ def go(self, country_code: str) -> None:
 
     except Exception as e:
         raise VPNError(f"Failed to connect: {e}")
+```
+
+### 7.3. Implementing Minimalistic Output
+
+#### 7.3.1. Configure logging based on verbose flag
+
+```python
+def configure_logging(verbose: bool = False) -> None:
+    """Configure logging based on verbose mode."""
+    # Set default level to WARNING when not in verbose mode
+    log_level = "DEBUG" if verbose else "WARNING"
+    
+    # Configure loguru logger
+    logger.remove()  # Remove default handler
+    logger.add(
+        sys.stderr,
+        level=log_level,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    )
+```
+
+#### 7.3.2. Helper method for minimal output format
+
+```python
+def _format_minimal_output(self, status: dict) -> str:
+    """Format minimal output string based on connection status."""
+    ip_address = status.get("ip", "Unknown")
+    server = status.get("server", "-")
+    
+    if status.get("connected", False):
+        return f"{ip_address}: {server}"
+    else:
+        return f"{ip_address}: -"
+```
+
+#### 7.3.3. Updated command methods with minimal output
+
+```python
+def go(self, country_code: str) -> None:
+    """Connect to VPN in specified country."""
+    try:
+        # Implementation details as before...
+        
+        # Get updated status
+        status = self.status()
+        
+        # Output based on verbose mode
+        if self.verbose:
+            console.print("[green]Successfully connected to VPN[/green]")
+            console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+            console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+            console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+        else:
+            console.print(self._format_minimal_output(status))
+    except Exception as e:
+        raise VPNError(f"Failed to connect: {e}")
+
+def bye(self) -> None:
+    """Disconnect from the VPN."""
+    # Implementation details as before...
+    
+    # Get status and output based on verbose mode
+    status = self.status()
+    if self.verbose:
+        console.print("[green]Disconnected from VPN[/green]")
+        console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+    else:
+        console.print(self._format_minimal_output(status))
+
+def info(self) -> None:
+    """Display current VPN status."""
+    try:
+        status = self.status()
+        if self.verbose:
+            if status.get("connected", False):
+                console.print("[green]VPN Status: Connected[/green]")
+                console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+            else:
+                console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+        else:
+            console.print(self._format_minimal_output(status))
+    except Exception as e:
+        raise VPNError(f"Failed to get status: {e}")
 ```

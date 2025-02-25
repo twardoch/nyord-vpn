@@ -21,7 +21,11 @@ class CLI:
     """NordVPN CLI interface."""
 
     def __init__(self, verbose: bool = False) -> None:
-        """Initialize CLI."""
+        """Initialize CLI.
+        
+        Args:
+            verbose: Whether to show verbose output
+        """
         try:
             # Get credentials from environment
             username = os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
@@ -34,7 +38,9 @@ class CLI:
                 console.print("  NORD_PASSWORD or NORDVPN_PASSWORD")
                 sys.exit(1)
 
+            # Initialize client with verbose flag
             self.client = Client(username, password, verbose=verbose)
+            self.verbose = verbose
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
@@ -69,7 +75,8 @@ class CLI:
         """Update country information."""
         try:
             fetch_countries()
-            console.print("[green]Successfully updated country information[/green]")
+            if self.verbose:
+                console.print("[green]Successfully updated country information[/green]")
         except Exception as e:
             console.print(f"[red]Error updating country information:[/red] {e}")
             sys.exit(1)

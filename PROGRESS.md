@@ -49,6 +49,12 @@ Current status: Completed initial refactoring of API and core modules, with focu
 
 #### Core Module - `client.py`
 
+- [x] Minimize output messages when `--verbose` is not used
+  - [x] Update logging configuration to respect the verbose flag
+  - [x] Modify command outputs to show minimalistic format (IPADDRESS: VPNSERVERNAME or IPADDRESS: -)
+  - [x] Implement helper method for generating minimal output
+  - [x] Ensure verbose mode properly enables detailed logging
+
 - [x] Improve error handling and user feedback
   - [x] Add more detailed error messages with troubleshooting steps
   - [x] Implement proper exception handling with specific exception types
@@ -127,25 +133,31 @@ Current status: Completed initial refactoring of API and core modules, with focu
 
 The following immediate next steps have been identified based on test failures and prioritized tasks:
 
-1. **Fix the OpenVPN TCP validation issue in server_manager.py**
+1. **Implement minimalistic output format when --verbose is not used**
+   - Modify the logging configuration to only show debug/info logs when --verbose is enabled
+   - Update Client.go(), Client.bye(), and Client.info() methods to use the minimalistic output format
+   - Create a helper function to generate the minimalistic output string in the format "IPADDRESS: VPNSERVERNAME" or "IPADDRESS: -"
+   - Test the output with and without the --verbose flag to verify correct behavior
+
+2. **Fix the OpenVPN TCP validation issue in server_manager.py**
    - The `_is_valid_server()` method is incorrectly returning `True` for servers without OpenVPN TCP support
    - Update the logic to properly check for the presence of OpenVPN TCP in the technologies list
    - Add additional logging to help diagnose why the check is failing
 
-2. **Fix model relationship issues in test fixtures**
+3. **Fix model relationship issues in test fixtures**
    - Update sample fixtures to properly include relationships:
      - Add server-to-group relationships in sample_server fixture
      - Add server-to-location relationships in sample_server fixture
      - Add proper type field to Group model in test fixtures
    - Modify fixture functions to ensure relationships are properly established
 
-3. **Fix import errors in integration tests**
+4. **Fix import errors in integration tests**
    - Update import statements:
      - Change `from nyord_vpn.core.exceptions import ...` to `from nyord_vpn.exceptions import ...`
      - Replace references to `VPNClient` with `Client`
    - Fix mock setup in test_server_manager.py to correctly simulate API response structure
 
-4. **Refactor the Client.go() method into smaller functions**
+5. **Refactor the Client.go() method into smaller functions**
    - Extract server selection logic into a separate method
    - Create a dedicated method for connection validation
    - Implement retry logic with proper error handling

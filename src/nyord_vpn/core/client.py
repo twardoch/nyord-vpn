@@ -31,6 +31,7 @@ Example usage:
     client.disconnect()  # Disconnect from VPN
 """
 
+import sys
 import time
 import os
 from pathlib import Path
@@ -56,11 +57,28 @@ from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.network.vpn import VPNConnectionManager
 
 load_dotenv()
+
+# Update logger configuration to respect verbose flag
+def configure_logging(verbose: bool = False) -> None:
+    """Configure logging based on verbose mode."""
+    # Set default level to WARNING when not in verbose mode
+    log_level = "DEBUG" if verbose else "WARNING"
+    
+    # Configure loguru logger
+    logger.remove()  # Remove default handler
+    logger.add(
+        sys.stderr,
+        level=log_level,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    )
+
+# Default logger configuration
 logger.configure(
     handlers=[
         {
             "sink": RichHandler(),
             "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            "level": "WARNING",  # Default to WARNING level
         },
     ],
 )
@@ -187,35 +205,36 @@ class Client:
         *,
         verbose: bool = False,
     ) -> None:
-        """Initialize NordVPN client.
+        """Initialize Client with credentials.
 
         Args:
-            username_str: NordVPN username (optional if NORDVPN_USERNAME env var is set)
-            password_str: NordVPN password (optional if NORDVPN_PASSWORD env var is set)
-            verbose: Whether to enable verbose output
-
+            username_str: NordVPN username or None to use environment variable
+            password_str: NordVPN password or None to use environment variable
+            verbose: Whether to enable verbose logging (default: False)
+            
         Raises:
             VPNError: If credentials are not available
-
         """
+        # Store verbose flag first
         self.verbose = verbose
+        
+        # Configure logging based on verbose flag right away
+        configure_logging(verbose)
+
+        # Setup logger
         self.logger = logger
 
-        # Get credentials from env vars if not provided
-        self.username = (
-            username_str
-            or os.environ.get("NORD_USER")
-            or os.environ.get("NORDVPN_LOGIN")
-        )
-        self.password = (
-            password_str
-            or os.environ.get("NORD_PASSWORD")
-            or os.environ.get("NORDVPN_PASSWORD")
-        )
+        if self.verbose:
+            self.logger.info("Initializing NordVPN client...")
+
+        # Get credentials from parameters or environment
+        self.username = username_str or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
+        self.password = password_str or os.getenv("NORD_PASSWORD") or os.getenv("NORDVPN_PASSWORD")
 
         if not self.username or not self.password:
             raise VPNError(
-                "No VPN credentials available. Please set NORD_USER (or NORDVPN_LOGIN) and NORD_PASSWORD (or NORDVPN_PASSWORD) environment variables."
+                "Missing VPN credentials. "
+                "Please provide username and password or set NORD_USER and NORD_PASSWORD environment variables."
             )
 
         # Initialize components in the correct order
@@ -307,10 +326,15 @@ class Client:
 
             # Get status for display
             status = self.status()
-            console.print("[green]Successfully connected to VPN[/green]")
-            console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
-            console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
-            console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+            
+            # Output based on verbose mode
+            if self.verbose:
+                console.print("[green]Successfully connected to VPN[/green]")
+                console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+            else:
+                console.print(self._format_minimal_output(status))
 
         except Exception as e:
             raise VPNError(f"Failed to connect: {e}")
@@ -340,11 +364,12 @@ class Client:
             if self.verbose:
                 self.logger.info("Disconnecting from VPN...")
             self.vpn_manager.disconnect()
-            console.print("[green]Disconnected from VPN[/green]")
+            if self.verbose:
+                console.print("[green]Disconnected from VPN[/green]")
         else:
             if self.verbose:
                 self.logger.info("No active VPN connection found")
-            console.print("[yellow]Not connected to VPN[/yellow]")
+                console.print("[yellow]Not connected to VPN[/yellow]")
 
         # Get fresh IP after disconnecting and save state
         public_ip = self.vpn_manager.get_current_ip()
@@ -361,25 +386,33 @@ class Client:
         }
         save_vpn_state(state)
 
-        if public_ip:
-            console.print(f"Public IP: [cyan]{public_ip}[/cyan]")
+        # Final status output
+        status = self.status()
+        if self.verbose:
+            if public_ip:
+                console.print(f"Public IP: [cyan]{public_ip}[/cyan]")
+            else:
+                console.print("[yellow]Could not determine IP[/yellow]")
         else:
-            console.print("[yellow]Could not determine IP[/yellow]")
+            console.print(self._format_minimal_output(status))
 
     def info(self) -> None:
         """Display current VPN status."""
         try:
             status = self.status()
-            if status.get("connected", False):
-                console.print("[green]VPN Status: Connected[/green]")
-                console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
-                console.print(
-                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
-                )
-                console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+            if self.verbose:
+                if status.get("connected", False):
+                    console.print("[green]VPN Status: Connected[/green]")
+                    console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                    console.print(
+                        f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
+                    )
+                    console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+                else:
+                    console.print("[yellow]VPN Status: Not Connected[/yellow]")
+                    console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
             else:
-                console.print("[yellow]VPN Status: Not Connected[/yellow]")
-                console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                console.print(self._format_minimal_output(status))
         except Exception as e:
             raise VPNError(f"Failed to get status: {e}")
 
@@ -439,3 +472,20 @@ class Client:
             "timestamp": time.time(),
         }
         save_vpn_state(state)
+
+    def _format_minimal_output(self, status: dict) -> str:
+        """Format minimal output string based on connection status.
+        
+        Args:
+            status: The VPN status dictionary from self.status()
+            
+        Returns:
+            str: Formatted string in the format "IPADDRESS: VPNSERVERNAME" or "IPADDRESS: -"
+        """
+        ip_address = status.get("ip", "Unknown")
+        server_name = status.get("server", "-")
+        
+        if status.get("connected", False):
+            return f"{ip_address}: {server_name}"
+        else:
+            return f"{ip_address}: -"
