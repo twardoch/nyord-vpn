@@ -16,9 +16,9 @@ nyord-vpn info  # Check status
 nyord-vpn bye  # Disconnect
 ```
 
-## DEVELOPMENT
+## 1. DEVELOPMENT
 
-After each set of changes, update @PROGRESS.md with what you've done (`- [x] `). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ] `)
+After each set of changes, update @PROGRESS.md with what you've done (`- [x]`). Upgrade priorities for NEXT TODO (`- [!]`), re-think the normal TODO (`- [ ]`)
 
 Periodically do:
 
@@ -28,23 +28,23 @@ uv venv; source .venv/bin/activate; uv pip install -e .[dev,test]; tree -I *cach
 
 and react to the results. Use `uv pip...` instead of `pip...` if needed. 
 
-## Working modality
+## 2. Working modality
 
 You'll lead two experts: "Ideot" for creative, unorthodox ideas and "Critin" to critique flawed thinking and moderate for balanced discussions. The three of you shall illuminate knowledge with concise, beautiful responses, process methodically for clear answers, collaborate step-by-step, sharing thoughts and adapting. If errors are found, step back and focus on accuracy and progress.
 
 Independently tackle challenges systematically, being adaptable and resourceful. Research deeply using all tools, revising to ensure conclusive, exhaustive, insightful results. When you're finished, print "Wait, but" to go back, think & reflect, revise & improvement what you've done (but don't invent functionality freely). Repeat this. Focus on minimal viable next versions of the code. Ship often and early. 
 
-## General coding principles
+## 3. General coding principles
 
 Verify info. No assumptions. No apologies. No major invented changes. No unneeded confirmations or checks. Keep existing code and structures unless they need to change. No unnecessary updates or current implementation discussion. Avoid magic numbers, handle edge cases, use assertions to validate assumptions and catch potential errors early.
 
 Every code can fail. Write code that fails gracefully and is UX friendly: uses retries (within reason), does not make stupid assumptions, tests successes, uses fallbacks and backoffs, and then, if the code needs to message the user, be clear and suggest to the user the next steps. Don't prompt the user to do something that the computer can obviously do. The code should ask the user only if there is a real decision to be made. And you should ask me only if a real decision is needed.  
 
-## Keep track of paths
+## 4. Keep track of paths
 
 In every source file you create or edit, always maintain the up-to-date `this_file` record that shows the path of the current file relative to the root of the project. Place the `this_file` record near the top of the file, as a comment after the shebangs, or in the YAML Markdown frontmatter. Use these records for orientation. 
 
-## Follow this style for Python
+## 5. Follow this style for Python
 
 Follow PEP 8. Write clear names. Keep it simple (PEP 20). Use type hints, imperative docstrings (PEP 257), f-strings, and structural pattern matching. Extract repeated logic. Handle errors. Keep functions small. Prefer flat structures. Use pathlib, pydantic as needed. Write maintainable code. 
 
@@ -64,11 +64,12 @@ For CLI Python scripts, use fire & rich, and start the script with
 
 # Nyord VPN Codebase Refactoring TODO
 
-## Remaining Tasks (Prioritized)
+## 6. Remaining Tasks (Prioritized)
 
-### High Priority Items
+### 6.1. High Priority Items
 
-#### Fix Test Failures
+#### 6.1.1. Fix Test Failures
+
 - [!] Fix test_openvpn_tcp_validation failure in ServerManager class
   - Update `_is_valid_server()` method to correctly check for OpenVPN TCP support
   - Add debug logging to diagnose technology validation issues
@@ -79,13 +80,15 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [!] Fix test_get_servers test failure related to locations relationship
 - [!] Fix test_server_filtering failure related to mock implementation
 
-#### Fix Import Errors in Integration Tests
+#### 6.1.2. Fix Import Errors in Integration Tests
+
 - [!] Update import statements in integration tests
   - Change `from nyord_vpn.core.exceptions import ...` to `from nyord_vpn.exceptions import ...`
   - Replace references to `VPNClient` with `Client`
 - [!] Fix mock setup in test_server_manager.py to correctly simulate API response structure
 
-#### Core Module - `client.py`
+#### 6.1.3. Core Module - `client.py`
+
 - [!] Break down complex methods into smaller helper functions
   - [!] Refactor the `go()` method into smaller functions for each step:
     - Extract server selection logic into a separate method
@@ -98,9 +101,10 @@ For CLI Python scripts, use fire & rich, and start the script with
   - [!] Fix type annotations for better static analysis
   - [!] Add proper validation for function parameters
 
-### Medium Priority Items
+### 6.2. Medium Priority Items
 
-#### Network Module - `vpn.py`
+#### 6.2.1. Network Module - `vpn.py`
+
 - [!] Make boolean arguments keyword-only
 - [!] Add comprehensive type hints for all functions and methods
 - [ ] Implement retry logic for connection attempts with tenacity
@@ -111,7 +115,8 @@ For CLI Python scripts, use fire & rich, and start the script with
 - [ ] Replace random.uniform with secrets.SystemRandom().uniform for better security
 - [ ] Improve error handling with specific exception types and recovery mechanisms
 
-#### Utils Module - `templates.py`
+#### 6.2.2. Utils Module - `templates.py`
+
 - [!] Fix security vulnerabilities in subprocess calls (S603, S607)
 - [!] Replace datetime.now() and datetime.fromtimestamp() with timezone-aware versions (DTZ005, DTZ006)
 - [!] Fix exception handling issues:
@@ -120,15 +125,17 @@ For CLI Python scripts, use fire & rich, and start the script with
   - [!] Move try/except out of loops for better performance (PERF203)
   - [!] Use `else` blocks appropriately after try/except (TRY300)
 
-### Lower Priority Items
+### 6.3. Lower Priority Items
 
-#### Utils Module - `utils.py`
+#### 6.3.1. Utils Module - `utils.py`
+
 - [!] Replace os.path functions with pathlib equivalents (PTH110, PTH118, PTH123)
 - [!] Fix security vulnerability in subprocess call (S603)
 - [!] Fix error handling to use `else` blocks appropriately (TRY300)
 - [ ] Implement atomic file operations for state management
 
-#### Main Module - `__main__.py`
+#### 6.3.2. Main Module - `__main__.py`
+
 - [!] Update CLI class to use the updated Client API
   - [!] Replace any usage of deprecated classes/methods with their updated counterparts
   - [!] Update command-line arguments to match new API structure
@@ -138,11 +145,11 @@ For CLI Python scripts, use fire & rich, and start the script with
   - [!] Provide clear, actionable error messages with recovery steps
   - [!] Add verbose output mode for troubleshooting
 
-## Implementation Steps
+## 7. Implementation Steps
 
-### Fixing Test Failures
+### 7.1. Fixing Test Failures
 
-#### 1. Fix the OpenVPN TCP validation issue in server_manager.py
+#### 7.1.1. Fix the OpenVPN TCP validation issue in server_manager.py
 
 ```python
 def _is_valid_server(self, server: dict) -> bool:
@@ -189,9 +196,10 @@ def _is_valid_server(self, server: dict) -> bool:
     return True
 ```
 
-#### 2. Fix model relationship issues in test fixtures
+#### 7.1.2. Fix model relationship issues in test fixtures
 
 Update sample_server fixture:
+
 ```python
 @pytest.fixture
 def sample_server(sample_group, sample_location, sample_technology):
@@ -212,7 +220,7 @@ def sample_server(sample_group, sample_location, sample_technology):
     }
 ```
 
-### Refactoring the Client.go() Method
+### 7.2. Refactoring the Client.go() Method
 
 Break down the go() method into smaller functions:
 
@@ -292,4 +300,3 @@ def go(self, country_code: str) -> None:
     except Exception as e:
         raise VPNError(f"Failed to connect: {e}")
 ```
-

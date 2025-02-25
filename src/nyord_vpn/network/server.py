@@ -4,6 +4,9 @@ import subprocess
 import time
 import secrets
 import re
+import os
+import socket
+import random
 from typing import Any, TypedDict, NotRequired, cast
 
 from loguru import logger
@@ -85,7 +88,11 @@ class Technology(TypedDict):
 
     id: int
     status: str
+    name: NotRequired[str]
+    identifier: NotRequired[str]
     metadata: NotRequired[list[TechnologyMetadata]]
+    created_at: NotRequired[str]
+    updated_at: NotRequired[str]
 
 
 class ServerInfo(TypedDict):
@@ -668,6 +675,12 @@ class ServerManager:
 
         """
         try:
+            # First check if ping is available
+            ping_path = self._check_for_ping_command()
+            if not ping_path:
+                self.logger.warning("Ping command not found, using fallback method")
+                return self._fallback_ping(hostname)
+
             # Platform-specific ping command
             system = platform.system().lower()
 
@@ -688,11 +701,11 @@ class ServerManager:
 
             # Construct command based on platform with proper escaping
             if system == "windows":
-                cmd = ["ping", "-n", "2", "-w", "1000", hostname]
+                cmd = [ping_path, "-n", "2", "-w", "1000", hostname]
             elif system == "darwin":  # macOS
-                cmd = ["ping", "-c", "2", "-W", "1", "-t", "1", hostname]
+                cmd = [ping_path, "-c", "2", "-W", "1", "-t", "1", hostname]
             else:  # Linux and others
-                cmd = ["ping", "-c", "2", "-W", "1", hostname]
+                cmd = [ping_path, "-c", "2", "-W", "1", hostname]
 
             # Log the command if in verbose mode
             if self.verbose:
@@ -773,6 +786,171 @@ class ServerManager:
             if self.verbose:
                 self.logger.debug(f"Error pinging {hostname}: {e}")
             return float("inf")
+        except FileNotFoundError:
+            # This should be caught by the initial check, but just in case
+            self.logger.warning("Ping command not found during execution, using fallback method")
+            return self._fallback_ping(hostname)
+
+    def _check_for_ping_command(self) -> str:
+        """Check if ping command is available and return its path if found.
+
+        Returns:
+            str: Path to ping command, or empty string if not found
+
+        """
+        try:
+            # Try to find ping in common locations
+            common_paths = [
+                "/bin/ping",
+                "/sbin/ping",
+                "/usr/bin/ping",
+                "/usr/sbin/ping",
+                "/usr/local/bin/ping",
+                "/usr/local/sbin/ping"
+            ]
+
+            # First try to use 'which' to find ping in PATH
+            which_paths = ["/usr/bin/which", "/bin/which", "/usr/local/bin/which"]
+            which_cmd = None
+
+            # Find 'which' command
+            for path in which_paths:
+                if os.path.exists(path) and os.access(path, os.X_OK):
+                    which_cmd = path
+                    break
+
+            # If which is found, use it to find ping
+            if which_cmd:
+                try:
+                    result = subprocess.run(
+                        [which_cmd, "ping"],
+                        capture_output=True,
+                        text=True,
+                        check=False
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        return result.stdout.strip()
+                except (subprocess.SubprocessError, FileNotFoundError):
+                    pass
+
+            # Check common locations
+            for path in common_paths:
+                if os.path.exists(path) and os.access(path, os.X_OK):
+                    return path
+
+            # If we're on Windows, look for ping in expected locations
+            if platform.system().lower() == "windows":
+                windows_paths = [
+                    r"C:\Windows\System32\ping.exe",
+                    r"C:\Windows\ping.exe"
+                ]
+                for path in windows_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        return path
+
+            return ""
+        except Exception as e:
+            self.logger.warning(f"Error checking for ping command: {e}")
+            return ""
+
+    def _fallback_ping(self, hostname: str) -> float:
+        """Fallback method when ping command is not available.
+        Uses socket connection to estimate latency.
+
+        Args:
+            hostname: Server hostname to ping
+
+        Returns:
+            float: Estimated ping time in milliseconds, or float('inf') if failed
+
+        """
+        try:
+            if self.verbose:
+                self.logger.debug(f"Using socket fallback to ping {hostname}")
+
+            # Validate hostname
+            if not self._is_valid_hostname(hostname):
+                self.logger.warning(f"Invalid hostname format: {hostname}")
+                return float("inf")
+
+            # Try a few common ports that VPN servers often have open
+            ports = [443, 80, 1194, 53]  # HTTPS, HTTP, OpenVPN, DNS
+
+            best_time = float("inf")
+            success = False
+
+            # Try each port up to 2 times
+            for port in ports:
+                for attempt in range(2):
+                    # We'll make a TCP connection to measure latency
+                    time.time()
+
+                    # Create socket and measure connection time
+                    connection_time = self._measure_socket_connection(hostname, port)
+
+                    # If connection was successful (not infinite)
+                    if connection_time < float("inf"):
+                        # Add a small random factor to the time to differentiate servers
+                        # This ensures we don't get the same exact time for multiple servers
+                        jitter = random.uniform(0, 0.5)  # Up to 0.5ms jitter
+                        time_ms = connection_time + jitter
+
+                        best_time = min(best_time, time_ms)
+                        success = True
+
+                        # If we've already got a successful measurement, we don't need more
+                        if attempt > 0:
+                            break
+
+                # If we already got a good time, we can stop trying more ports
+                if success:
+                    break
+
+            if success:
+                return best_time
+            return float("inf")
+
+        except Exception as e:
+            self.logger.warning(f"Fallback ping to {hostname} failed: {e}")
+            return float("inf")
+
+    def _measure_socket_connection(self, hostname: str, port: int) -> float:
+        """Measure connection time to a hostname:port using a socket.
+
+        Args:
+            hostname: Server hostname to connect to
+            port: Port to connect to
+
+        Returns:
+            float: Connection time in milliseconds, or float('inf') if failed
+
+        """
+        s = None
+        try:
+            start_time = time.time()
+
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(2.0)  # 2 second timeout
+
+            s.connect((hostname, port))
+            s.shutdown(socket.SHUT_RDWR)
+
+            end_time = time.time()
+            time_ms = (end_time - start_time) * 1000  # Convert to milliseconds
+
+            if self.verbose:
+                self.logger.debug(f"Socket connection to {hostname}:{port} took {time_ms:.2f}ms")
+
+            return time_ms
+
+        except (TimeoutError, OSError) as e:
+            if self.verbose:
+                self.logger.debug(f"Socket connection to {hostname}:{port} failed: {e}")
+            return float("inf")
+
+        finally:
+            if s is not None:
+                s.close()
 
     def _is_valid_server(self, server: Any) -> bool:
         """Check if a server is valid and usable.

@@ -1,0 +1,89 @@
+>> sudo nyord-vpn info --verbose
+Password:
+[02/25/25 01:21:20] DEBUG    2025-02-25 01:21:20.623 | DEBUG    | nyord_vpn.network.vpn:check_openvpn_installation:174 - Found OpenVPN at                   vpn.py:174
+                             /usr/local/sbin/openvpn                                                                                                                  
+                    DEBUG    2025-02-25 01:21:20.630 | DEBUG    | nyord_vpn.network.vpn:setup_connection:252 - Created auth file at                         vpn.py:252
+                             /Users/adam/.cache/nyord-vpn/openvpn.auth                                                                                                
+                    DEBUG    2025-02-25 01:21:20.632 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:323 - Checking IP with api.ipify.org (attempt 1)     vpn.py:323
+                    DEBUG    2025-02-25 01:21:20.889 | DEBUG    | nyord_vpn.network.vpn:get_current_ip:332 - Got valid IP 89.64.28.48 from api.ipify.org    vpn.py:332
+VPN Status: Not Connected
+Public IP: 89.64.28.48
+
+>> sudo nyord-vpn --help
+
+NAME
+    nyord-vpn - NordVPN CLI interface.
+
+SYNOPSIS
+    nyord-vpn <flags>
+
+DESCRIPTION
+    NordVPN CLI interface.
+
+FLAGS
+    -v, --verbose=VERBOSE
+        Type: bool
+        Default: False
+~
+
+<< This should show the same as the stuff below. 
+
+>> sudo nyord-vpn
+
+NAME
+    nyord-vpn - NordVPN CLI interface.
+
+SYNOPSIS
+    nyord-vpn - GROUP | COMMAND
+
+DESCRIPTION
+    NordVPN CLI interface.
+
+GROUPS
+    GROUP is one of the following:
+
+     client
+       Main NordVPN client that coordinates API, VPN, and server management.
+
+COMMANDS
+    COMMAND is one of the following:
+
+     bye
+       Disconnect from VPN.
+
+     go
+       Connect to VPN in specified country.
+
+     info
+       Display current VPN status.
+
+     update
+       Update country information.
+~
+~
+
+>> sudo nyord-vpn update
+
+Successfully updated country information
+
+<< Is this actually used? 
+
+>> sudo nyord-vpn go de --verbose
+
+                             72.technologies.1.created_at                                                                                                             
+                               Field required [type=missing, input_value={'id': 5, 'status': 'online'}, input_type=dict]                                              
+                                 For further information visit https://errors.pydantic.dev/2.10/v/missing                                                             
+(...)
+                                                                                                          
+                               Field required [type=missing, input_value={'id': 51, 'metadata': [{...'}], 'status': 'online'}, input_type=dict]                       
+                                 For further information visit https://errors.pydantic.dev/2.10/v/missing                                                             
+                             99.technologies.6.created_at                                                                                                             
+                               Field required [type=missing, input_value={'id': 51, 'metadata': [{...'}], 'status': 'online'}, input_type=dict]                       
+                                 For further information visit https://errors.pydantic.dev/2.10/v/missing                                                             
+                             99.technologies.6.updated_at                                                                                                             
+                               Field required [type=missing, input_value={'id': 51, 'metadata': [{...'}], 'status': 'online'}, input_type=dict]                       
+                                 For further information visit https://errors.pydantic.dev/2.10/v/missing                                                             
+[02/25/25 01:24:19] WARNING  2025-02-25 01:24:19.030 | WARNING  | nyord_vpn.network.server:select_fastest_server:976 - Failed to get fastest server from server.py:976
+                             API, falling back to cache: No servers found matching criteria: country_code=DE, group_identifier=None,                                  
+                             technology_identifier=openvpn_tcp                                                                                                        
+Error: Failed to connect: Failed to select server: [Errno 2] No such file or directory: 'ping'

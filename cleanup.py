@@ -393,7 +393,6 @@ def main() -> NoReturn:
     except Exception as e:
         log_message(f"Error: {e}")
 
-    print(Path("CLEANUP.txt").read_text())
     sys.exit(0)  # Explicitly exit to satisfy NoReturn type
 
 

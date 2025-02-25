@@ -17,6 +17,7 @@ import zipfile
 import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
+import shutil
 
 import requests
 from loguru import logger
@@ -177,65 +178,91 @@ def download_with_retry(
 
 
 def extract_config_from_zip(server: str) -> Path:
-    """Extract a single OpenVPN configuration file from the ZIP."""
+    """Extract a single OpenVPN config file from ZIP.
+    
+    Args:
+        server: Server hostname (should be a full server name like 'de123.nordvpn.com')
+        
+    Returns:
+        Path to the extracted config file
+        
+    Raises:
+        VPNConfigError: If extraction fails or the file is not found in the ZIP
+    """
+    server_file = f"{server}.tcp.ovpn"
+    # The path inside the ZIP file where configs are stored
+    zip_config_path = f"ovpn_tcp/{server_file}"
+    log_debug("Extracting config file {} from {}", zip_config_path, CONFIG_ZIP)
+    
     try:
-        secure_directory(CONFIG_DIR)
-        cleanup_old_configs()
-
-        zip_path = f"ovpn_tcp/{server}.tcp.ovpn"
-        config_path = CONFIG_DIR / f"{server}.tcp.ovpn"
-
-        log_debug("Extracting config file {} from {}", zip_path, CONFIG_ZIP)
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        
+        # Make sure the directory has the right permissions
+        try:
+            CONFIG_DIR.chmod(0o700)
+        except Exception as e:
+            log_debug("Failed to set directory permissions: {}", e)
+        
+        # Try to extract the file
         try:
             with zipfile.ZipFile(CONFIG_ZIP) as zip_ref:
+                # Check if the file exists in the ZIP
                 try:
-                    zip_ref.getinfo(zip_path)
-                    file_hash = calculate_sha256(zip_ref.read(zip_path))
-                    zip_ref.extract(zip_path, CONFIG_DIR)
-                    extracted_path = CONFIG_DIR / zip_path
-                    if not verify_file_integrity(extracted_path, file_hash):
-                        raise VPNConfigError("Extracted file is corrupted")
+                    file_info = zip_ref.getinfo(zip_config_path)
                 except KeyError:
-                    tcp_configs = [
-                        name
-                        for name in zip_ref.namelist()
-                        if name.startswith("ovpn_tcp/") and name.endswith(".tcp.ovpn")
-                    ]
+                    # Log some debug info about the ZIP contents
+                    tcp_configs = [f for f in zip_ref.namelist() if f.startswith("ovpn_tcp/") and f.endswith(".tcp.ovpn")]
                     log_debug("Available TCP configs in ZIP: {}", len(tcp_configs))
                     if tcp_configs:
                         log_debug("Sample configs: {}", tcp_configs[:5])
-                    raise VPNConfigError(
-                        f"Config file {zip_path} not found in ZIP. "
-                        f"ZIP contains {len(tcp_configs)} TCP configs."
-                    )
+                    raise VPNConfigError(f"Config file {zip_config_path} not found in ZIP. ZIP contains {len(tcp_configs)} TCP configs.")
+                
+                # Extract the file
+                zip_ref.extract(file_info, CONFIG_DIR.parent)
+                
+                # The extracted file will be in a subdirectory structure
+                # Move it to the expected location
+                extracted_path = CONFIG_DIR.parent / zip_config_path
+                target_path = CONFIG_DIR / server_file
+                
+                # Rename if needed
+                if extracted_path != target_path:
+                    # Make sure parent directories exist
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Move the file
+                    if target_path.exists():
+                        target_path.unlink()
+                    shutil.move(str(extracted_path), str(target_path))
+                    
+                    # Clean up empty directories
+                    try:
+                        extracted_dir = extracted_path.parent
+                        if extracted_dir.exists() and not any(extracted_dir.iterdir()):
+                            shutil.rmtree(str(extracted_dir))
+                    except Exception as e:
+                        log_debug("Failed to clean up empty directory: {}", e)
+                
+                # Set permissions
+                try:
+                    target_path.chmod(0o600)
+                except Exception as e:
+                    log_debug("Failed to set file permissions: {}", e)
+                
+                # Return the path to the extracted file
+                return target_path
+                
         except zipfile.BadZipFile as e:
-            with contextlib.suppress(Exception):
+            # If the ZIP is corrupted, delete it
+            try:
                 CONFIG_ZIP.unlink()
+            except Exception:
+                pass
             raise VPNConfigError(f"Corrupted ZIP file: {e}") from e
-
-        extracted_path = CONFIG_DIR / zip_path
-        try:
-            extracted_path.rename(config_path)
-            if not verify_file_integrity(config_path, file_hash):
-                raise VPNConfigError("Config file corrupted during move")
-        except Exception as e:
-            raise VPNConfigError(f"Failed to move config file: {e}") from e
-
-        with contextlib.suppress(FileNotFoundError, OSError):
-            (CONFIG_DIR / "ovpn_tcp").rmdir()
-
-        try:
-            config_path.chmod(0o600)
-            log_debug("Set permissions on {}", config_path)
-        except Exception as e:
-            raise VPNConfigError(f"Failed to set config file permissions: {e}") from e
-
-        return config_path
-
-    except VPNConfigError:
-        raise
+            
     except Exception as e:
-        raise VPNConfigError(f"Failed to extract configuration: {e}")
+        # Catch-all for any other errors
+        raise VPNConfigError(f"Failed to extract config file: {e}") from e
 
 
 def download_config_zip() -> None:
@@ -293,11 +320,54 @@ def download_config_zip() -> None:
 
 
 def get_config_path(server: str) -> Path:
-    """Get path to OpenVPN config file for server."""
+    """Get path to OpenVPN config file for server.
+    
+    Args:
+        server: Server hostname (e.g., 'de123.nordvpn.com') or country code (e.g., 'de')
+        
+    Returns:
+        Path: Path to the config file
+        
+    Raises:
+        VPNConfigError: If the config file cannot be found or extracted
+    """
+    # Ensure the config directory exists and has proper permissions
+    secure_directory(CONFIG_DIR)
+    
+    # Clean up old configs to prevent accumulation
+    cleanup_old_configs()
+    
+    # Handle the case where server is just a country code (e.g., 'de')
+    if len(server) <= 3 and '.' not in server:
+        log_debug("Received country code '{}' instead of full hostname", server)
+        # We'll need to find a server for this country from the ZIP
+        is_country_code = True
+    else:
+        is_country_code = False
+        
+    # Normalize server name by removing .tcp suffix if present
     server = server.replace(".tcp", "")
-    config_path = CONFIG_DIR / f"{server}.tcp.ovpn"
-    log_debug("Looking for config file at: {}", config_path)
+    
+    # If server is a country code, we won't have a specific config path yet
+    if is_country_code:
+        # We'll handle this after downloading the ZIP
+        config_path = None
+    else:
+        config_path = CONFIG_DIR / f"{server}.tcp.ovpn"
+        log_debug("Looking for config file at: {}", config_path)
+        
+        # Check if the specified config exists
+        if config_path and config_path.exists():
+            try:
+                stat_info = config_path.stat()
+                if stat_info.st_mode & 0o777 != 0o600:
+                    config_path.chmod(0o600)
+                    log_debug("Fixed config file permissions for {}", config_path)
+                return config_path
+            except Exception as e:
+                raise VPNConfigError(f"Failed to verify config file permissions: {e}")
 
+    # If we're here, we need to download or extract from the ZIP
     if is_zip_expired():
         age = get_zip_age()
         if age:
@@ -311,10 +381,40 @@ def get_config_path(server: str) -> Path:
                 log_debug("Failed to remove old ZIP file: {}", e)
         download_config_zip()
 
-    if not config_path.exists():
-        log_debug("Config file not found at: {}", config_path)
-        if not CONFIG_ZIP.exists():
-            download_config_zip()
+    if not CONFIG_ZIP.exists():
+        download_config_zip()
+    
+    # For country codes, find a suitable server
+    if is_country_code:
+        log_debug("Finding server for country code: {}", server)
+        try:
+            with zipfile.ZipFile(CONFIG_ZIP) as zip_ref:
+                # Find servers for this country
+                country_servers = [
+                    name
+                    for name in zip_ref.namelist()
+                    if name.startswith(f"ovpn_tcp/{server}") and name.endswith(".tcp.ovpn")
+                ]
+                
+                if not country_servers:
+                    raise VPNConfigError(f"No servers found for country code '{server}' in the ZIP file")
+                
+                # Sort by server number and pick the first one (usually lower load)
+                country_servers.sort()
+                selected_server = country_servers[0].split("/")[-1].replace(".tcp.ovpn", "")
+                log_debug("Selected server {} from {} available servers", selected_server, len(country_servers))
+                
+                # Now extract this server's config
+                server = selected_server
+                config_path = CONFIG_DIR / f"{server}.tcp.ovpn"
+        except zipfile.BadZipFile as e:
+            with contextlib.suppress(Exception):
+                CONFIG_ZIP.unlink()
+            raise VPNConfigError(f"Corrupted ZIP file: {e}") from e
+    
+    # Now extract the config (either the original server or one we found for the country code)
+    if not config_path or not config_path.exists():
+        log_debug("Config file not found at: {}", config_path if config_path else "None")
         config_path = extract_config_from_zip(server)
         log_debug("Successfully extracted config to: {}", config_path)
 

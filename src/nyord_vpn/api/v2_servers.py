@@ -50,12 +50,18 @@ class Technology(BaseModel):
     """
 
     id: int
-    name: str
-    identifier: str
-    created_at: datetime
-    updated_at: datetime
+    name: str | None = None
+    identifier: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     status: str | None = None
     metadata: list[TechnologyMetadata] | None = None
+
+    class Config:
+        """Model configuration for validation handling."""
+
+        extra = "ignore"  # Ignore extra fields
+        protected_namespaces = ()  # Allow arbitrary attribute access
 
 
 class IP(BaseModel):

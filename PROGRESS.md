@@ -1,9 +1,11 @@
 # Progress Report
 
 ## Overview
+
 This progress report tracks the refactoring of the nyord-vpn codebase.
 
 The primary focus of the refactoring effort is to:
+
 1. Improve code quality and maintainability
 2. Enhance error handling and user feedback
 3. Strengthen security with better validation and randomization
@@ -46,6 +48,7 @@ Current status: Completed initial refactoring of API and core modules, with focu
 ### High Priority
 
 #### Core Module - `client.py`
+
 - [x] Improve error handling and user feedback
   - [x] Add more detailed error messages with troubleshooting steps
   - [x] Implement proper exception handling with specific exception types
@@ -60,6 +63,7 @@ Current status: Completed initial refactoring of API and core modules, with focu
   - [ ] Add proper validation for function parameters
 
 #### Tests
+
 - [ ] Fix test failures
   - [ ] Fix test_openvpn_tcp_validation failure in ServerManager class
   - [ ] Fix test_fetch_all, test_get_servers_by_country, and test_get_servers_by_group failures related to server relationships
@@ -78,6 +82,7 @@ Current status: Completed initial refactoring of API and core modules, with focu
 ### Medium Priority
 
 #### Network Module - `vpn.py`
+
 - [ ] Make boolean arguments keyword-only
 - [ ] Add comprehensive type hints for all functions and methods
 - [ ] Implement retry logic for connection attempts with tenacity
@@ -89,6 +94,7 @@ Current status: Completed initial refactoring of API and core modules, with focu
 - [ ] Improve error handling with specific exception types and recovery mechanisms
 
 #### Utils Module - `templates.py`
+
 - [ ] Fix security vulnerabilities in subprocess calls (S603, S607)
 - [ ] Replace datetime.now() and datetime.fromtimestamp() with timezone-aware versions (DTZ005, DTZ006)
 - [ ] Fix exception handling issues:
@@ -100,12 +106,14 @@ Current status: Completed initial refactoring of API and core modules, with focu
 ### Lower Priority
 
 #### Utils Module - `utils.py`
+
 - [ ] Replace os.path functions with pathlib equivalents (PTH110, PTH118, PTH123)
 - [ ] Fix security vulnerability in subprocess call (S603)
 - [ ] Fix error handling to use `else` blocks appropriately (TRY300)
 - [ ] Implement atomic file operations for state management
 
 #### Main Module - `__main__.py`
+
 - [ ] Update CLI class to use the updated Client API
   - [ ] Replace any usage of deprecated classes/methods with their updated counterparts
   - [ ] Update command-line arguments to match new API structure
@@ -148,6 +156,7 @@ By addressing these issues, we will improve test reliability and code quality, w
 ### Implementation Plan for Fixing Test Failures
 
 1. **Update the `_is_valid_server()` method in server.py**
+
    ```python
    def _is_valid_server(self, server: dict) -> bool:
        """Check if a server is valid for OpenVPN TCP connection."""
@@ -175,6 +184,7 @@ By addressing these issues, we will improve test reliability and code quality, w
    ```
 
 2. **Update test fixtures for proper relationships**
+
    ```python
    @pytest.fixture
    def sample_server(sample_group, sample_location, sample_technology):
@@ -194,6 +204,7 @@ By addressing these issues, we will improve test reliability and code quality, w
    ```
 
 3. **Fix import errors in integration tests**
+
    ```python
    # Update imports in affected test files
    from nyord_vpn.exceptions import VPNError, VPNConnectionError
@@ -201,6 +212,7 @@ By addressing these issues, we will improve test reliability and code quality, w
    ```
 
 4. **Fix mock setup in test_server_manager.py**
+
    ```python
    # Update the mock to match the actual return structure of the NordVPNAPI.get_servers() method
    mock_api_client.get_servers.return_value = (
