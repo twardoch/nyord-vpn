@@ -6,8 +6,9 @@ This module contains tests for the api module, which provides
 a unified interface to the NordVPN API endpoints.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nyord_vpn.api.api import NordVPNAPI
 

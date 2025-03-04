@@ -16,8 +16,8 @@ The v2 servers API provides comprehensive information about available servers:
 from datetime import datetime
 from typing import Any, TypeVar, cast
 
-from loguru import logger
 import requests
+from loguru import logger
 from pydantic import BaseModel, TypeAdapter
 
 from nyord_vpn.exceptions import VPNAPIError

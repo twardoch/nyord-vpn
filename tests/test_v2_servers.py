@@ -6,14 +6,12 @@ This module contains tests for the v2_servers module, which provides
 access to server information from the NordVPN v2 API.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from nyord_vpn.api.v2_servers import (
-    NordVPNServersV2,
-    get_servers_by_country,
-    get_servers_by_group,
-)
+import pytest
+
+from nyord_vpn.api.v2_servers import (NordVPNServersV2, get_servers_by_country,
+                                      get_servers_by_group)
 
 
 @pytest.fixture

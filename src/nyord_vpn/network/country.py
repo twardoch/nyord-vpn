@@ -2,7 +2,7 @@ import json
 import time
 
 from nyord_vpn.storage.models import CountryCache
-from nyord_vpn.utils.utils import COUNTRIES_CACHE, CACHE_EXPIRY
+from nyord_vpn.utils.utils import CACHE_EXPIRY, COUNTRIES_CACHE
 
 
 def get_cached_countries() -> CountryCache | None:

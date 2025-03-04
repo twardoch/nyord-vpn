@@ -6,14 +6,13 @@ This module contains tests for the v1_recommendations module, which provides
 access to server recommendations from the NordVPN v1 API.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from nyord_vpn.api.v1_recommendations import (
-    NordVPNRecommendationsV1,
-    get_recommendations_by_country,
-    get_recommendations_by_group,
-)
+import pytest
+
+from nyord_vpn.api.v1_recommendations import (NordVPNRecommendationsV1,
+                                              get_recommendations_by_country,
+                                              get_recommendations_by_group)
 
 
 @pytest.fixture

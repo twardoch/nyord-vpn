@@ -1,8 +1,8 @@
+import contextlib
 import json
 import time
 
 from nyord_vpn.utils.utils import STATE_FILE, logger
-import contextlib
 
 
 def save_vpn_state(state: dict) -> None:

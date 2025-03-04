@@ -14,18 +14,17 @@ Key Features:
 5. Configuration validation
 """
 
+import contextlib
 import platform
 import shutil
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-import contextlib
 from typing import Any
 
 from loguru import logger
 
 from nyord_vpn.exceptions import VPNConfigError
-
 
 # Error message constants to avoid TRY003 linting issues
 CONFIG_FILE_NOT_FOUND = "OpenVPN config file not found"

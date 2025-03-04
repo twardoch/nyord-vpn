@@ -52,23 +52,13 @@ import requests
 from loguru import logger
 from rich.console import Console
 
-from nyord_vpn.exceptions import (
-    VPNConfigError,
-    VPNError,
-    VPNProcessError,
-)
+from nyord_vpn.exceptions import VPNConfigError, VPNError, VPNProcessError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn_commands import OpenVPNConfig, get_openvpn_command
 from nyord_vpn.storage.state import load_vpn_state, save_vpn_state
-from nyord_vpn.utils.templates import (
-    get_config_path,
-)
-from nyord_vpn.utils.utils import (
-    OPENVPN_AUTH,
-    OPENVPN_LOG,
-    check_root,
-    ensure_root,
-)
+from nyord_vpn.utils.templates import get_config_path
+from nyord_vpn.utils.utils import (OPENVPN_AUTH, OPENVPN_LOG, check_root,
+                                   ensure_root)
 
 console = Console()
 
@@ -438,6 +428,7 @@ class VPNConnectionManager:
             VPNError: If the connection fails for any reason
             VPNConfigError: If the OpenVPN configuration is invalid
             VPNAuthenticationError: If authentication fails
+
         """
         if self.hostname:
             self.logger.info(f"Connecting to {self.hostname}")
@@ -470,7 +461,7 @@ class VPNConnectionManager:
             # Verify config_path is set and valid before using it
             if not self.config_path or not isinstance(self.config_path, Path):
                 raise VPNConfigError("Configuration path is not set - please run setup_connection first")
-                
+
             if not self.config_path.exists():
                 raise VPNConfigError(f"Configuration file not found at {self.config_path}")
 

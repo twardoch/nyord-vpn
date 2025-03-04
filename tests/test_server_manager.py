@@ -6,11 +6,12 @@ This module contains unit tests for the ServerManager class,
 which is responsible for server selection and optimization.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
-from nyord_vpn.network.server import ServerManager
+import pytest
+
 from nyord_vpn.api.api import NordVPNAPI
+from nyord_vpn.network.server import ServerManager
 
 
 @pytest.fixture

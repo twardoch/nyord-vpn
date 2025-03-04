@@ -26,18 +26,13 @@ API outages or rate limiting.
 """
 
 import warnings
-from typing import Any, cast, TypeVar
+from typing import Any, TypeVar, cast
 
-from loguru import logger
 import requests
+from loguru import logger
 
-from nyord_vpn.api import (
-    v1_recommendations,
-    v1_technologies,
-    v1_groups,
-    v1_countries,
-    v2_servers,
-)
+from nyord_vpn.api import (v1_countries, v1_groups, v1_recommendations,
+                           v1_technologies, v2_servers)
 from nyord_vpn.exceptions import VPNAPIError
 
 # Type aliases for clarity

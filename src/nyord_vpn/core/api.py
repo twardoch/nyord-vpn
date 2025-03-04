@@ -43,12 +43,11 @@ import time
 import warnings
 
 from loguru import logger
-from requests import get, RequestException
+from requests import RequestException, get
 
-from nyord_vpn.network.country import get_cached_countries, cache_countries
+from nyord_vpn.network.country import cache_countries, get_cached_countries
 from nyord_vpn.storage.models import City, Country, CountryCache
 from nyord_vpn.utils.utils import API_HEADERS
-
 
 # Display deprecation warning when the module is imported
 warnings.warn(

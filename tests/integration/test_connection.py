@@ -1,9 +1,10 @@
 """Integration tests for VPN connection."""
 
 import asyncio
+
 import pytest
 
-from nyord_vpn.core.exceptions import VPNError, VPNConnectionError
+from nyord_vpn.core.exceptions import VPNConnectionError, VPNError
 
 
 @pytest.mark.integration

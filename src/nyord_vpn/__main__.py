@@ -4,8 +4,8 @@ import os
 import sys
 
 import fire
-from rich.console import Console
 from dotenv import load_dotenv
+from rich.console import Console
 
 from nyord_vpn.core.client import Client, VPNError
 from nyord_vpn.scripts.update_countries import fetch_countries
@@ -25,6 +25,7 @@ class CLI:
         
         Args:
             verbose: Whether to show verbose output
+
         """
         try:
             # Get credentials from environment

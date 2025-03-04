@@ -1,21 +1,20 @@
 import json
+import os
 import platform
+import random
+import re
+import secrets
+import socket
 import subprocess
 import time
-import secrets
-import re
-import os
-import socket
-import random
-from typing import Any, TypedDict, NotRequired, cast
+from typing import Any, NotRequired, TypedDict, cast
 
-from loguru import logger
 import requests
+from loguru import logger
 
 from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.storage.models import ServerError
 from nyord_vpn.utils.utils import API_HEADERS, CACHE_DIR
-
 
 """Server management and selection for NordVPN.
 

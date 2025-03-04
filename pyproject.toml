@@ -68,6 +68,7 @@ dependencies = [
     "zipp>=3.16.2",
     "loguru>=0.7.3",
     "vulture>=2.14",
+    "scrape-bing>=0.1.2.1",
 ]
 
 [project.optional-dependencies]
@@ -175,6 +176,8 @@ bench-save = "python -m pytest -v tests/test_benchmark.py --benchmark-only --ben
 
 [tool.hatch.version]
 source = "vcs"
+path = 'src/nyord_vpn/__version__.py'
+pattern = "__version__\\s*=\\s*version\\s*=\\s*['\"](?P<version>[^'\"]+)['\"]"
 
 [tool.hatch.version.raw-options]
 version_scheme = "post-release"

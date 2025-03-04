@@ -1,11 +1,12 @@
 """Integration tests for validation."""
 
 import os
+
 import pytest
 
-from nyord_vpn.core.exceptions import VPNError
-from nyord_vpn.api.njord import NjordVPNClient
 from nyord_vpn.api.legacy import LegacyVPNClient
+from nyord_vpn.api.njord import NjordVPNClient
+from nyord_vpn.core.exceptions import VPNError
 
 
 @pytest.fixture(autouse=True)

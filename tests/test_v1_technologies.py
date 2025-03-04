@@ -6,13 +6,12 @@ This module contains tests for the v1_technologies module, which provides
 access to server technology information from the NordVPN v1 API.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from nyord_vpn.api.v1_technologies import (
-    NordVPNTechnologiesV1,
-    get_technology_by_identifier,
-)
+import pytest
+
+from nyord_vpn.api.v1_technologies import (NordVPNTechnologiesV1,
+                                           get_technology_by_identifier)
 
 
 @pytest.fixture

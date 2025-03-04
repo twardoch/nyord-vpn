@@ -12,8 +12,9 @@ Groups represent server categories like P2P, Double VPN, etc.
 
 import warnings
 from datetime import datetime
-from loguru import logger
+
 import requests
+from loguru import logger
 from pydantic import BaseModel
 
 from nyord_vpn.exceptions import VPNAPIError

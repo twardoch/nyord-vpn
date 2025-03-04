@@ -31,30 +31,23 @@ Example usage:
     client.disconnect()  # Disconnect from VPN
 """
 
+import os
 import sys
 import time
-import os
 from pathlib import Path
-from typing import TypedDict, Any
+from typing import Any, TypedDict
 
 from dotenv import load_dotenv
 from loguru import logger
 from rich.console import Console
 from rich.logging import RichHandler
 
-from nyord_vpn.exceptions import (
-    VPNConnectionError,
-    VPNError,
-)
-from nyord_vpn.utils.utils import (
-    CACHE_DIR,
-    CONFIG_DIR,
-    DATA_DIR,
-    save_vpn_state,
-)
-from nyord_vpn.network.server import ServerManager
 from nyord_vpn.api.api import NordVPNAPI
+from nyord_vpn.exceptions import VPNConnectionError, VPNError
+from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn import VPNConnectionManager
+from nyord_vpn.utils.utils import (CACHE_DIR, CONFIG_DIR, DATA_DIR,
+                                   save_vpn_state)
 
 load_dotenv()
 
@@ -63,7 +56,7 @@ def configure_logging(verbose: bool = False) -> None:
     """Configure logging based on verbose mode."""
     # Set default level to WARNING when not in verbose mode
     log_level = "DEBUG" if verbose else "WARNING"
-    
+
     # Configure loguru logger
     logger.remove()  # Remove default handler
     logger.add(
@@ -214,10 +207,11 @@ class Client:
             
         Raises:
             VPNError: If credentials are not available
+
         """
         # Store verbose flag first
         self.verbose = verbose
-        
+
         # Configure logging based on verbose flag right away
         configure_logging(verbose)
 
@@ -326,7 +320,7 @@ class Client:
 
             # Get status for display
             status = self.status()
-            
+
             # Output based on verbose mode
             if self.verbose:
                 console.print("[green]Successfully connected to VPN[/green]")
@@ -366,10 +360,9 @@ class Client:
             self.vpn_manager.disconnect()
             if self.verbose:
                 console.print("[green]Disconnected from VPN[/green]")
-        else:
-            if self.verbose:
-                self.logger.info("No active VPN connection found")
-                console.print("[yellow]Not connected to VPN[/yellow]")
+        elif self.verbose:
+            self.logger.info("No active VPN connection found")
+            console.print("[yellow]Not connected to VPN[/yellow]")
 
         # Get fresh IP after disconnecting and save state
         public_ip = self.vpn_manager.get_current_ip()
@@ -481,11 +474,11 @@ class Client:
             
         Returns:
             str: Formatted string in the format "IPADDRESS: VPNSERVERNAME" or "IPADDRESS: -"
+
         """
         ip_address = status.get("ip", "Unknown")
         server_name = status.get("server", "-")
-        
+
         if status.get("connected", False):
             return f"{ip_address}: {server_name}"
-        else:
-            return f"{ip_address}: -"
+        return f"{ip_address}: -"

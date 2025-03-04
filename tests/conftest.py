@@ -1,7 +1,7 @@
 """Test fixtures and configuration."""
 
-from unittest.mock import patch
 import json
+from unittest.mock import patch
 
 import pytest
 

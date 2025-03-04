@@ -6,16 +6,14 @@ This module contains tests for the v1_countries module, which provides
 access to country and server location information from the NordVPN v1 API.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from nyord_vpn.api.v1_countries import (
-    NordVPNCountriesV1,
-    get_country_by_code,
-    get_countries_by_min_servers,
-    get_city_by_name,
-    Country,
-)
+import pytest
+
+from nyord_vpn.api.v1_countries import (Country, NordVPNCountriesV1,
+                                        get_city_by_name,
+                                        get_countries_by_min_servers,
+                                        get_country_by_code)
 
 
 @pytest.fixture

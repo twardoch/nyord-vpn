@@ -1,12 +1,13 @@
 """Integration tests for configuration loading."""
 
-import pytest
-from pathlib import Path
 import json
+from pathlib import Path
+
+import pytest
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 from nyord_vpn.core.client import Client
 from nyord_vpn.core.config import VPNConfig
-from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 
 @pytest.mark.integration

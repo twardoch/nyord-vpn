@@ -10,8 +10,9 @@ It is used for legacy compatibility and as a fallback when v2 endpoints fail.
 """
 
 import warnings
-from loguru import logger
+
 import requests
+from loguru import logger
 from pydantic import BaseModel
 
 from nyord_vpn.exceptions import VPNAPIError

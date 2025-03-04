@@ -164,6 +164,19 @@ wheels = [
 ]
 
 [[package]]
+name = "beautifulsoup4"
+version = "4.13.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "soupsieve" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/3c/adaf39ce1fb4afdd21b611e3d530b183bb7759c9b673d60db0e347fd4439/beautifulsoup4-4.13.3.tar.gz", hash = "sha256:1bd32405dacc920b42b83ba01644747ed77456a65760e285fbc47633ceddaf8b", size = 619516 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/49/6abb616eb3cbab6a7cca303dc02fdf3836de2e0b834bf966a7f5271a34d8/beautifulsoup4-4.13.3-py3-none-any.whl", hash = "sha256:99045d7d3f08f91f0d656bc9b7efbae189426cd913d830294a15eefa0ea4df16", size = 186015 },
+]
+
+[[package]]
 name = "black"
 version = "25.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -992,6 +1005,7 @@ dependencies = [
     { name = "requests-toolbelt" },
     { name = "rfc3986" },
     { name = "rich" },
+    { name = "scrape-bing" },
     { name = "six" },
     { name = "tenacity" },
     { name = "tomli" },
@@ -1011,6 +1025,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pyupgrade" },
     { name = "ruff" },
+    { name = "vulture" },
 ]
 test = [
     { name = "pytest" },
@@ -1072,6 +1087,7 @@ requires-dist = [
     { name = "rfc3986", specifier = ">=2.0.0" },
     { name = "rich", specifier = ">=13.4.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.7" },
+    { name = "scrape-bing", specifier = ">=0.1.2.1" },
     { name = "six", specifier = ">=1.16.0" },
     { name = "tenacity", specifier = ">=8.0.0" },
     { name = "tomli", specifier = ">=2.0.1" },
@@ -1079,6 +1095,7 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.7.1" },
     { name = "urllib3", specifier = ">=2.0.3" },
     { name = "vulture", specifier = ">=2.14" },
+    { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.10" },
     { name = "webencodings", specifier = ">=0.5.1" },
     { name = "zipp", specifier = ">=3.16.2" },
 ]
@@ -1639,6 +1656,19 @@ wheels = [
 ]
 
 [[package]]
+name = "scrape-bing"
+version = "0.1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0b/25/5073aaef0fb5a2d2ac4d7f7b320d458dccc95c912ee0c89375fa9e32cbec/scrape_bing-0.1.2.1.tar.gz", hash = "sha256:ef182d24050c11f5322b1b705b2f5c6918c6edb248ce80dc74e3ac6381f19217", size = 5907 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d1/3e/dc49dc5734712b2dab9d031af65df70c343d8937d4a9d6612223013605ec/scrape_bing-0.1.2.1-py3-none-any.whl", hash = "sha256:f57a81f22f288fbe7d4aca095cab43f9969277f50e4c6bafaa1375ee0cac75f5", size = 6971 },
+]
+
+[[package]]
 name = "secretstorage"
 version = "3.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1658,6 +1688,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050 },
+]
+
+[[package]]
+name = "soupsieve"
+version = "2.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/ce/fbaeed4f9fb8b2daa961f90591662df6a86c1abf25c548329a86920aedfb/soupsieve-2.6.tar.gz", hash = "sha256:e2e68417777af359ec65daac1057404a3c8a5455bb8abc36f1a9866ab1a51abb", size = 101569 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d1/c2/fe97d779f3ef3b15f05c94a2f1e3d21732574ed441687474db9d342a7315/soupsieve-2.6-py3-none-any.whl", hash = "sha256:e72c4ff06e4fb6e4b5a9f0f55fe6e81514581fca1515028625d0f299c602ccc9", size = 36186 },
 ]
 
 [[package]]

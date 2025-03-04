@@ -57,17 +57,17 @@ the foundation for the client's file operations and
 state management.
 """
 
+import contextlib
 import json
 import os
-import sys
 import subprocess
+import sys
 import time
 from pathlib import Path
 
+from loguru import logger
 from platformdirs import user_cache_dir, user_config_dir
 from rich.console import Console
-from loguru import logger
-import contextlib
 
 console = Console()
 

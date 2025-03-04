@@ -1,15 +1,17 @@
 """Integration tests for error handling."""
 
 import asyncio
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from tests.conftest import TEST_PASSWORD, TEST_USERNAME
 
 from nyord_vpn.core.client import VPNClient
-from nyord_vpn.core.exceptions import VPNError, VPNConnectionError, VPNConfigError
-from tests.conftest import TEST_PASSWORD, TEST_USERNAME
+from nyord_vpn.core.exceptions import (VPNConfigError, VPNConnectionError,
+                                       VPNError)
 
 
 @pytest.mark.integration

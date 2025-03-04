@@ -1,12 +1,13 @@
 """Tests for LegacyVPNClient implementation."""
 
-import pytest
-import requests
 import os
 import subprocess
 
-from nyord_vpn.core.exceptions import VPNError
+import pytest
+import requests
+
 from nyord_vpn.api.legacy import LegacyVPNClient
+from nyord_vpn.core.exceptions import VPNError
 
 
 def test_init(mock_env_credentials, mock_openvpn) -> None:

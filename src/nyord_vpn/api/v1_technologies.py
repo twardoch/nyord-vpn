@@ -12,8 +12,9 @@ The technologies API provides information about available VPN protocols and feat
 
 import warnings
 from datetime import datetime
-from loguru import logger
+
 import requests
+from loguru import logger
 from pydantic import BaseModel
 
 from nyord_vpn.exceptions import VPNAPIError

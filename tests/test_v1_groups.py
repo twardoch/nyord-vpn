@@ -6,14 +6,12 @@ This module contains tests for the v1_groups module, which provides
 access to server group information from the NordVPN v1 API.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from nyord_vpn.api.v1_groups import (
-    NordVPNGroupsV1,
-    get_groups_by_type,
-    get_group_by_identifier,
-)
+import pytest
+
+from nyord_vpn.api.v1_groups import (NordVPNGroupsV1, get_group_by_identifier,
+                                     get_groups_by_type)
 
 
 @pytest.fixture
