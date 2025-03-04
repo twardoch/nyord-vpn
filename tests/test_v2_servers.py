@@ -10,8 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nyord_vpn.api.v2_servers import (NordVPNServersV2, get_servers_by_country,
-                                      get_servers_by_group)
+from nyord_vpn.api.v2_servers import (
+    NordVPNServersV2,
+    get_servers_by_country,
+    get_servers_by_group,
+)
 
 
 @pytest.fixture

@@ -57,8 +57,7 @@ from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn_commands import OpenVPNConfig, get_openvpn_command
 from nyord_vpn.storage.state import load_vpn_state, save_vpn_state
 from nyord_vpn.utils.templates import get_config_path
-from nyord_vpn.utils.utils import (OPENVPN_AUTH, OPENVPN_LOG, check_root,
-                                   ensure_root)
+from nyord_vpn.utils.utils import OPENVPN_AUTH, OPENVPN_LOG, check_root, ensure_root
 
 console = Console()
 
@@ -72,6 +71,7 @@ DEFAULT_RETRY_WAIT = 1
 # Constants for process management (internal use)
 PROCESS_CHECK_INTERVAL = 0.5  # seconds
 PROCESS_STARTUP_GRACE = 2.0  # seconds
+
 
 class VPNConnectionManager:
     """Manages VPN connections using OpenVPN.
@@ -202,7 +202,9 @@ class VPNConnectionManager:
                 raise
             raise VPNError(f"Failed to verify OpenVPN installation: {e}")
 
-    def setup_connection(self, server_hostname: str, username: str, password: str) -> None:
+    def setup_connection(
+        self, server_hostname: str, username: str, password: str
+    ) -> None:
         """Setup the OpenVPN connection.
 
         Args:
@@ -221,9 +223,13 @@ class VPNConnectionManager:
         config_path = get_config_path(server_hostname)
         if config_path is None:
             # Fallback path in case config doesn't exist
-            config_path = Path(os.path.expanduser(f"~/.cache/nyord-vpn/configs/{server_hostname}.ovpn"))
+            config_path = Path(
+                os.path.expanduser(f"~/.cache/nyord-vpn/configs/{server_hostname}.ovpn")
+            )
             if not config_path.exists():
-                raise VPNConfigError(f"Configuration file not found for server {server_hostname}")
+                raise VPNConfigError(
+                    f"Configuration file not found for server {server_hostname}"
+                )
 
         # Set the config path so it's available throughout the session
         self.config_path = config_path  # This will always be a Path object
@@ -447,9 +453,7 @@ class VPNConnectionManager:
                 # Verify file contents - must have two non-empty lines
                 lines = OPENVPN_AUTH.read_text().strip().split("\n")
                 if len(lines) != 2:
-                    raise VPNError(
-                        "Auth file is corrupted - please run setup again"
-                    )
+                    raise VPNError("Auth file is corrupted - please run setup again")
                 if not lines[0].strip() or not lines[1].strip():
                     raise VPNError(
                         "Auth file contains empty username or password - please run setup again"
@@ -460,10 +464,14 @@ class VPNConnectionManager:
 
             # Verify config_path is set and valid before using it
             if not self.config_path or not isinstance(self.config_path, Path):
-                raise VPNConfigError("Configuration path is not set - please run setup_connection first")
+                raise VPNConfigError(
+                    "Configuration path is not set - please run setup_connection first"
+                )
 
             if not self.config_path.exists():
-                raise VPNConfigError(f"Configuration file not found at {self.config_path}")
+                raise VPNConfigError(
+                    f"Configuration file not found at {self.config_path}"
+                )
 
             # Create OpenVPN configuration for this connection
             try:

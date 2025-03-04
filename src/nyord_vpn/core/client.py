@@ -46,10 +46,10 @@ from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.exceptions import VPNConnectionError, VPNError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn import VPNConnectionManager
-from nyord_vpn.utils.utils import (CACHE_DIR, CONFIG_DIR, DATA_DIR,
-                                   save_vpn_state)
+from nyord_vpn.utils.utils import CACHE_DIR, CONFIG_DIR, DATA_DIR, save_vpn_state
 
 load_dotenv()
+
 
 # Update logger configuration to respect verbose flag
 def configure_logging(verbose: bool = False) -> None:
@@ -64,6 +64,7 @@ def configure_logging(verbose: bool = False) -> None:
         level=log_level,
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     )
+
 
 # Default logger configuration
 logger.configure(
@@ -204,7 +205,7 @@ class Client:
             username_str: NordVPN username or None to use environment variable
             password_str: NordVPN password or None to use environment variable
             verbose: Whether to enable verbose logging (default: False)
-            
+
         Raises:
             VPNError: If credentials are not available
 
@@ -222,8 +223,12 @@ class Client:
             self.logger.info("Initializing NordVPN client...")
 
         # Get credentials from parameters or environment
-        self.username = username_str or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
-        self.password = password_str or os.getenv("NORD_PASSWORD") or os.getenv("NORDVPN_PASSWORD")
+        self.username = (
+            username_str or os.getenv("NORD_USER") or os.getenv("NORDVPN_LOGIN")
+        )
+        self.password = (
+            password_str or os.getenv("NORD_PASSWORD") or os.getenv("NORDVPN_PASSWORD")
+        )
 
         if not self.username or not self.password:
             raise VPNError(
@@ -325,7 +330,9 @@ class Client:
             if self.verbose:
                 console.print("[green]Successfully connected to VPN[/green]")
                 console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
-                console.print(f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]")
+                console.print(
+                    f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
+                )
                 console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
             else:
                 console.print(self._format_minimal_output(status))
@@ -396,14 +403,20 @@ class Client:
             if self.verbose:
                 if status.get("connected", False):
                     console.print("[green]VPN Status: Connected[/green]")
-                    console.print(f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                    console.print(
+                        f"Private IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]"
+                    )
                     console.print(
                         f"Country: [cyan]{status.get('country', 'Unknown')}[/cyan]"
                     )
-                    console.print(f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]")
+                    console.print(
+                        f"Server: [cyan]{status.get('server', 'Unknown')}[/cyan]"
+                    )
                 else:
                     console.print("[yellow]VPN Status: Not Connected[/yellow]")
-                    console.print(f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]")
+                    console.print(
+                        f"Public IP: [cyan]{status.get('ip', 'Unknown')}[/cyan]"
+                    )
             else:
                 console.print(self._format_minimal_output(status))
         except Exception as e:
@@ -468,10 +481,10 @@ class Client:
 
     def _format_minimal_output(self, status: dict) -> str:
         """Format minimal output string based on connection status.
-        
+
         Args:
             status: The VPN status dictionary from self.status()
-            
+
         Returns:
             str: Formatted string in the format "IPADDRESS: VPNSERVERNAME" or "IPADDRESS: -"
 

@@ -180,13 +180,13 @@ def download_with_retry(
 
 def extract_config_from_zip(server: str) -> Path:
     """Extract a single OpenVPN config file from ZIP.
-    
+
     Args:
         server: Server hostname (should be a full server name like 'de123.nordvpn.com')
-        
+
     Returns:
         Path to the extracted config file
-        
+
     Raises:
         VPNConfigError: If extraction fails or the file is not found in the ZIP
 
@@ -213,11 +213,17 @@ def extract_config_from_zip(server: str) -> Path:
                     file_info = zip_ref.getinfo(zip_config_path)
                 except KeyError:
                     # Log some debug info about the ZIP contents
-                    tcp_configs = [f for f in zip_ref.namelist() if f.startswith("ovpn_tcp/") and f.endswith(".tcp.ovpn")]
+                    tcp_configs = [
+                        f
+                        for f in zip_ref.namelist()
+                        if f.startswith("ovpn_tcp/") and f.endswith(".tcp.ovpn")
+                    ]
                     log_debug("Available TCP configs in ZIP: {}", len(tcp_configs))
                     if tcp_configs:
                         log_debug("Sample configs: {}", tcp_configs[:5])
-                    raise VPNConfigError(f"Config file {zip_config_path} not found in ZIP. ZIP contains {len(tcp_configs)} TCP configs.")
+                    raise VPNConfigError(
+                        f"Config file {zip_config_path} not found in ZIP. ZIP contains {len(tcp_configs)} TCP configs."
+                    )
 
                 # Extract the file
                 zip_ref.extract(file_info, CONFIG_DIR.parent)
@@ -256,10 +262,8 @@ def extract_config_from_zip(server: str) -> Path:
 
         except zipfile.BadZipFile as e:
             # If the ZIP is corrupted, delete it
-            try:
+            with contextlib.suppress(Exception):
                 CONFIG_ZIP.unlink()
-            except Exception:
-                pass
             raise VPNConfigError(f"Corrupted ZIP file: {e}") from e
 
     except Exception as e:
@@ -323,13 +327,13 @@ def download_config_zip() -> None:
 
 def get_config_path(server: str) -> Path:
     """Get path to OpenVPN config file for server.
-    
+
     Args:
         server: Server hostname (e.g., 'de123.nordvpn.com') or country code (e.g., 'de')
-        
+
     Returns:
         Path: Path to the config file
-        
+
     Raises:
         VPNConfigError: If the config file cannot be found or extracted
 
@@ -396,16 +400,25 @@ def get_config_path(server: str) -> Path:
                 country_servers = [
                     name
                     for name in zip_ref.namelist()
-                    if name.startswith(f"ovpn_tcp/{server}") and name.endswith(".tcp.ovpn")
+                    if name.startswith(f"ovpn_tcp/{server}")
+                    and name.endswith(".tcp.ovpn")
                 ]
 
                 if not country_servers:
-                    raise VPNConfigError(f"No servers found for country code '{server}' in the ZIP file")
+                    raise VPNConfigError(
+                        f"No servers found for country code '{server}' in the ZIP file"
+                    )
 
                 # Sort by server number and pick the first one (usually lower load)
                 country_servers.sort()
-                selected_server = country_servers[0].split("/")[-1].replace(".tcp.ovpn", "")
-                log_debug("Selected server {} from {} available servers", selected_server, len(country_servers))
+                selected_server = (
+                    country_servers[0].split("/")[-1].replace(".tcp.ovpn", "")
+                )
+                log_debug(
+                    "Selected server {} from {} available servers",
+                    selected_server,
+                    len(country_servers),
+                )
 
                 # Now extract this server's config
                 server = selected_server
@@ -417,7 +430,9 @@ def get_config_path(server: str) -> Path:
 
     # Now extract the config (either the original server or one we found for the country code)
     if not config_path or not config_path.exists():
-        log_debug("Config file not found at: {}", config_path if config_path else "None")
+        log_debug(
+            "Config file not found at: {}", config_path if config_path else "None"
+        )
         config_path = extract_config_from_zip(server)
         log_debug("Successfully extracted config to: {}", config_path)
 

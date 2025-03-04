@@ -787,7 +787,9 @@ class ServerManager:
             return float("inf")
         except FileNotFoundError:
             # This should be caught by the initial check, but just in case
-            self.logger.warning("Ping command not found during execution, using fallback method")
+            self.logger.warning(
+                "Ping command not found during execution, using fallback method"
+            )
             return self._fallback_ping(hostname)
 
     def _check_for_ping_command(self) -> str:
@@ -805,7 +807,7 @@ class ServerManager:
                 "/usr/bin/ping",
                 "/usr/sbin/ping",
                 "/usr/local/bin/ping",
-                "/usr/local/sbin/ping"
+                "/usr/local/sbin/ping",
             ]
 
             # First try to use 'which' to find ping in PATH
@@ -822,10 +824,7 @@ class ServerManager:
             if which_cmd:
                 try:
                     result = subprocess.run(
-                        [which_cmd, "ping"],
-                        capture_output=True,
-                        text=True,
-                        check=False
+                        [which_cmd, "ping"], capture_output=True, text=True, check=False
                     )
                     if result.returncode == 0 and result.stdout.strip():
                         return result.stdout.strip()
@@ -841,7 +840,7 @@ class ServerManager:
             if platform.system().lower() == "windows":
                 windows_paths = [
                     r"C:\Windows\System32\ping.exe",
-                    r"C:\Windows\ping.exe"
+                    r"C:\Windows\ping.exe",
                 ]
                 for path in windows_paths:
                     if os.path.exists(path) and os.access(path, os.X_OK):
@@ -938,7 +937,9 @@ class ServerManager:
             time_ms = (end_time - start_time) * 1000  # Convert to milliseconds
 
             if self.verbose:
-                self.logger.debug(f"Socket connection to {hostname}:{port} took {time_ms:.2f}ms")
+                self.logger.debug(
+                    f"Socket connection to {hostname}:{port} took {time_ms:.2f}ms"
+                )
 
             return time_ms
 

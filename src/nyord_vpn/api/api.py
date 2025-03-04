@@ -31,8 +31,13 @@ from typing import Any, TypeVar, cast
 import requests
 from loguru import logger
 
-from nyord_vpn.api import (v1_countries, v1_groups, v1_recommendations,
-                           v1_technologies, v2_servers)
+from nyord_vpn.api import (
+    v1_countries,
+    v1_groups,
+    v1_recommendations,
+    v1_technologies,
+    v2_servers,
+)
 from nyord_vpn.exceptions import VPNAPIError
 
 # Type aliases for clarity

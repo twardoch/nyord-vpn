@@ -4,36 +4,36 @@
 #   "ruff>=0.9.6",
 #   "pytest>=8.3.4",
 #   "mypy>=1.15.0",
-#   "repomix>=0.1.0",
 # ]
 # ///
 # this_file: cleanup.py
 
-"""Cleanup tool for managing repository tasks and maintaining code quality.
+"""
+Cleanup tool for managing repository tasks and maintaining code quality.
 
 This script provides a comprehensive set of commands for repository maintenance:
 
 When to use each command:
 
 - `cleanup.py status`: Use this FIRST when starting work to check the current state
-of the repository. It shows file structure, git status, and runs all code quality
-checks. Run this before making any changes to ensure you're starting from a clean state.
+  of the repository. It shows file structure, git status, and runs all code quality
+  checks. Run this before making any changes to ensure you're starting from a clean state.
 
 - `cleanup.py venv`: Run this when setting up the project for the first time or if
-your virtual environment is corrupted/missing. Creates a new virtual environment
-using uv.
+  your virtual environment is corrupted/missing. Creates a new virtual environment
+  using uv.
 
 - `cleanup.py install`: Use after `venv` or when dependencies have changed. Installs
-the package and all development dependencies in editable mode.
+  the package and all development dependencies in editable mode.
 
-- `cleanup.py update`: Use this when you've made changes and want to commit them.
-It will:
-1. Show current status (like `status` command)
-2. Stage and commit any changes with a generic message
-Use this for routine maintenance commits.
+- `cleanup.py update`: Run this when you've made changes and want to commit them.
+  It will:
+  1. Show current status (like `status` command)
+  2. Stage and commit any changes with a generic message
+  Use this for routine maintenance commits.
 
 - `cleanup.py push`: Run this after `update` when you want to push your committed
-changes to the remote repository.
+  changes to the remote repository.
 
 Workflow Example:
 1. Start work: `cleanup.py status`
@@ -51,12 +51,13 @@ Required Files:
 - TODO.md: Pending tasks and future plans
 """
 
-import os
 import subprocess
+import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn
+from shutil import which
 
 # Configuration
 IGNORE_PATTERNS = [
@@ -101,7 +102,7 @@ def suffix() -> None:
 
 def log_message(message: str) -> None:
     """Log a message to file and console with timestamp."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     log_line = f"{timestamp} - {message}\n"
     with LOG_FILE.open("a") as f:
         f.write(log_line)
@@ -110,7 +111,13 @@ def log_message(message: str) -> None:
 def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     """Run a shell command and return the result."""
     try:
-        result = subprocess.run(cmd, check=check, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd,
+            check=check,
+            capture_output=True,
+            text=True,
+            shell=False,  # Explicitly set shell=False for security
+        )
         if result.stdout:
             log_message(result.stdout)
         return result
@@ -125,9 +132,8 @@ def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProce
 def check_command_exists(cmd: str) -> bool:
     """Check if a command exists in the system."""
     try:
-        subprocess.run(["which", cmd], check=True, capture_output=True)
-        return True
-    except subprocess.CalledProcessError:
+        return which(cmd) is not None
+    except Exception:
         return False
 
 
@@ -154,7 +160,7 @@ class Cleanup:
         """Generate and display tree structure of the project."""
         if not check_command_exists("tree"):
             log_message("Warning: 'tree' command not found. Skipping tree generation.")
-            return
+            return None
 
         try:
             # Create/overwrite the file with YAML frontmatter
@@ -176,7 +182,7 @@ class Cleanup:
 
         except Exception as e:
             log_message(f"Failed to generate tree: {e}")
-        return
+        return None
 
     def _git_status(self) -> bool:
         """Check git status and return True if there are changes."""
@@ -213,13 +219,11 @@ class Cleanup:
 
     def _run_checks(self) -> None:
         """Run code quality checks using ruff and pytest."""
+        log_message("Running code quality checks")
+
         try:
             # Run ruff checks
-            log_message(
-                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
-                    "Running code fixes"
-                )
-            )
+            log_message(">>> Running code fixes...")
             run_command(
                 [
                     "python",
@@ -247,47 +251,12 @@ class Cleanup:
             )
 
             # Run type checks
-            log_message(
-                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
-                    "Running type checks"
-                )
-            )
+            log_message(">>>Running type checks...")
             run_command(["python", "-m", "mypy", "src", "tests"], check=False)
 
-            # Check unused code
-            log_message(
-                ">>>\n>>> {}...\n>>> TODO: Check the errors!\n>>>".format(
-                    "Checking for _potentially_ unused code"
-                )
-            )
-            run_command(["python", "-m", "vulture", "src"], check=False)
-
             # Run tests
-            log_message(
-                ">>>\n>>> {}...\n>>> TODO: Try to fix the problems, always think whether the test actually makes sense, then adjust the implementation or the test!\n>>>".format(
-                    "Running tests"
-                )
-            )
+            log_message(">>> Running tests...")
             run_command(["python", "-m", "pytest", "tests"], check=False)
-
-            # Run repomix to compress and analyze repository
-            log_message(
-                ">>>\n>>> {}...\n>>> TODO: Check the output!\n>>>".format(
-                    "Running repomix analysis"
-                )
-            )
-            run_command(
-                [
-                    "repomix",
-                    "--compress",
-                    "--remove-empty-lines",
-                    "-i",
-                    ".specstory/**/*.md,.venv/**,_private/**,CLEANUP.txt,**/*.json,*.lock",
-                    "-o",
-                    "nyord_vpn.txt",
-                ],
-                check=False,
-            )
 
             log_message("All checks completed")
         except Exception as e:
@@ -356,6 +325,41 @@ class Cleanup:
             log_message(f"Failed to push changes: {e}")
 
 
+def repomix(
+    *,
+    compress: bool = True,
+    remove_empty_lines: bool = True,
+    ignore_patterns: str = ".specstory/**/*.md,.venv/**,_private/**,CLEANUP.txt,**/*.json,*.lock",
+    output_file: str = "REPO_CONTENT.txt",
+) -> None:
+    """Combine repository files into a single text file.
+
+    Args:
+        compress: Whether to compress whitespace in output
+        remove_empty_lines: Whether to remove empty lines
+        ignore_patterns: Comma-separated glob patterns of files to ignore
+        output_file: Output file path
+    """
+    try:
+        # Build command
+        cmd = ["repomix"]
+        if compress:
+            cmd.append("--compress")
+        if remove_empty_lines:
+            cmd.append("--remove-empty-lines")
+        if ignore_patterns:
+            cmd.append("-i")
+            cmd.append(ignore_patterns)
+        cmd.extend(["-o", output_file])
+
+        # Run repomix
+        run_command(cmd)
+        log_message(f"Repository content mixed into {output_file}")
+
+    except Exception as e:
+        log_message(f"Failed to mix repository: {e}")
+
+
 def print_usage() -> None:
     """Print usage information."""
     log_message("Usage:")
@@ -392,8 +396,9 @@ def main() -> NoReturn:
             print_usage()
     except Exception as e:
         log_message(f"Error: {e}")
-
-    sys.exit(0)  # Explicitly exit to satisfy NoReturn type
+    repomix()
+    sys.stdout.write(Path("CLEANUP.txt").read_text())
+    sys.exit(0)  # Ensure we exit with a status code
 
 
 if __name__ == "__main__":

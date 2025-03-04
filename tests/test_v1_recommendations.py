@@ -10,9 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nyord_vpn.api.v1_recommendations import (NordVPNRecommendationsV1,
-                                              get_recommendations_by_country,
-                                              get_recommendations_by_group)
+from nyord_vpn.api.v1_recommendations import (
+    NordVPNRecommendationsV1,
+    get_recommendations_by_country,
+    get_recommendations_by_group,
+)
 
 
 @pytest.fixture

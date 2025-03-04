@@ -22,7 +22,7 @@ class CLI:
 
     def __init__(self, verbose: bool = False) -> None:
         """Initialize CLI.
-        
+
         Args:
             verbose: Whether to show verbose output
 

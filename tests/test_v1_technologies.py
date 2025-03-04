@@ -10,8 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nyord_vpn.api.v1_technologies import (NordVPNTechnologiesV1,
-                                           get_technology_by_identifier)
+from nyord_vpn.api.v1_technologies import (
+    NordVPNTechnologiesV1,
+    get_technology_by_identifier,
+)
 
 
 @pytest.fixture

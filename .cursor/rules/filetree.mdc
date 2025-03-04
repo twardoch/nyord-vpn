@@ -2,19 +2,19 @@
 description: File tree of the project
 globs: 
 ---
-[ 896]  .
+[ 928]  .
 ├── [  96]  .cursor
 │   └── [ 128]  rules
-│       ├── [9.5K]  filetree.mdc
+│       ├── [9.6K]  filetree.mdc
 │       └── [4.0K]  nyord-vpn.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
 │       ├── [2.7K]  push.yml
 │       └── [1.4K]  release.yml
 ├── [3.5K]  .gitignore
-├── [ 532]  .pre-commit-config.yaml
+├── [ 500]  .pre-commit-config.yaml
 ├── [ 128]  .specstory
-│   └── [2.1K]  history
+│   └── [2.2K]  history
 │       ├── [2.0K]  .what-is-this.md
 │       ├── [452K]  2025-02-22_19-00-comparison-of-njord-and-nyord-vpn-implementations.md
 │       ├── [ 913]  2025-02-22_19-00-fixing-logging-format-error-in-python.md
@@ -80,23 +80,27 @@ globs:
 │       ├── [ 64K]  2025-02-24_21-51-codebase-review-and-task-prioritization.md
 │       ├── [ 54K]  2025-02-24_22-08-reviewing-progress-and-todo-for-codebase-tasks.md
 │       ├── [271K]  2025-02-24_23-18-updating-todo-and-progress-for-codebase.md
-│       └── [108K]  2025-02-25_00-29-codebase-todo-and-progress-update.md
+│       ├── [108K]  2025-02-25_00-29-codebase-todo-and-progress-update.md
+│       ├── [128K]  2025-02-25_01-03-analyzing-nyord-vpn-cli-issues.md
+│       ├── [582K]  2025-02-25_01-30-nyord-vpn-connection-and-validation-errors.md
+│       └── [ 36K]  2025-02-25_01-56-minimizing-vpn-command-output-logs.md
 ├── [ 160]  CLEANUP.txt
 ├── [1.0K]  LICENSE
-├── [9.9K]  PROGRESS.md
+├── [ 11K]  PROGRESS.md
 ├── [5.5K]  README.md
-├── [ 13K]  TODO.md
+├── [ 17K]  TODO.md
+├── [4.5K]  VIBE.txt
 ├── [ 13K]  cleanup.py
 ├── [  96]  dist
 │   └── [   1]  .gitkeep
-├── [174K]  nyord_vpn.txt
+├── [151K]  nyord_vpn.txt
 ├── [ 426]  package.toml
-├── [6.9K]  pyproject.toml
+├── [7.1K]  pyproject.toml
 ├── [ 192]  src
 │   ├── [   0]  __init__.py
 │   └── [ 448]  nyord_vpn
 │       ├── [2.4K]  __init__.py
-│       ├── [2.5K]  __main__.py
+│       ├── [2.7K]  __main__.py
 │       ├── [ 512]  api
 │       │   ├── [ 327]  __init__.py
 │       │   ├── [ 17K]  api.py
@@ -114,7 +118,7 @@ globs:
 │       │   ├── [ 178]  __init__.py
 │       │   ├── [ 12K]  api.py
 │       │   ├── [8.2K]  base.py
-│       │   └── [ 14K]  client.py
+│       │   └── [ 16K]  client.py
 │       ├── [ 192]  data
 │       │   ├── [  96]  .specstory
 │       │   │   └── [  96]  history
@@ -125,8 +129,8 @@ globs:
 │       ├── [ 288]  network
 │       │   ├── [ 204]  __init__.py
 │       │   ├── [1.0K]  country.py
-│       │   ├── [ 39K]  server.py
-│       │   ├── [ 47K]  vpn.py
+│       │   ├── [ 45K]  server.py
+│       │   ├── [ 34K]  vpn.py
 │       │   └── [ 14K]  vpn_commands.py
 │       ├── [ 192]  scripts
 │       │   ├── [  37]  __init__.py
@@ -139,7 +143,7 @@ globs:
 │           ├── [ 194]  __init__.py
 │           ├── [3.8K]  connection.py
 │           ├── [  64]  data
-│           ├── [ 12K]  templates.py
+│           ├── [ 16K]  templates.py
 │           └── [9.4K]  utils.py
 ├── [ 544]  tests
 │   ├── [  40]  __init__.py
@@ -155,11 +159,11 @@ globs:
 │   ├── [3.5K]  test_legacy_api.py
 │   ├── [ 159]  test_package.py
 │   ├── [6.4K]  test_server_manager.py
-│   ├── [4.2K]  test_v1_countries.py
+│   ├── [4.3K]  test_v1_countries.py
 │   ├── [4.7K]  test_v1_groups.py
 │   ├── [5.7K]  test_v1_recommendations.py
 │   ├── [3.2K]  test_v1_technologies.py
 │   └── [8.6K]  test_v2_servers.py
-└── [264K]  uv.lock
+└── [266K]  uv.lock
 
-22 directories, 137 files
+22 directories, 141 files

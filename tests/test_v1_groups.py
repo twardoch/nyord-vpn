@@ -10,8 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nyord_vpn.api.v1_groups import (NordVPNGroupsV1, get_group_by_identifier,
-                                     get_groups_by_type)
+from nyord_vpn.api.v1_groups import (
+    NordVPNGroupsV1,
+    get_group_by_identifier,
+    get_groups_by_type,
+)
 
 
 @pytest.fixture
