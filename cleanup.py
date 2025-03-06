@@ -8,8 +8,7 @@
 # ///
 # this_file: cleanup.py
 
-"""
-Cleanup tool for managing repository tasks and maintaining code quality.
+"""Cleanup tool for managing repository tasks and maintaining code quality.
 
 This script provides a comprehensive set of commands for repository maintenance:
 
@@ -160,7 +159,7 @@ class Cleanup:
         """Generate and display tree structure of the project."""
         if not check_command_exists("tree"):
             log_message("Warning: 'tree' command not found. Skipping tree generation.")
-            return None
+            return
 
         try:
             # Create/overwrite the file with YAML frontmatter
@@ -182,7 +181,7 @@ class Cleanup:
 
         except Exception as e:
             log_message(f"Failed to generate tree: {e}")
-        return None
+        return
 
     def _git_status(self) -> bool:
         """Check git status and return True if there are changes."""
@@ -339,6 +338,7 @@ def repomix(
         remove_empty_lines: Whether to remove empty lines
         ignore_patterns: Comma-separated glob patterns of files to ignore
         output_file: Output file path
+
     """
     try:
         # Build command
