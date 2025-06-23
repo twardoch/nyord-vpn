@@ -293,11 +293,11 @@ class NordVPNServersV2:
                 self._link_server_relations(server, relationship_maps)
 
             return (
-                cast(list[Server], parsed_data["servers"]),
-                cast(list[Group], parsed_data["groups"]),
-                cast(list[Service], parsed_data["services"]),
-                cast(list[Location], parsed_data["locations"]),
-                cast(list[Technology], parsed_data["technologies"]),
+                cast("list[Server]", parsed_data["servers"]),
+                cast("list[Group]", parsed_data["groups"]),
+                cast("list[Service]", parsed_data["services"]),
+                cast("list[Location]", parsed_data["locations"]),
+                cast("list[Technology]", parsed_data["technologies"]),
             )
 
         except requests.exceptions.RequestException as error:

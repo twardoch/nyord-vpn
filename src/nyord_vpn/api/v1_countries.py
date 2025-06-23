@@ -102,15 +102,13 @@ class NordVPNCountriesV1:
             raise VPNAPIError(
                 "Failed to fetch countries from v1 API",
                 details=str(e),
-                cause=e,
-            )
+            ) from e
         except (ValueError, TypeError) as e:
             logger.error(f"Failed to parse NordVPN countries: {e}")
             raise VPNAPIError(
                 "Failed to parse countries from v1 API",
                 details=str(e),
-                cause=e,
-            )
+            ) from e
 
 
 def get_country_by_code(countries: list[Country], country_code: str) -> Country:
@@ -139,7 +137,7 @@ def get_country_by_code(countries: list[Country], country_code: str) -> Country:
     for country in countries:
         if country.code.upper() == country_code.upper():
             return country
-    raise ValueError(f"No country found with code: {country_code}")
+    raise ValueError(f"Country code '{country_code}' not found.")
 
 
 def get_countries_by_min_servers(
@@ -193,4 +191,4 @@ def get_city_by_name(country: Country, city_name: str) -> City:
     for city in country.cities:
         if city.name.lower() == city_name.lower():
             return city
-    raise ValueError(f"No city found with name '{city_name}' in {country.name}")
+    raise ValueError(f"City '{city_name}' not found in {country.name}.")

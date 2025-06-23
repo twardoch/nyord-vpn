@@ -125,9 +125,7 @@ class NordVPNAPI:
                 logger.error(f"Failed to fetch recommended servers: {e}")
                 if self._recommended_servers is None:
                     # Only raise if we don't have cached data
-                    raise VPNAPIError(
-                        f"Failed to fetch recommended servers: {e}"
-                    ) from e
+                    raise VPNAPIError("Failed to fetch recommended servers") from e
 
         return self._recommended_servers
 
@@ -160,7 +158,7 @@ class NordVPNAPI:
                 logger.error(f"Failed to fetch technologies: {e}")
                 if self._technologies is None:
                     # Only raise if we don't have cached data
-                    raise VPNAPIError(f"Failed to fetch technologies: {e}") from e
+                    raise VPNAPIError("Failed to fetch technologies") from e
 
         return self._technologies
 
@@ -191,7 +189,7 @@ class NordVPNAPI:
                 logger.error(f"Failed to fetch groups: {e}")
                 if self._groups is None:
                     # Only raise if we don't have cached data
-                    raise VPNAPIError(f"Failed to fetch groups: {e}") from e
+                    raise VPNAPIError("Failed to fetch groups") from e
 
         return self._groups
 
@@ -222,7 +220,7 @@ class NordVPNAPI:
                 logger.error(f"Failed to fetch countries: {e}")
                 if self._countries is None:
                     # Only raise if we don't have cached data
-                    raise VPNAPIError(f"Failed to fetch countries: {e}") from e
+                    raise VPNAPIError("Failed to fetch countries") from e
 
         return self._countries
 
@@ -245,14 +243,76 @@ class NordVPNAPI:
         if self._servers is None or refresh:
             try:
                 result = self.servers.fetch_all()
-                self._servers = cast(ServerTuple, result)
+                self._servers = cast("ServerTuple", result)
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to fetch servers: {e}")
                 if self._servers is None:
                     # Only raise if we don't have cached data
-                    raise VPNAPIError(f"Failed to fetch servers: {e}") from e
+                    raise VPNAPIError("Failed to fetch servers") from e
 
         return self._servers
+
+    def _filter_servers_v2(
+        self,
+        servers_list: list[v2_servers.Server],
+        country_code: str | None,
+        group_identifier: str | None,
+        technology_identifier: str | None,
+    ) -> list[v2_servers.Server]:
+        """Helper to filter v2 servers."""
+        filtered = servers_list
+        if country_code:
+            filtered = [
+                s
+                for s in filtered
+                if s.locations
+                and any(
+                    loc.country.code.upper() == country_code.upper()
+                    for loc in s.locations
+                )
+            ]
+        if group_identifier:
+            filtered = [
+                s
+                for s in filtered
+                if any(g.identifier == group_identifier for g in s.groups)
+            ]
+        if technology_identifier:
+            filtered = [
+                s
+                for s in filtered
+                if any(t.identifier == technology_identifier for t in s.technologies)
+            ]
+        return filtered
+
+    def _filter_servers_v1(
+        self,
+        servers_list: list[v1_recommendations.RecommendedServer],
+        country_code: str | None,
+        group_identifier: str | None,
+        technology_identifier: str | None,
+    ) -> list[v1_recommendations.RecommendedServer]:
+        """Helper to filter v1 servers."""
+        filtered = servers_list
+        if country_code:
+            filtered = [
+                s
+                for s in filtered
+                if s.locations and s.locations[0].country.code.upper() == country_code.upper()
+            ]
+        if group_identifier:
+            filtered = [
+                s
+                for s in filtered
+                if any(g.identifier == group_identifier for g in s.groups)
+            ]
+        if technology_identifier:
+            filtered = [
+                s
+                for s in filtered
+                if any(t.identifier == technology_identifier for t in s.technologies)
+            ]
+        return filtered
 
     def find_best_server(
         self,
@@ -262,126 +322,46 @@ class NordVPNAPI:
         *,
         use_v2: bool = True,
     ) -> v1_recommendations.RecommendedServer | v2_servers.Server:
-        """Find the best server based on load and optional filters.
-
-        This method prioritizes using the v2 API but will fall back to v1 if requested
-        or if the v2 API request fails.
-
-        Args:
-            country_code: Optional two-letter country code to filter by.
-            group_identifier: Optional group identifier to filter by.
-            technology_identifier: Optional technology identifier to filter by.
-            use_v2: Whether to use the v2 API first. If False, will use v1 API.
-
-        Returns:
-            The recommended server with the lowest load matching the criteria.
-
-        Raises:
-            ValueError: If no servers match the criteria.
-            VPNAPIError: If API requests fail and no suitable server can be found.
-
-        """
-        # Try v2 API first (preferred)
+        """Find the best server based on load and optional filters."""
         if use_v2:
             try:
-                servers = self.get_servers()[0]  # First element is servers
-
-                filtered_servers = servers
-
-                # Apply filters
-                if country_code:
-                    filtered_servers = [
-                        server
-                        for server in filtered_servers
-                        if server.locations
-                        and any(
-                            location.country.code.upper() == country_code.upper()
-                            for location in server.locations
-                        )
-                    ]
-
-                if group_identifier:
-                    filtered_servers = [
-                        server
-                        for server in filtered_servers
-                        if any(
-                            group.identifier == group_identifier
-                            for group in server.groups
-                        )
-                    ]
-
-                if technology_identifier:
-                    filtered_servers = [
-                        server
-                        for server in filtered_servers
-                        if any(
-                            tech.identifier == technology_identifier
-                            for tech in server.technologies
-                        )
-                    ]
-
-                # Sort by load
-                if filtered_servers:
-                    return min(filtered_servers, key=lambda s: s.load)
-
-                # Fall through to v1 API if no servers found
+                all_v2_servers = self.get_servers()[0]
+                filtered_v2_servers = self._filter_servers_v2(
+                    all_v2_servers, country_code, group_identifier, technology_identifier
+                )
+                if filtered_v2_servers:
+                    return min(filtered_v2_servers, key=lambda s: s.load)
                 logger.warning(
-                    f"No servers found with v2 API matching criteria: "
-                    f"country_code={country_code}, group_identifier={group_identifier}, "
-                    f"technology_identifier={technology_identifier}. "
-                    f"Falling back to v1 API."
+                    "No v2 servers matched criteria (country=%s, group=%s, tech=%s). Falling back to v1.",
+                    country_code,
+                    group_identifier,
+                    technology_identifier,
                 )
             except (requests.exceptions.RequestException, VPNAPIError) as e:
-                logger.warning(f"Failed to use v2 API, falling back to v1: {e}")
-                # Fall through to v1 API
+                logger.warning(f"v2 API failed: {e}. Falling back to v1.")
 
-        # Fall back to v1 API
+        # Fallback to v1 API
         try:
-            servers = self.get_recommended_servers()
+            all_v1_servers = self.get_recommended_servers()
+            filtered_v1_servers = self._filter_servers_v1(
+                all_v1_servers, country_code, group_identifier, technology_identifier
+            )
+            if not filtered_v1_servers:
+                criteria_parts = []
+                if country_code:
+                    criteria_parts.append(f"country={country_code}")
+                if group_identifier:
+                    criteria_parts.append(f"group={group_identifier}")
+                if technology_identifier:
+                    criteria_parts.append(f"tech={technology_identifier}")
+                criteria_str = ", ".join(criteria_parts) if criteria_parts else "any"
+                raise ValueError(f"No v1 servers found matching criteria: {criteria_str}")
+            return min(filtered_v1_servers, key=lambda s: s.load)
+        except (requests.exceptions.RequestException, VPNAPIError, ValueError) as e:
+            # If ValueError came from _filter_servers_v1 not finding servers,
+            # or API errors from get_recommended_servers
+            raise VPNAPIError(f"Failed to find suitable server via v1/v2 APIs: {e}") from e
 
-            filtered_servers = servers
-
-            # Apply filters
-            if country_code:
-                filtered_servers = [
-                    server
-                    for server in filtered_servers
-                    if server.locations
-                    and server.locations[0].country.code.upper() == country_code.upper()
-                ]
-
-            if group_identifier:
-                filtered_servers = [
-                    server
-                    for server in filtered_servers
-                    if any(
-                        group.identifier == group_identifier for group in server.groups
-                    )
-                ]
-
-            if technology_identifier:
-                filtered_servers = [
-                    server
-                    for server in filtered_servers
-                    if any(
-                        tech.identifier == technology_identifier
-                        for tech in server.technologies
-                    )
-                ]
-
-            if not filtered_servers:
-                raise ValueError(
-                    f"No servers found matching criteria: "
-                    f"country_code={country_code}, group_identifier={group_identifier}, "
-                    f"technology_identifier={technology_identifier}"
-                )
-
-            return min(filtered_servers, key=lambda s: s.load)
-
-        except (requests.exceptions.RequestException, VPNAPIError) as e:
-            raise VPNAPIError(
-                f"Failed to find best server using both v1 and v2 APIs: {e}"
-            ) from e
 
     def get_server_stats(self) -> dict[str, Any]:
         """Get statistics about server availability.
@@ -463,5 +443,5 @@ class NordVPNAPI:
                 }
             except (VPNAPIError, requests.exceptions.RequestException) as e2:
                 raise VPNAPIError(
-                    f"Failed to generate server statistics using both v1 and v2 APIs: {e2}"
+                    "Failed to generate server statistics using v1/v2 APIs"
                 ) from e2

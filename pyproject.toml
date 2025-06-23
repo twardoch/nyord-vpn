@@ -1,11 +1,12 @@
 # this_file: pyproject.toml
 [build-system]
-requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+# backend-path = ["."] # Not needed as hatchling is an installable package
 
 [project]
 name = "nyord-vpn"
-version = "0.1.0"
+dynamic = ["version"] # Version will be supplied by hatch-vcs
 description = "NordVPN client with API fallback support"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,50 +37,49 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "aiohttp>=3.11.0",
     "cryptography>=42.0.0",
-    "black>=23.7.0",
+    # "black>=23.7.0", # Replaced by ruff format
     "bleach>=6.0.0",
-    "build>=0.10.0",
+    "build>=0.10.0", # Keep for `python -m build` if needed directly, though hatch build is preferred
     "certifi>=2023.5.7",
     "charset-normalizer>=3.2.0",
-    "click>=8.1.5",
-    "docutils>=0.20.1",
-    "idna>=3.4",
-    "importlib-metadata>=6.8.0",
-    "jaraco-classes>=3.3.0",
-    "markdown-it-py>=3.0.0",
-    "mdurl>=0.1.2",
-    "more-itertools>=9.1.0",
-    "mypy-extensions>=1.0.0",
-    "packaging>=23.1",
-    "pathspec>=0.11.1",
-    "pkginfo>=1.9.6",
-    "platformdirs>=3.9.1",
-    "pygments>=2.15.1",
-    "pyproject-hooks>=1.0.0",
-    "readme-renderer>=40.0",
-    "requests-toolbelt>=1.0.0",
-    "rfc3986>=2.0.0",
-    "six>=1.16.0",
-    "tomli>=2.0.1",
-    "twine>=4.0.2",
-    "typing-extensions>=4.7.1",
-    "urllib3>=2.0.3",
-    "webencodings>=0.5.1",
-    "zipp>=3.16.2",
+    "click>=8.1.5", # fire dependency
+    "docutils>=0.20.1", # readme-renderer dependency
+    "idna>=3.4", # requests dependency
+    "importlib-metadata>=6.8.0", # various tools, pytest
+    "jaraco-classes>=3.3.0", # keyring dependency
+    "markdown-it-py>=3.0.0", # readme-renderer dependency
+    "mdurl>=0.1.2", # markdown-it-py dependency
+    "more-itertools>=9.1.0", # zipp dependency
+    "mypy-extensions>=1.0.0", # mypy dependency
+    "packaging>=23.1", # various tools
+    "pathspec>=0.11.1", # black/ruff uses this
+    "pkginfo>=1.9.6", # twine dependency
+    "platformdirs>=3.9.1", # black/ruff uses this
+    "pygments>=2.15.1", # readme-renderer dependency
+    "pyproject-hooks>=1.0.0", # build dependency
+    "readme-renderer>=40.0", # for twine check
+    "requests-toolbelt>=1.0.0", # twine dependency
+    "rfc3986>=2.0.0", # readme-renderer dependency
+    "six>=1.16.0", # various tools
+    "tomli>=2.0.1", # build dependency
+    "twine>=4.0.2", # for publishing
+    "typing-extensions>=4.7.1", # pydantic, mypy etc.
+    "urllib3>=2.0.3", # requests dependency
+    "webencodings>=0.5.1", # readme-renderer dependency
+    "zipp>=3.16.2", # importlib-metadata dependency
     "loguru>=0.7.3",
-    "vulture>=2.14",
+    # "vulture>=2.14", # Dev tool, move to hatch env
     "scrape-bing>=0.1.2.1",
 ]
 
 [project.optional-dependencies]
+# Dev dependencies are now managed within hatch environments for better isolation
+# However, keeping a minimal set here can be useful for some workflows or IDE integrations
 dev = [
     "pre-commit>=3.6.0",
-    "ruff>=0.9.7",
-    "mypy>=1.0.0",
-    "pyupgrade>=3.19.0",
-    "autoflake>=2.0.0",
-    "isort>=5.10.1",
-    "vulture>=2.10",
+    "ruff>=0.9.7", # Keeping ruff here for IDEs
+    "mypy>=1.0.0", # Keeping mypy here for IDEs
+    "vulture>=2.10", # For dead code detection
 ]
 
 test = [
@@ -94,11 +94,6 @@ test = [
 [project.scripts]
 nyord-vpn = "nyord_vpn.__main__:main"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["nyord_vpn"]
-package-data = {"nyord_vpn" = ["data/*.json"]}
-
 [[project.authors]]
 name = "Adam Twardoch"
 email = "adam+github@twardoch.com"
@@ -108,55 +103,49 @@ Documentation = "https://github.com/twardoch/nyord-vpn#readme"
 Issues = "https://github.com/twardoch/nyord-vpn/issues"
 Source = "https://github.com/twardoch/nyord-vpn"
 
-[tool.coverage.paths]
-nyord_vpn = ["src/nyord_vpn", "*/nyord-vpn/src/nyord_vpn"]
-tests = ["tests", "*/nyord-vpn/tests"]
 
-[tool.coverage.report]
-exclude_lines = [
-    "no cov",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-]
+[tool.hatch.version]
+source = "vcs"
+path = "src/nyord_vpn/__version__.py"
 
-[tool.coverage.run]
-source_pkgs = ["nyord_vpn", "tests"]
-branch = true
-parallel = true
-omit = [
-    "src/nyord_vpn/__about__.py",
-]
-
-[tool.hatch.build.hooks.vcs]
-version-file = "src/nyord_vpn/__version__.py"
+[tool.hatch.build.targets.sdist]
+# exclude = [".github", "tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nyord_vpn"]
 
 [tool.hatch.envs.default]
 dependencies = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "mypy",
 ]
+[tool.hatch.envs.default.scripts]
+check = "pytest tests/"
 
 [[tool.hatch.envs.all.matrix]]
 python = ["3.10", "3.11", "3.12"]
 
-[tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
-type-check = "mypy src/nyord_vpn tests"
-lint = ["ruff check src/nyord_vpn tests", "ruff format --respect-gitignore src/nyord_vpn tests"]
-fix = ["ruff check  --fix --unsafe-fixes src/nyord_vpn tests", "ruff format --respect-gitignore src/nyord_vpn tests"]
-
-[tool.hatch.envs.lint]
-detached = true
+[tool.hatch.envs.quality]
 dependencies = [
+    "ruff",
+    "mypy>=1.0.0",
+    "vulture",
 ]
-
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/nyord_vpn tests}"
-style = ["ruff check {args:.}", "ruff format --respect-gitignore {args:.}", "vulture src"]
-fmt = ["ruff format --respect-gitignore {args:.}", "ruff check --fix {args:.}", "vulture src"]
-all = ["style", "typing"]
+[tool.hatch.envs.quality.scripts]
+format = "ruff format src/nyord_vpn tests"
+lint = "ruff check src/nyord_vpn tests"
+fix = "ruff check --fix --unsafe-fixes src/nyord_vpn tests && ruff format src/nyord_vpn tests"
+typecheck = "mypy src/nyord_vpn tests"
+deadcode = "vulture src/nyord_vpn --min-confidence 80"
+all = [
+    "format",
+    "lint",
+    "typecheck",
+    "deadcode"
+]
+# Consider adding "fix" to "all" or having a separate "fix-all" script
 
 [tool.hatch.envs.test]
 dependencies = [
@@ -167,21 +156,13 @@ dependencies = [
     "pytest-timeout>=2.3.0",
     "pytest-xdist>=3.5.0",
 ]
-
 [tool.hatch.envs.test.scripts]
-test = "python -m pytest {args:tests}"
-test-cov = "python -m pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests}"
-bench = "python -m pytest -v tests/test_benchmark.py --benchmark-only"
-bench-save = "python -m pytest -v tests/test_benchmark.py --benchmark-only --benchmark-json=benchmark/results.json"
+default = "pytest {args:tests/}"
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/nyord_vpn --cov=tests {args:tests/}"
+bench = "pytest -v tests/test_benchmark.py --benchmark-only {args}"
+"bench-save" = "pytest -v tests/test_benchmark.py --benchmark-only --benchmark-json=benchmark/results.json {args}"
 
-[tool.hatch.version]
-source = "vcs"
-path = 'src/nyord_vpn/__version__.py'
-pattern = "__version__\\s*=\\s*version\\s*=\\s*['\"](?P<version>[^'\"]+)['\"]"
-
-[tool.hatch.version.raw-options]
-version_scheme = "post-release"
-
+# Configuration for MyPy
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
@@ -196,74 +177,42 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 
+# Configuration for Ruff (linter and formatter)
 [tool.ruff]
 target-version = "py310"
 line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "A",
-    "ANN",
-    "ARG",
-    "ASYNC",
-    "B",
-    "C",
-    "C4",
-    "C90",
-    "COM",
-    "D",
-    "DOC",
-    "DTZ",
-    "E",
-    "ERA",
-    "EXE",
-    "F",
-    "FA",
-    "FBT",
-    "FIX",
-    "FLY",
-    "FURB",
-    "I",
-    "ICN",
-    "INP",
-    "ISC",
-    "N",
-    "NPY",
-    "PD",
-    "PERF",
-    "PIE",
-    "PL",
-    "PLC",
-    "PLE",
-    "PLR",
-    "PLW",
-    "PT",
-    "PTH",
-    "PYI",
-    "Q",
-    "RET",
-    "RSE",
-    "RUF",
-    "S",
-    "SIM",
-    "SLF",
-    "T",
-    "TC",
-    "TD",
-    "TID",
-    "TRY",
-    "UP",
-    "W",
-    "YTT",
+    "A", "ANN", "ARG", "ASYNC", "B", "C", "C4", "C90", "COM", "D", "DTZ", # Removed DOC
+    "E", "ERA", "EXE", "F", "FA", "FBT", "FIX", "FLY", "FURB", "I", "ICN",
+    "INP", "ISC", "N", "NPY", "PD", "PERF", "PIE", "PL", "PLC", "PLE", "PLR",
+    "PLW", "PT", "PTH", "PYI", "Q", "RET", "RSE", "RUF", "S", "SIM", "SLF",
+    "T", "TC", "TD", "TID", "TRY", "UP", "W", "YTT",
 ]
-ignore = ["ARG001", "COM812", "D203", "D213", "E501", "I001", "RUF001", "PLR2004", "EXE003", "ISC001"]
+ignore = [
+    "ARG001", "COM812", "D203", "D213", "E501", "I001", "RUF001", "PLR2004",
+    "EXE003", "ISC001", "S101", # Removed ANN101, ANN102
+]
+fixable = ["ALL"]
+unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+"tests/*" = ["S101", "ANN001", "ANN201", "ANN202"] # ANN rules here are for function args and return types, not self/cls
+"src/nyord_vpn/__main__.py" = ["T201"]
+"src/nyord_vpn/__init__.py" = ["F401"]
+"src/nyord_vpn/__version__.py" = ["ALL"]
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Pytest configuration
 [tool.pytest.ini_options]
 addopts = "-v --durations=10 -p no:briefcase --timeout=30 -n auto"
-asyncio_mode = "strict"
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 console_output_style = "progress"
 filterwarnings = [
@@ -285,6 +234,33 @@ markers = [
 testpaths = ["tests"]
 timeout = 30
 
+# Coverage configuration
+[tool.coverage.paths]
+source = ["src/nyord_vpn", "*/nyord-vpn/src/nyord_vpn"]
+
+[tool.coverage.run]
+source = ["nyord_vpn"]
+branch = true
+parallel = true
+omit = [
+    "src/nyord_vpn/__main__.py",
+    "src/nyord_vpn/__version__.py",
+    "src/nyord_vpn/exceptions.py",
+    "*/tests/*",
+    "*/__init__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+]
+fail_under = 80
+
+# Pytest Benchmark
 [tool.pytest-benchmark]
 min_rounds = 100
 min_time = 0.1
@@ -292,12 +268,5 @@ histogram = true
 storage = "file"
 save-data = true
 compare = [
-    "min",    # Minimum time
-    "max",    # Maximum time
-    "mean",   # Mean time
-    "stddev", # Standard deviation
-    "median", # Median time
-    "iqr",    # Inter-quartile range
-    "ops",    # Operations per second
-    "rounds", # Number of rounds
-] 
+    "min", "max", "mean", "stddev", "median", "iqr", "ops", "rounds",
+]
