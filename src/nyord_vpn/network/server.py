@@ -150,7 +150,7 @@ def _safe_dict_cast(d: Any) -> dict[str, Any]:
     """Cast a value to a dictionary if possible."""
     if not isinstance(d, dict):
         return {}
-    return cast(dict[str, Any], d)
+    return cast("dict[str, Any]", d)
 
 
 def _safe_dict_get_str(d: dict[str, Any], key: str, default: str = "") -> str:
@@ -260,9 +260,9 @@ def get_cached_servers() -> ServerCache | None:
 
         # Validate and convert data
         cache_data: ServerCache = {
-            "servers": cast(list[ServerInfo], _safe_dict_get_list(data, "servers", [])),
+            "servers": cast("list[ServerInfo]", _safe_dict_get_list(data, "servers", [])),
             "locations": cast(
-                dict[str, ServerLocation], _safe_dict_get_dict(data, "locations", {})
+                "dict[str, ServerLocation]", _safe_dict_get_dict(data, "locations", {})
             ),
             "last_updated": last_updated,
         }
@@ -521,7 +521,7 @@ class ServerManager:
                 # Cache the results
                 self._servers_cache = new_cache
                 self._last_cache_update = time.time()
-                cache_servers(cast(dict[str, Any], new_cache))
+                cache_servers(cast("dict[str, Any]", new_cache))
 
                 return new_cache
 
@@ -618,7 +618,7 @@ class ServerManager:
                 # Cache the results
                 self._servers_cache = new_cache
                 self._last_cache_update = time.time()
-                cache_servers(cast(dict[str, Any], new_cache))
+                cache_servers(cast("dict[str, Any]", new_cache))
 
                 return new_cache
 

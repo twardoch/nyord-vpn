@@ -115,15 +115,13 @@ class NordVPNGroupsV1:
             raise VPNAPIError(
                 "Failed to fetch server groups from v1 API",
                 details=str(e),
-                cause=e,
-            )
+            ) from e
         except (ValueError, TypeError) as e:
             logger.error(f"Failed to parse NordVPN server groups: {e}")
             raise VPNAPIError(
                 "Failed to parse server groups from v1 API",
                 details=str(e),
-                cause=e,
-            )
+            ) from e
 
 
 def get_groups_by_type(groups: list[Group], type_identifier: str) -> list[Group]:
@@ -175,4 +173,4 @@ def get_group_by_identifier(groups: list[Group], identifier: str) -> Group:
     for group in groups:
         if group.identifier == identifier:
             return group
-    raise ValueError(f"No group found with identifier: {identifier}")
+    raise ValueError(f"Group identifier '{identifier}' not found.")

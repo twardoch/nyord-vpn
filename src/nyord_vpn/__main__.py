@@ -20,11 +20,11 @@ load_dotenv()
 class CLI:
     """NordVPN CLI interface."""
 
-    def __init__(self, verbose: bool = False) -> None:
+    def __init__(self, *, verbose: bool = False) -> None:
         """Initialize CLI.
 
         Args:
-            verbose: Whether to show verbose output
+            verbose: Whether to show verbose output.
 
         """
         try:
@@ -84,7 +84,7 @@ class CLI:
 
 
 def main() -> None:
-    """Main entry point."""
+    """Run the main entry point for the CLI."""
     try:
         fire.Fire(CLI)
     except Exception as e:
