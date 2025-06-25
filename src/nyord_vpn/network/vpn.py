@@ -45,7 +45,7 @@ import sys
 import time
 import urllib.parse
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING # Import TYPE_CHECKING
 
 import psutil
 import requests
@@ -56,6 +56,9 @@ from nyord_vpn.exceptions import VPNConfigError, VPNError, VPNProcessError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn_commands import OpenVPNConfig, get_openvpn_command
 from nyord_vpn.storage.state import load_vpn_state, save_vpn_state
+# For forward reference type hint
+if TYPE_CHECKING:
+    from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.utils.templates import get_config_path
 from nyord_vpn.utils.utils import OPENVPN_AUTH, OPENVPN_LOG, check_root, ensure_root
 
@@ -91,9 +94,9 @@ class VPNConnectionManager:
 
     def __init__(
         self,
-        api_client: Any,
+        api_client: 'NordVPNAPI', # Forward reference for type hint
         server_manager: ServerManager,
-        vpn_manager: Any,
+        # vpn_manager: Any, # Removed
         *,
         verbose: bool = False,
         timeout: int = 30,
@@ -103,14 +106,14 @@ class VPNConnectionManager:
         Args:
             api_client: API client instance
             server_manager: Server manager instance
-            vpn_manager: VPN manager instance
+            # vpn_manager: VPN manager instance (Removed)
             verbose: Whether to enable verbose logging
             timeout: Connection timeout in seconds
 
         """
-        self.api_client = api_client
-        self.server_manager = server_manager
-        self.vpn_manager = vpn_manager
+        self.api_client = api_client # Used for credentials in self.go()
+        self.server_manager = server_manager # Used in self.go()
+        # self.vpn_manager = vpn_manager # Removed
         self.verbose = verbose
         self.logger = logger
         self.process: subprocess.Popen | None = None

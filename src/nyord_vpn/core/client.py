@@ -46,7 +46,8 @@ from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.exceptions import VPNConnectionError, VPNError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn import VPNConnectionManager
-from nyord_vpn.utils.utils import CACHE_DIR, CONFIG_DIR, DATA_DIR, save_vpn_state
+# DATA_DIR is no longer used here or created by init()
+from nyord_vpn.utils.utils import CACHE_DIR, CONFIG_DIR, save_vpn_state
 
 load_dotenv()
 
@@ -80,106 +81,51 @@ logger.configure(
 
 # Constants
 PACKAGE_DIR = Path(__file__).parent
-CACHE_FILE = DATA_DIR / "countries.json"
+# CACHE_FILE = DATA_DIR / "countries.json" # No longer needed
 
 # Rich console for pretty output
 console = Console()
 
 
 # Store cache in the package directory
-COUNTRIES_CACHE = PACKAGE_DIR / "data" / "countries.json"
+# COUNTRIES_CACHE = PACKAGE_DIR / "data" / "countries.json" # No longer needed
 
 
-# Type definitions for country data
-class City(TypedDict):
-    """City information from NordVPN API."""
-
-    dns_name: str
-    hub_score: int
-    id: int
-    latitude: float
-    longitude: float
-    name: str
-    serverCount: int
-
-
-class Country(TypedDict):
-    """Country information from NordVPN API."""
-
-    cities: list[City]
-    code: str
-    id: int
-    name: str
-    serverCount: int
-
-
-class CountryCache(TypedDict):
-    """Cache file structure."""
-
-    countries: list[Country]
-    last_updated: str
+# Obsolete TypedDicts removed as FALLBACK_DATA and associated logic are gone.
+# class City(TypedDict):
+#     """City information from NordVPN API."""
+#
+#     dns_name: str
+#     hub_score: int
+#     id: int
+#     latitude: float
+#     longitude: float
+#     name: str
+#     serverCount: int
+#
+#
+# class Country(TypedDict):
+#     """Country information from NordVPN API."""
+#
+#     cities: list[City]
+#     code: str
+#     id: int
+#     name: str
+#     serverCount: int
+#
+#
+# class CountryCache(TypedDict):
+#     """Cache file structure."""
+#
+#     countries: list[Country]
+#     last_updated: str
 
 
 # Fallback country list in case API is unreachable
-FALLBACK_DATA: CountryCache = {
-    "countries": [
-        {
-            "cities": [
-                {
-                    "dns_name": "new-york",
-                    "hub_score": 0,
-                    "id": 8971718,
-                    "latitude": 40.7141667,
-                    "longitude": -74.0063889,
-                    "name": "New York",
-                    "serverCount": 529,
-                },
-            ],
-            "code": "US",
-            "id": 228,
-            "name": "United States",
-            "serverCount": 529,
-        },
-        {
-            "cities": [
-                {
-                    "dns_name": "london",
-                    "hub_score": 0,
-                    "id": 2989907,
-                    "latitude": 51.514125,
-                    "longitude": -0.093689,
-                    "name": "London",
-                    "serverCount": 785,
-                },
-            ],
-            "code": "GB",
-            "id": 227,
-            "name": "United Kingdom",
-            "serverCount": 785,
-        },
-        {
-            "cities": [
-                {
-                    "dns_name": "frankfurt",
-                    "hub_score": 0,
-                    "id": 2215709,
-                    "latitude": 50.116667,
-                    "longitude": 8.683333,
-                    "name": "Frankfurt",
-                    "serverCount": 301,
-                },
-            ],
-            "code": "DE",
-            "id": 81,
-            "name": "Germany",
-            "serverCount": 301,
-        },
-    ],
-    "last_updated": "2024-02-23T00:00:00Z",
-}
+# FALLBACK_DATA: CountryCache = { ... } # Removed
 
 # Cache expiry in seconds (24 hours)
-CACHE_EXPIRY = 24 * 60 * 60
+# CACHE_EXPIRY = 24 * 60 * 60 # This might be related to the removed COUNTRIES_CACHE
 
 
 class Client:
@@ -239,11 +185,11 @@ class Client:
         # Initialize components in the correct order
         self.api_client = NordVPNAPI(timeout=10)
         self.server_manager = ServerManager(self.api_client)
-        self.vpn_manager = VPNConnectionManager(
-            api_client=self.api_client,
-            server_manager=self.server_manager,
-            vpn_manager=self,  # This is a bit circular but needed for the current structure
-            verbose=verbose,
+        self.vpn_manager = VPNConnectionManager( # Instantiation of VPNConnectionManager
+            api_client=self.api_client,         # Pass the API client
+            server_manager=self.server_manager, # Pass the ServerManager
+            # vpn_manager=self, # This argument is now removed from VPNConnectionManager's __init__
+            verbose=verbose                     # Pass the verbose flag
         )
 
         # Set up VPN credentials
@@ -443,13 +389,22 @@ class Client:
         """
         try:
             # Create necessary directories
-            for directory in [CACHE_DIR, CONFIG_DIR, DATA_DIR]:
+            # DATA_DIR creation removed as its primary use (static countries.json) is gone.
+            # CONFIG_DIR is created by utils.utils.py upon import if not existing.
+            # CACHE_DIR is also created by utils.utils.py.
+            # Explicit creation here ensures they exist with client's knowledge.
+            for directory in [CACHE_DIR, CONFIG_DIR]: # Only CACHE_DIR and CONFIG_DIR
                 directory.mkdir(parents=True, exist_ok=True)
 
-            # Test API connectivity
+            # Test API connectivity using a v2 method
             try:
-                self.api_client.get_countries()
+                # Use get_servers with refresh to actively test the API
+                # We don't need the result here, just that it doesn't raise an error.
+                self.api_client.get_servers(refresh=True)
+                if self.verbose:
+                    self.logger.info("Successfully connected to NordVPN API.")
             except Exception as e:
+                self.logger.error(f"Failed to connect to NordVPN API: {e}")
                 raise VPNConnectionError("Failed to connect to NordVPN API") from e
 
             # Get initial IP for comparison
@@ -466,6 +421,22 @@ class Client:
     def get_current_ip(self) -> str | None:
         """Get current IP address."""
         return self.vpn_manager.get_current_ip()
+
+    def list_countries(self) -> None:
+        """List all available countries from the NordVPN API."""
+        try:
+            countries = self.api_client.get_all_countries_from_v2(refresh_cache=False)
+            if not countries:
+                console.print("[yellow]No countries found or API error.[/yellow]")
+                return
+
+            console.print("[green]Available countries:[/green]")
+            for country_info in countries:
+                console.print(f"  - {country_info['name']} ({country_info['code']})")
+        except VPNAPIError as e:
+            console.print(f"[red]Error fetching countries:[/red] {e}")
+        except Exception as e:
+            console.print(f"[red]An unexpected error occurred:[/red] {e}")
 
     def _save_state(self) -> None:
         """Save current connection state."""

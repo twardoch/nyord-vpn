@@ -7,7 +7,7 @@ nyord-vpn is primarily designed for macOS, as it relies on OpenVPN, which is eas
 ## Key Features
 
 - **Simple and Reliable Connection Management:** Connect and disconnect from VPN with minimal hassle.
-- **Support for Legacy OpenVPN and njord APIs:** Choose between different API versions for flexibility.
+- **Uses current NordVPN APIs for server information and OpenVPN for connections.**
 - **Country Selection:** Connect to servers in specific countries easily.
 - **Status Monitoring:** Check the current status of your VPN connection.
 - **Clear Error Messages:** Resolve issues quickly with informative error messages.
@@ -62,7 +62,6 @@ Here are the available CLI commands:
 
 - **`nyord-vpn connect`**: Connects to a NordVPN server. Defaults to a server in the United States.
 - **`nyord-vpn connect --country <country>`**: Connects to a server in the specified country. Replace `<country>` with the country name or code (e.g., `netherlands`).
-- **`nyord-vpn --api njord connect`**: Uses the njord API to connect to the VPN.
 - **`nyord-vpn --verbose connect`**: Connects to the VPN with verbose logging enabled for debugging.
 - **`nyord-vpn status`**: Displays the current status of the VPN connection, including connection status, server, and IP address.
 - **`nyord-vpn list-countries`**: Lists all available countries with NordVPN servers.
@@ -75,20 +74,61 @@ Here are the available CLI commands:
 You can use nyord-vpn programmatically in Python:
 
 ```python
-from nyord_vpn.core.factory import create_client
+import os
+from nyord_vpn.core.client import Client
+from nyord_vpn.exceptions import VPNError # Import relevant exceptions
 
-# Create a client (choose "legacy" or "njord")
-client = create_client("legacy")
+# Ensure NORD_USER and NORD_PASSWORD are set as environment variables
+# For example, you might load them from a .env file or set them in your shell:
+# os.environ["NORD_USER"] = "your_nordvpn_username"
+# os.environ["NORD_PASSWORD"] = "your_nordvpn_password"
 
-# Connect to VPN in a specific country
-client.connect("netherlands")
+username = os.getenv("NORD_USER")
+password = os.getenv("NORD_PASSWORD")
 
-# Check connection status
-status = client.status()
-print(f"Connected to {status['server']} ({status['ip']})")
+if not username or not password:
+    print("Error: NORD_USER and NORD_PASSWORD environment variables must be set.")
+    # In a real application, you might raise an error or handle this more gracefully
+    exit(1)
 
-# Disconnect from VPN
-client.disconnect()
+try:
+    # Create a client instance
+    # Pass verbose=True for detailed logging if needed
+    client = Client(username_str=username, password_str=password, verbose=False)
+
+    # Optional: Initialize client (creates directories, tests API, gets initial IP)
+    # This is useful for a first run or to ensure the environment is set up.
+    # client.init()
+
+    # Connect to VPN in a specific country (e.g., Netherlands)
+    # The 'go' method is used for connecting, similar to the CLI.
+    print("Attempting to connect to VPN in Netherlands...")
+    client.go("NL") # Use country code, e.g., "NL" for Netherlands, "US" for United States
+
+    # Check connection status
+    current_status = client.status()
+    print(f"\nConnection Status:")
+    print(f"  Connected: {current_status.get('connected')}")
+    print(f"  Current IP: {current_status.get('ip')}")
+    print(f"  Server: {current_status.get('server')}")
+    print(f"  Country: {current_status.get('country')}")
+
+    # Disconnect from VPN
+    # The 'bye' method is used for disconnecting.
+    print("\nAttempting to disconnect from VPN...")
+    client.bye()
+
+    status_after_disconnect = client.status()
+    print(f"\nStatus after disconnection:")
+    print(f"  Connected: {status_after_disconnect.get('connected')}")
+    print(f"  IP after disconnect: {status_after_disconnect.get('ip')}")
+
+except VPNError as e:
+    print(f"\nA VPN error occurred: {e}")
+except Exception as e:
+    # Catch any other unexpected errors
+    print(f"\nAn unexpected error occurred: {e}")
+
 ```
 
 Ensure you have the necessary permissions to run OpenVPN when using the Python API.
@@ -103,13 +143,7 @@ To contribute to nyord-vpn or modify the code:
    pip install -r requirements.txt
    ```
 
-2. **Install optional njord support:**
-
-   ```bash
-   pip install njord
-   ```
-
-3. **Run with debug logging:**
+2. **Run with debug logging:**
 
    ```bash
    NORD_USER="username" NORD_PASSWORD="password" nyord-vpn --verbose connect
@@ -134,7 +168,7 @@ nyord-vpn provides clear error messages to help resolve issues. Common errors in
 - **`VPNCredentialsError`**: Missing or invalid credentials. Ensure `NORD_USER` and `NORD_PASSWORD` are set correctly.
 - **`VPNConnectionError`**: Failed to connect or disconnect. Check your internet connection and try again.
 - **`VPNConfigError`**: Configuration issues, such as missing OpenVPN. Install OpenVPN if not already installed.
-- **`VPNServerError`**: Failed to get server information. Try again later or check your network connection.
+- **`VPNAPIError`**: Failed to get server information from the NordVPN API. Try again later or check your network connection.
 
 ### Troubleshooting Tips
 
