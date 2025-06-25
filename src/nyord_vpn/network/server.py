@@ -1,20 +1,21 @@
-import json
-import os
-import platform
-import random
-import re
-import secrets
-import socket
-import subprocess
-import time
-from typing import Any, NotRequired, TypedDict, cast
+import json # Keep for TypedDict and any potential direct use
+# import os # Removed
+# import platform # Removed
+# import random # Removed
+import re # Still used by _is_valid_hostname
+# import secrets # Removed
+# import socket # Removed
+# import subprocess # Removed
+import time # Still used by get_servers_cache
+from typing import Any, NotRequired, TypedDict # cast removed
 
-import requests
+# import requests # Removed as it's no longer used after removing API fallbacks and pinging.
 from loguru import logger
 
 from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.storage.models import ServerError
-from nyord_vpn.utils.utils import API_HEADERS, CACHE_DIR
+# API_HEADERS and CACHE_DIR are no longer used in this file.
+# from nyord_vpn.utils.utils import API_HEADERS, CACHE_DIR
 
 """Server management and selection for NordVPN.
 
@@ -113,8 +114,8 @@ class ServerCache(TypedDict):
 
 
 # Constants
-SERVERS_CACHE_FILE = CACHE_DIR / "servers.json"
-SERVERS_CACHE_TTL = 3600  # 1 hour in seconds
+# SERVERS_CACHE_FILE = CACHE_DIR / "servers.json" # Removed
+# SERVERS_CACHE_TTL = 3600  # 1 hour in seconds # Removed
 
 
 def _safe_dict_get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -188,124 +189,28 @@ def _safe_dict_get_dict(
     return value if isinstance(value, dict) else default
 
 
-def cache_servers(data: dict[str, Any]) -> None:
-    """Cache server information from the API.
-
-    Args:
-        data: Server data from the API to cache in the ServerCache format
-
-    """
-    try:
-        if not isinstance(data, dict):
-            logger.warning("Invalid server data format")
-            return
-
-        # Ensure cache directory exists
-        SERVERS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write to temporary file first
-        temp_file = SERVERS_CACHE_FILE.with_suffix(".tmp")
-        temp_file.write_text(json.dumps(data, indent=2))
-
-        # Atomic rename
-        temp_file.replace(SERVERS_CACHE_FILE)
-
-    except Exception as e:
-        logger.warning(f"Failed to cache server information: {e}")
-
-
-def _parse_timestamp(timestamp: Any) -> float:
-    """Parse a timestamp value into a float.
-
-    Handles both float timestamps and ISO format strings.
-    """
-    if isinstance(timestamp, int | float):
-        return float(timestamp)
-    if isinstance(timestamp, str):
-        try:
-            # Try parsing as float first
-            return float(timestamp)
-        except ValueError:
-            try:
-                # Try parsing as ISO format
-                from datetime import datetime
-
-                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                return dt.timestamp()
-            except ValueError:
-                return 0.0
-    return 0.0
-
-
-def get_cached_servers() -> ServerCache | None:
-    """Get cached server information if available and not expired.
-
-    Returns:
-        Cached server data if available and fresh, None otherwise
-
-    """
-    try:
-        if not SERVERS_CACHE_FILE.exists():
-            return None
-
-        data = json.loads(SERVERS_CACHE_FILE.read_text())
-        if not isinstance(data, dict):
-            return None
-
-        last_updated = _parse_timestamp(_safe_dict_get(data, "last_updated", 0))
-
-        # Check if cache is expired
-        if time.time() - last_updated > SERVERS_CACHE_TTL:
-            return None
-
-        # Validate and convert data
-        cache_data: ServerCache = {
-            "servers": cast("list[ServerInfo]", _safe_dict_get_list(data, "servers", [])),
-            "locations": cast(
-                "dict[str, ServerLocation]", _safe_dict_get_dict(data, "locations", {})
-            ),
-            "last_updated": last_updated,
-        }
-
-        return cache_data
-
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to load cached server information: {e}")
-        return None
-
-
 class ServerManager:
     """Manages NordVPN server selection and optimization.
 
     This class handles all server-related operations including:
     1. Server discovery and filtering
-    2. Performance measurement and ranking
-    3. Load balancing across available servers
-    4. Cache management for server information
+    2. Performance measurement and ranking (Simplified for MVP)
+    3. Load balancing across available servers (Simplified for MVP)
+    4. Relies on NordVPNAPI for server information and its caching.
     5. Country-based server selection
 
-    The manager maintains a cache of server information and tracks
-    failed servers within a session to avoid repeated connection
+    Tracks failed servers within a session to avoid repeated connection
     attempts to problematic servers.
     """
 
     def __init__(self, api_client: NordVPNAPI) -> None:
         """Initialize server manager with API client.
 
-        Sets up the server manager with:
-        1. API client for server information retrieval
-        2. Logging configuration
-        3. Server cache initialization
-        4. Failed servers tracking
-
         Args:
             api_client: NordVPN API client for server information
-
         """
         self.api_client = api_client
         self.logger = logger
-        self._servers_cache: ServerCache | None = None
-        self._last_cache_update: float = 0
         self._failed_servers: set[str] = set()  # Track failed servers in this session
         self._verbose: bool = False
 
@@ -345,47 +250,22 @@ class ServerManager:
             raise ServerError(f"Invalid country code format: {country_code}")
 
         # Get servers from the new API
-        try:
-            servers, _, _, locations, _ = self.api_client.get_servers()
+            # No direct cache fallback here for validation, rely on API client's cache for get_servers()
+            servers_data, _, _, locations_data, _ = self.api_client.get_servers(refresh_cache=False)
 
             # Verify country exists
-            for location in locations:
-                if location.country and location.country.code.upper() == normalized:
+            for loc_obj in locations_data:
+                if loc_obj.country and loc_obj.country.code.upper() == normalized:
                     return normalized
 
             # Get list of available countries for better error message
             available_countries = sorted(
-                {
-                    loc.country.code.upper()
-                    for loc in locations
-                    if loc.country and loc.country.code
-                }
+                list(set( # Use set to ensure uniqueness
+                    loc_obj.country.code.upper()
+                    for loc_obj in locations_data
+                    if loc_obj.country and loc_obj.country.code
+                ))
             )
-
-            raise ServerError(
-                f"Country code not found: {normalized}. "
-                f"Available countries: {', '.join(available_countries)}"
-            )
-
-        except Exception:
-            # Fall back to the cache method
-            cache = self.get_servers_cache()
-            if not cache:
-                raise ServerError("No server information available")
-
-            for location in cache["locations"].values():
-                if location["country"]["code"].upper() == normalized:
-                    return normalized
-
-            # Get list of available countries for better error message
-            available_countries = sorted(
-                {
-                    loc["country"]["code"].upper()
-                    for loc in cache["locations"].values()
-                    if loc["country"]["code"]
-                }
-            )
-
             raise ServerError(
                 f"Country code not found: {normalized}. "
                 f"Available countries: {', '.join(available_countries)}"
@@ -420,8 +300,7 @@ class ServerManager:
             # Find best server using the new API
             best_server = self.api_client.find_best_server(
                 country_code=country_code,
-                technology_identifier="openvpn_tcp",
-                use_v2=True,
+                technology_identifier="openvpn_tcp" # use_v2 parameter removed from find_best_server
             )
 
             # Extract hostname
@@ -439,191 +318,83 @@ class ServerManager:
                 raise
             raise ServerError(f"Failed to fetch server information: {e}")
 
-    def get_servers_cache(self) -> ServerCache | None:
-        """Get server information from cache or API.
+    def get_servers_cache(self, refresh: bool = False) -> ServerCache | None:
+        """Get server information from the API and transform it to ServerCache format.
+
+        This method now directly fetches from NordVPNAPI.get_servers() and
+        transforms the v2 output to the legacy ServerCache format.
+        The NordVPNAPI client handles its own instance-level caching.
+
+        Args:
+            refresh: Whether to force a refresh of the API client's cache.
 
         Returns:
-            Server information if available, None if both cache and API fail
-
+            Server information in ServerCache format if available, None otherwise.
         """
         try:
-            # Try to get from memory cache first
-            if (
-                self._servers_cache
-                and time.time() - self._last_cache_update <= SERVERS_CACHE_TTL
-            ):
-                return self._servers_cache
+            # Get data from NordVPNAPI (v2 focused)
+            # The NordVPNAPI's get_servers method handles its own caching.
+            servers_data, _, _, locations_data, _ = (
+                self.api_client.get_servers(refresh=refresh) # Pass refresh to API client
+            )
 
-            # Try to get from file cache
-            file_cache = get_cached_servers()
-            if file_cache:
-                self._servers_cache = file_cache
-                self._last_cache_update = time.time()
-                return file_cache
+            # Transform to ServerCache format
+            # This transformation is to maintain compatibility with downstream methods
+            # that expect the old ServerCache structure.
+            # Ideally, those methods would be refactored to use v2_servers models directly.
+            transformed_cache: ServerCache = {
+                "servers": [],
+                "locations": {},
+                "last_updated": time.time(), # Current time, as this is freshly transformed
+            }
 
-            # Try to get from the new API and convert to cache format
-            try:
-                servers_data, _, _, locations_data, technologies_data = (
-                    self.api_client.get_servers()
-                )
-
-                # Convert to ServerCache format
-                new_cache: ServerCache = {
-                    "servers": [],
-                    "locations": {},
-                    "last_updated": time.time(),
-                }
-
-                # Process locations
-                for location in locations_data:
-                    if location.id and location.country:
-                        location_id = str(location.id)
-                        new_cache["locations"][location_id] = {
-                            "id": location_id,
-                            "country": {
-                                "name": location.country.name,
-                                "code": location.country.code,
-                            },
-                        }
-
-                # Process servers
-                for server in servers_data:
-                    # Skip servers without hostname
-                    if not server.hostname:
-                        continue
-
-                    # Process technologies
-                    server_technologies: list[Technology] = []
-                    for tech in server.technologies:
-                        technology: Technology = {
-                            "id": tech.id,
-                            "status": tech.status or "",
-                        }
-                        if hasattr(tech, "metadata") and tech.metadata:
-                            technology["metadata"] = [
-                                {"name": meta.name, "value": meta.value}
-                                for meta in tech.metadata
-                            ]
-                        server_technologies.append(technology)
-
-                    # Create server info
-                    server_info: ServerInfo = {
-                        "hostname": server.hostname,
-                        "location_ids": [
-                            str(loc.id) for loc in server.locations if loc.id
-                        ],
-                        "status": server.status,
-                        "load": server.load,
-                        "technologies": server_technologies,
+            # Process locations from v2_servers.Location into ServerLocation format
+            for loc_v2 in locations_data:
+                if loc_v2.id and loc_v2.country:
+                    location_id_str = str(loc_v2.id)
+                    transformed_cache["locations"][location_id_str] = {
+                        "id": location_id_str,
+                        "country": {
+                            "name": loc_v2.country.name,
+                            "code": loc_v2.country.code,
+                        },
                     }
-                    new_cache["servers"].append(server_info)
 
-                # Cache the results
-                self._servers_cache = new_cache
-                self._last_cache_update = time.time()
-                cache_servers(cast("dict[str, Any]", new_cache))
+            # Process servers from v2_servers.Server into ServerInfo format
+            for server_v2 in servers_data:
+                if not server_v2.hostname: # Skip servers without a hostname
+                    continue
 
-                return new_cache
-
-            except Exception as e:
-                logger.warning(f"Failed to get server information from API: {e}")
-
-                # Fetch from legacy API as fallback
-                response = requests.get(
-                    "https://api.nordvpn.com/v2/servers",
-                    headers=API_HEADERS,
-                    timeout=10,
-                )
-                response.raise_for_status()
-                api_data = response.json()
-
-                # Process API response
-                if not isinstance(api_data, dict):
-                    self.logger.warning(
-                        "Invalid API response format - expected object with servers and locations"
-                    )
-                    return None
-
-                # Initialize cache data structure
-                new_cache: ServerCache = {
-                    "servers": [],
-                    "locations": {},
-                    "last_updated": time.time(),
-                }
-
-                # Extract servers and build locations map
-                servers: list[ServerInfo] = []
-                locations: dict[str, ServerLocation] = {}
-
-                # First pass: Process locations from the API response
-                for location in api_data.get("locations", []):
-                    if not isinstance(location, dict):
-                        continue
-
-                    location_id = str(location.get("id", ""))
-                    if not location_id:
-                        continue
-
-                    country_data = location.get("country", {})
-                    if isinstance(country_data, dict):
-                        country: Country = {
-                            "name": str(country_data.get("name", "")),
-                            "code": str(country_data.get("code", "")),
-                        }
-                        locations[location_id] = {"id": location_id, "country": country}
-
-                # Second pass: Process servers
-                for item in api_data.get("servers", []):
-                    if not isinstance(item, dict):
-                        continue
-
-                    # Get technologies
-                    technologies: list[Technology] = []
-                    for tech in item.get("technologies", []):
-                        if not isinstance(tech, dict):
-                            continue
-                        tech_id = tech.get("id")
-                        if tech_id is None:
-                            continue
-                        technology: Technology = {
-                            "id": int(tech_id),
-                            "status": str(tech.get("status", "")),
-                        }
-                        if tech.get("metadata"):
-                            technology["metadata"] = [
-                                {
-                                    "name": str(meta.get("name", "")),
-                                    "value": str(meta.get("value", "")),
-                                }
-                                for meta in tech.get("metadata", [])
-                                if isinstance(meta, dict)
-                            ]
-                        technologies.append(technology)
-
-                    # Create server info
-                    server_info: ServerInfo = {
-                        "hostname": str(item.get("hostname", "")),
-                        "location_ids": [
-                            str(lid) for lid in item.get("location_ids", [])
-                        ],
-                        "status": str(item.get("status", "")),
-                        "load": int(item.get("load", 0)),
-                        "technologies": technologies,
+                # Transform technologies
+                server_technologies_transformed: list[Technology] = []
+                for tech_v2 in server_v2.technologies:
+                    tech_transformed: Technology = {
+                        "id": tech_v2.id,
+                        "status": tech_v2.status or "", # Ensure status is a string
                     }
-                    servers.append(server_info)
+                    if tech_v2.metadata:
+                        tech_transformed["metadata"] = [
+                            {"name": meta.name, "value": meta.value}
+                            for meta in tech_v2.metadata
+                        ]
+                    server_technologies_transformed.append(tech_transformed)
 
-                new_cache["servers"] = servers
-                new_cache["locations"] = locations
+                # Create ServerInfo object
+                server_info_transformed: ServerInfo = {
+                    "hostname": server_v2.hostname,
+                    "location_ids": [
+                        str(loc.id) for loc in server_v2.locations if loc.id
+                    ],
+                    "status": server_v2.status,
+                    "load": server_v2.load,
+                    "technologies": server_technologies_transformed,
+                }
+                transformed_cache["servers"].append(server_info_transformed)
 
-                # Cache the results
-                self._servers_cache = new_cache
-                self._last_cache_update = time.time()
-                cache_servers(cast("dict[str, Any]", new_cache))
-
-                return new_cache
+            return transformed_cache
 
         except Exception as e:
-            self.logger.warning(f"Failed to get server information: {e}")
+            self.logger.warning(f"Failed to get and transform server information: {e}")
             return None
 
     def _is_valid_hostname(self, hostname: str) -> bool:
@@ -663,300 +434,14 @@ class ServerManager:
 
         return True
 
-    def _ping_server(self, hostname: str) -> float:
-        """Ping a server and return response time in ms.
-
-        Args:
-            hostname: Server hostname to ping
-
-        Returns:
-            float: Ping time in milliseconds, or float('inf') if ping failed
-
-        """
-        try:
-            # First check if ping is available
-            ping_path = self._check_for_ping_command()
-            if not ping_path:
-                self.logger.warning("Ping command not found, using fallback method")
-                return self._fallback_ping(hostname)
-
-            # Platform-specific ping command
-            system = platform.system().lower()
-
-            # Validate hostname (strict defense against command injection)
-            if not self._is_valid_hostname(hostname):
-                self.logger.warning(f"Invalid hostname format: {hostname}")
-                return float("inf")
-
-            # Convert hostname to lowercase for consistency
-            hostname = hostname.lower()
-
-            # Ensure hostname is not an IP address to prevent IP-based injection
-            if re.match(r"^(\d{1,3}\.){3}\d{1,3}$", hostname):
-                self.logger.warning(
-                    f"IP addresses not allowed for ping safety: {hostname}"
-                )
-                return float("inf")
-
-            # Construct command based on platform with proper escaping
-            if system == "windows":
-                cmd = [ping_path, "-n", "2", "-w", "1000", hostname]
-            elif system == "darwin":  # macOS
-                cmd = [ping_path, "-c", "2", "-W", "1", "-t", "1", hostname]
-            else:  # Linux and others
-                cmd = [ping_path, "-c", "2", "-W", "1", hostname]
-
-            # Log the command if in verbose mode
-            if self.verbose:
-                self.logger.debug(f"Running ping command: {' '.join(cmd)}")
-
-            # Execute the command securely with resource limitations
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=3,
-                check=False,  # Don't raise an exception on non-zero return
-                env={},  # Run with empty environment for additional security
-            )
-
-            if result.returncode == 0:
-                # Extract time from ping output more robustly
-                min_time = float("inf")
-                for line in result.stdout.splitlines():
-                    if self.verbose:
-                        self.logger.debug(f"Ping output line: {line}")
-
-                    # Look for min/avg/max line
-                    if "min/avg/max" in line:
-                        try:
-                            # Format: round-trip min/avg/max/stddev = 18.894/18.894/18.894/0.000 ms
-                            stats = line.split("=")[1].strip().split("/")
-                            min_time = float(stats[0])
-                            if self.verbose:
-                                self.logger.debug(
-                                    f"Parsed min time from stats: {min_time}ms",
-                                )
-                            return min_time
-                        except (IndexError, ValueError) as e:
-                            if self.verbose:
-                                self.logger.debug(
-                                    f"Failed to parse min/avg/max line '{line}': {e}",
-                                )
-                            continue
-                    # Look for individual ping responses
-                    elif "time=" in line:
-                        try:
-                            time_str = line.split("time=")[1].split()[0].rstrip("ms")
-                            ping_time = float(time_str)
-                            min_time = min(min_time, ping_time)
-                            if self.verbose:
-                                self.logger.debug(
-                                    f"Parsed time from response: {ping_time}ms",
-                                )
-                        except (IndexError, ValueError) as e:
-                            if self.verbose:
-                                self.logger.debug(
-                                    f"Failed to parse time from line '{line}': {e}",
-                                )
-                            continue
-
-                if min_time < float("inf"):
-                    if self.verbose:
-                        self.logger.debug(
-                            f"Server {hostname} responded in {min_time}ms",
-                        )
-                    return min_time
-
-                # If we couldn't parse any times but ping succeeded
-                if self.verbose:
-                    self.logger.debug(
-                        f"Server {hostname} responded but couldn't parse time from output:\n{result.stdout}",
-                    )
-                return float("inf")
-            if self.verbose:
-                self.logger.debug(
-                    f"Server {hostname} ping failed with code {result.returncode}:\n"
-                    f"stdout: {result.stdout}\n"
-                    f"stderr: {result.stderr}",
-                )
-            return float("inf")
-        except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
-            if self.verbose:
-                self.logger.debug(f"Error pinging {hostname}: {e}")
-            return float("inf")
-        except FileNotFoundError:
-            # This should be caught by the initial check, but just in case
-            self.logger.warning(
-                "Ping command not found during execution, using fallback method"
-            )
-            return self._fallback_ping(hostname)
-
-    def _check_for_ping_command(self) -> str:
-        """Check if ping command is available and return its path if found.
-
-        Returns:
-            str: Path to ping command, or empty string if not found
-
-        """
-        try:
-            # Try to find ping in common locations
-            common_paths = [
-                "/bin/ping",
-                "/sbin/ping",
-                "/usr/bin/ping",
-                "/usr/sbin/ping",
-                "/usr/local/bin/ping",
-                "/usr/local/sbin/ping",
-            ]
-
-            # First try to use 'which' to find ping in PATH
-            which_paths = ["/usr/bin/which", "/bin/which", "/usr/local/bin/which"]
-            which_cmd = None
-
-            # Find 'which' command
-            for path in which_paths:
-                if os.path.exists(path) and os.access(path, os.X_OK):
-                    which_cmd = path
-                    break
-
-            # If which is found, use it to find ping
-            if which_cmd:
-                try:
-                    result = subprocess.run(
-                        [which_cmd, "ping"], capture_output=True, text=True, check=False
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        return result.stdout.strip()
-                except (subprocess.SubprocessError, FileNotFoundError):
-                    pass
-
-            # Check common locations
-            for path in common_paths:
-                if os.path.exists(path) and os.access(path, os.X_OK):
-                    return path
-
-            # If we're on Windows, look for ping in expected locations
-            if platform.system().lower() == "windows":
-                windows_paths = [
-                    r"C:\Windows\System32\ping.exe",
-                    r"C:\Windows\ping.exe",
-                ]
-                for path in windows_paths:
-                    if os.path.exists(path) and os.access(path, os.X_OK):
-                        return path
-
-            return ""
-        except Exception as e:
-            self.logger.warning(f"Error checking for ping command: {e}")
-            return ""
-
-    def _fallback_ping(self, hostname: str) -> float:
-        """Fallback method when ping command is not available.
-        Uses socket connection to estimate latency.
-
-        Args:
-            hostname: Server hostname to ping
-
-        Returns:
-            float: Estimated ping time in milliseconds, or float('inf') if failed
-
-        """
-        try:
-            if self.verbose:
-                self.logger.debug(f"Using socket fallback to ping {hostname}")
-
-            # Validate hostname
-            if not self._is_valid_hostname(hostname):
-                self.logger.warning(f"Invalid hostname format: {hostname}")
-                return float("inf")
-
-            # Try a few common ports that VPN servers often have open
-            ports = [443, 80, 1194, 53]  # HTTPS, HTTP, OpenVPN, DNS
-
-            best_time = float("inf")
-            success = False
-
-            # Try each port up to 2 times
-            for port in ports:
-                for attempt in range(2):
-                    # We'll make a TCP connection to measure latency
-                    time.time()
-
-                    # Create socket and measure connection time
-                    connection_time = self._measure_socket_connection(hostname, port)
-
-                    # If connection was successful (not infinite)
-                    if connection_time < float("inf"):
-                        # Add a small random factor to the time to differentiate servers
-                        # This ensures we don't get the same exact time for multiple servers
-                        jitter = random.uniform(0, 0.5)  # Up to 0.5ms jitter
-                        time_ms = connection_time + jitter
-
-                        best_time = min(best_time, time_ms)
-                        success = True
-
-                        # If we've already got a successful measurement, we don't need more
-                        if attempt > 0:
-                            break
-
-                # If we already got a good time, we can stop trying more ports
-                if success:
-                    break
-
-            if success:
-                return best_time
-            return float("inf")
-
-        except Exception as e:
-            self.logger.warning(f"Fallback ping to {hostname} failed: {e}")
-            return float("inf")
-
-    def _measure_socket_connection(self, hostname: str, port: int) -> float:
-        """Measure connection time to a hostname:port using a socket.
-
-        Args:
-            hostname: Server hostname to connect to
-            port: Port to connect to
-
-        Returns:
-            float: Connection time in milliseconds, or float('inf') if failed
-
-        """
-        s = None
-        try:
-            start_time = time.time()
-
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(2.0)  # 2 second timeout
-
-            s.connect((hostname, port))
-            s.shutdown(socket.SHUT_RDWR)
-
-            end_time = time.time()
-            time_ms = (end_time - start_time) * 1000  # Convert to milliseconds
-
-            if self.verbose:
-                self.logger.debug(
-                    f"Socket connection to {hostname}:{port} took {time_ms:.2f}ms"
-                )
-
-            return time_ms
-
-        except (TimeoutError, OSError) as e:
-            if self.verbose:
-                self.logger.debug(f"Socket connection to {hostname}:{port} failed: {e}")
-            return float("inf")
-
-        finally:
-            if s is not None:
-                s.close()
+    # _ping_server, _check_for_ping_command, _fallback_ping, _measure_socket_connection removed for MVP.
+    # _test_server removed for MVP.
 
     def _is_valid_server(self, server: Any) -> bool:
         """Check if a server is valid and usable.
 
         Args:
-            server: Server object to validate
+            server: Server object (expected to be a dict from ServerInfo or similar) to validate
 
         Returns:
             bool: True if server is valid, False otherwise
@@ -964,273 +449,186 @@ class ServerManager:
         A valid server must:
         1. Be online
         2. Have a valid hostname (not in failed servers list)
-        3. Support OpenVPN TCP technology
-
+        3. Support OpenVPN TCP technology (as per transformed ServerInfo structure)
         """
         # Basic validation for dictionary-like objects
-        if not hasattr(server, "get") and not hasattr(server, "__dict__"):
+        if not isinstance(server, dict): # server is now expected to be a dict (ServerInfo)
             return False
 
-        # Get hostname - works for both dict and object
-        hostname = (
-            server.get("hostname", "")
-            if hasattr(server, "get")
-            else getattr(server, "hostname", "")
-        )
+        hostname = server.get("hostname", "")
 
         # Check hostname
         if not hostname or hostname in self._failed_servers:
+            if self.verbose and hostname in self._failed_servers:
+                self.logger.debug(f"Server {hostname} is in failed servers list.")
             return False
-
-        # Get status - works for both dict and object
-        status = (
-            server.get("status", "")
-            if hasattr(server, "get")
-            else getattr(server, "status", "")
-        )
 
         # Check status
-        if status != "online":
+        if server.get("status") != "online":
+            if self.verbose:
+                self.logger.debug(f"Server {hostname} is not online (status: {server.get('status')}).")
             return False
 
-        # Check for OpenVPN TCP support
-        technologies = (
-            server.get("technologies", [])
-            if hasattr(server, "get")
-            else getattr(server, "technologies", [])
-        )
+        # Check for OpenVPN TCP support from the 'technologies' field in ServerInfo
+        technologies = server.get("technologies", []) # Expected to be list[Technology] (TypedDict)
 
-        # Look for OpenVPN TCP in technologies
         has_openvpn_tcp = False
-        for tech in technologies:
-            if hasattr(tech, "get"):
-                tech_name = tech.get("name", "")
-            else:
-                tech_name = getattr(tech, "name", "")
+        for tech_info in technologies:
+            # tech_info is expected to be a Technology TypedDict
+            # Example: {'id': 3, 'name': 'OpenVPN TCP', 'status': 'enabled', ...}
+            # We need to check the 'name' or 'identifier' if available and status.
+            # For simplicity, assuming 'OpenVPN TCP' will be in the name if it's the TCP variant.
+            # The original check was `if "OpenVPN TCP" in tech_name:`.
+            # The v2_servers.Technology model has 'name' and 'identifier'.
+            # The transformed ServerInfo has 'technologies' as list[Technology] (TypedDict)
+            # where Technology is {'id': int, 'status': str, 'name': NotRequired[str], ...}
 
-            if "OpenVPN TCP" in tech_name:
+            tech_name = tech_info.get("name", "") # Get name from Technology TypedDict
+            tech_status = tech_info.get("status", "")
+
+            # A more robust check might involve looking at identifiers if they are consistent
+            # For now, matching by name and ensuring status is 'enabled' or similar
+            if "OpenVPN TCP" in tech_name and tech_status.lower() == "enabled": # Or check for specific identifier
                 if self.verbose:
-                    self.logger.debug(f"Found OpenVPN TCP support: {tech_name}")
+                    self.logger.debug(f"Server {hostname} supports OpenVPN TCP (Name: {tech_name}, Status: {tech_status}).")
                 has_openvpn_tcp = True
                 break
+            # Fallback or alternative check if 'name' is not always 'OpenVPN TCP'
+            # This depends on how 'identifier' is structured in v2_servers.Technology
+            # For example, if identifier is 'openvpn_tcp':
+            # tech_identifier = tech_info.get("identifier", "")
+            # if tech_identifier == "openvpn_tcp" and tech_status.lower() == "enabled":
+            #     has_openvpn_tcp = True
+            #     break
 
         if not has_openvpn_tcp and self.verbose:
-            self.logger.debug(f"Server {hostname} does not support OpenVPN TCP")
+            self.logger.debug(f"Server {hostname} does not support OpenVPN TCP or it's not enabled.")
 
         return has_openvpn_tcp
 
-    def _test_server(self, server: Any) -> tuple[Any, float]:
-        """Test server response time and load.
-
-        Args:
-            server: Server object to test
-
-        Returns:
-            Tuple of server object and calculated score (lower is better)
-
-        """
-        hostname = server.get("hostname", "")
-        if not hostname:
-            return server, float("inf")
-
-        # Get server load
-        load = server.get("load", 100)
-
-        # Ping the server
-        ping_time = self._ping_server(hostname)
-
-        # Calculate score: combination of ping time and load
-        # Lower score is better
-        score = ping_time * (1 + load / 100)
-
-        # Update server with ping time
-        server_copy = server.copy()
-        server_copy["ping_time"] = ping_time
-
-        return server_copy, score
-
-    def _select_diverse_servers(
-        self, servers: list[ServerInfo], count: int = 4
-    ) -> list[ServerInfo]:
-        """Select a diverse set of servers for testing.
-
-        This method selects a diverse sample of servers to test,
-        ensuring variety in load and geographical distribution.
-
-        Args:
-            servers: List of servers to select from
-            count: Number of servers to select
-
-        Returns:
-            List of selected servers
-
-        """
-        if not servers:
-            return []
-
-        # If we have few servers, test them all
-        if len(servers) <= count:
-            return servers
-
-        # Divide servers into load groups (low, medium, high)
-        servers_by_load = sorted(servers, key=lambda s: s.get("load", 100))
-
-        # Select servers using cryptographic random for security
-        result = []
-
-        # Get low-load servers (first 25%)
-        low_load = servers_by_load[: len(servers_by_load) // 4]
-        if low_load:
-            result.append(low_load[secrets.randbelow(len(low_load))])
-
-        # Get medium-load servers (middle 50%)
-        mid_start = len(servers_by_load) // 4
-        mid_end = mid_start + len(servers_by_load) // 2
-        medium_load = servers_by_load[mid_start:mid_end]
-        if medium_load:
-            result.append(medium_load[secrets.randbelow(len(medium_load))])
-
-        # Get remaining servers randomly to fill the count
-        remaining = count - len(result)
-        if remaining > 0 and servers:
-            # Convert to set to avoid duplicates
-            selected_hostnames = {s.get("hostname", "") for s in result}
-            remaining_servers = [
-                s for s in servers if s.get("hostname", "") not in selected_hostnames
-            ]
-
-            for _ in range(min(remaining, len(remaining_servers))):
-                if not remaining_servers:
-                    break
-                idx = secrets.randbelow(len(remaining_servers))
-                result.append(remaining_servers[idx])
-                remaining_servers.pop(idx)
-
-        return result
+    # _select_diverse_servers is removed as active server testing is removed.
 
     def select_fastest_server(
-        self, country_code: str | None = None
+        self, country_code: str | None = None, num_servers: int = 3
     ) -> list[dict[str, Any]]:
-        """Select fastest servers in a country based on ping times.
+        """Select suitable servers, prioritizing low load.
+
+        For MVP, this method fetches servers, filters them, and returns a list
+        sorted by load. Active pinging is removed.
 
         Args:
-            country_code: Two-letter country code
+            country_code: Two-letter country code.
+            num_servers: The number of servers to return.
 
         Returns:
-            List of server dicts sorted by speed (fastest first)
-
+            List of server dicts (ServerInfo format) sorted by load (lowest first).
+            Returns an empty list if no suitable servers are found.
         """
         try:
-            # Try to use the new API first
-            try:
-                # Validate country code
-                if country_code:
-                    country_code = self._validate_country_code(country_code)
-
-                # Find best server using the API
-                best_server = self.api_client.find_best_server(
-                    country_code=country_code,
-                    technology_identifier="openvpn_tcp",
-                    use_v2=True,
-                )
-
-                # Convert API server to dict format for consistency
-                server_dict = {
-                    "hostname": best_server.hostname,
-                    "load": best_server.load,
-                    "status": best_server.status,
-                    "ping_time": 0,  # We don't have this yet
-                }
-
-                # Test the ping time
-                hostname = server_dict["hostname"]
-                if hostname:
-                    ping_time = self._ping_server(hostname)
-                    server_dict["ping_time"] = ping_time
-
-                return [server_dict]
-
-            except Exception as e:
-                logger.warning(
-                    f"Failed to get fastest server from API, falling back to cache: {e}"
-                )
-                # Fall back to cache method
-
-            # Get all servers from cache
-            cache = self.get_servers_cache()
-            if not cache:
-                raise ServerError("No servers available")
-
-            servers = cache["servers"]
-            locations = cache["locations"]
-
-            if not servers:
-                raise ServerError("No servers available")
-
-            # Create location lookup by ID
-            location_lookup = {str(loc["id"]): loc for loc in locations.values()}
-
-            # Filter by country if specified
             if country_code:
-                country_code = country_code.upper()
-                filtered_servers = []
+                country_code = self._validate_country_code(country_code) # Validates and normalizes
 
-                for server in servers:
-                    # Check each location ID
-                    for loc_id in server["location_ids"]:
-                        location = location_lookup.get(str(loc_id))
-                        if (
-                            location
-                            and location["country"]["code"].upper() == country_code
-                        ):
-                            filtered_servers.append(server)
+            # Attempt to get a single best server directly from API client first
+            # This uses the v2_servers.Server model.
+            try:
+                if self.verbose:
+                    self.logger.debug(f"Attempting to find best server directly for country: {country_code}")
+
+                # We need to specify the technology we are interested in, e.g., OpenVPN TCP
+                # The technology_identifier should match what's used in v2_servers.Technology
+                # Assuming 'openvpn_tcp' is a valid identifier.
+                # This was previously "openvpn_tcp" in fetch_server_info
+                # and self.api_client.find_best_server in the old select_fastest_server
+                best_server_v2_model = self.api_client.find_best_server(
+                    country_code=country_code,
+                    technology_identifier="openvpn_tcp" # Ensure this matches a valid v2 tech identifier
+                )
+
+                if best_server_v2_model and best_server_v2_model.hostname:
+                    # Transform this v2_servers.Server object to the ServerInfo dict format
+                    # This part is a bit manual as there's no direct utility for single server transformation
+                    # It mirrors the transformation logic in get_servers_cache
+                    transformed_techs = []
+                    for tech_v2 in best_server_v2_model.technologies:
+                        tech_transformed: Technology = {"id": tech_v2.id, "status": tech_v2.status or ""}
+                        if tech_v2.name: tech_transformed["name"] = tech_v2.name
+                        if tech_v2.identifier: tech_transformed["identifier"] = tech_v2.identifier
+                        if tech_v2.metadata:
+                            tech_transformed["metadata"] = [{"name": m.name, "value": m.value} for m in tech_v2.metadata]
+                        transformed_techs.append(tech_transformed)
+
+                    server_info_dict: ServerInfo = {
+                        "hostname": best_server_v2_model.hostname,
+                        "load": best_server_v2_model.load,
+                        "status": best_server_v2_model.status,
+                        "location_ids": [str(loc.id) for loc in best_server_v2_model.locations if loc.id],
+                        "technologies": transformed_techs
+                        # 'ping_time' is no longer added as pinging is removed
+                    }
+                    if self.verbose:
+                        self.logger.debug(f"Found best server via API: {server_info_dict['hostname']} (Load: {server_info_dict['load']})")
+                    return [server_info_dict] # Return as a list with one server
+
+            except VPNAPIError as e:
+                if self.verbose:
+                    self.logger.warning(f"Could not find single best server via API client directly: {e}. Falling back to list filtering.")
+            # Fallback to fetching all, filtering, and sorting if direct find_best_server fails or for more options
+
+            server_data_cache = self.get_servers_cache(refresh=False)
+            if not server_data_cache or not server_data_cache["servers"]:
+                if self.verbose:
+                    self.logger.info("No servers in initial cache, attempting refresh from API for select_fastest_server.")
+                server_data_cache = self.get_servers_cache(refresh=True)
+                if not server_data_cache or not server_data_cache["servers"]:
+                    raise ServerError("No servers available even after refresh for select_fastest_server.")
+
+            all_servers_info = server_data_cache["servers"]
+            locations_info = server_data_cache["locations"] # Needed for country filtering
+
+            candidate_servers: list[ServerInfo] = []
+
+            if country_code:
+                for server_info_item in all_servers_info:
+                    is_in_country = False
+                    for loc_id_str in server_info_item.get("location_ids", []):
+                        location = locations_info.get(loc_id_str)
+                        if location and location["country"]["code"].upper() == country_code:
+                            is_in_country = True
                             break
+                    if is_in_country:
+                        candidate_servers.append(server_info_item)
+                if not candidate_servers and self.verbose:
+                     self.logger.warning(f"No servers found for country: {country_code} after filtering transformed cache.")
+            else:
+                candidate_servers = all_servers_info
 
-                servers = filtered_servers
+            valid_servers = [
+                s_info for s_info in candidate_servers if self._is_valid_server(s_info)
+            ]
 
-                if not servers:
-                    # Get list of available countries
-                    available_countries = sorted(
-                        {
-                            loc["country"]["code"].upper()
-                            for loc in locations.values()
-                            if loc["country"]["code"]
-                        }
-                    )
-                    raise ServerError(
-                        f"No servers available in {country_code}. "
-                        f"Available countries: {', '.join(available_countries)}"
-                    )
+            if not valid_servers:
+                err_msg = "No valid OpenVPN TCP servers available"
+                if country_code:
+                    err_msg += f" in {country_code}"
+                self._failed_servers.clear() # Clear failed servers if we are desperate
+                raise ServerError(err_msg + ".")
 
-            # Remove failed servers
-            servers = [s for s in servers if s["hostname"] not in self._failed_servers]
-            if not servers:
-                self._failed_servers.clear()  # Reset failed servers if none left
-                return self.select_fastest_server(country_code)  # Try again
+            # Sort valid servers by load (ascending)
+            sorted_servers = sorted(valid_servers, key=lambda s: s.get("load", 100))
 
-            # Select a diverse set of servers to test
-            test_servers = self._select_diverse_servers(servers)
+            if self.verbose:
+                self.logger.debug(f"Returning up to {num_servers} servers sorted by load. Found {len(sorted_servers)} total valid servers.")
+                for i, s in enumerate(sorted_servers[:num_servers]):
+                    self.logger.debug(f"  {i+1}. {s['hostname']} (Load: {s['load']})")
 
-            # Test response times
-            results = []
-            for server in test_servers:
-                hostname = server["hostname"]
-                if not hostname:
-                    continue
+            return sorted_servers[:num_servers]
 
-                # Test server response time
-                server_result, score = self._test_server(server)
-                if score < float("inf"):
-                    results.append((server_result, score))
-
-            # Sort by response time
-            results.sort(key=lambda x: x[1])
-            return [r[0] for r in results]  # Return servers only, sorted by speed
-
+        except ServerError:
+            raise
         except Exception as e:
-            if isinstance(e, ServerError):
-                raise
+            self.logger.error(f"Unexpected error in select_fastest_server: {e}", exc_info=True)
             raise ServerError(f"Failed to select server: {e}")
+
 
     def get_country_info(self, country_code: str) -> dict[str, Any]:
         """Get information about a country by its code.

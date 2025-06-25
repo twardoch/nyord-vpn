@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from nyord_vpn.core.client import Client, VPNError
-from nyord_vpn.scripts.update_countries import fetch_countries
+# fetch_countries will be removed
 from nyord_vpn.utils.utils import check_root
 
 console = Console()
@@ -72,14 +72,15 @@ class CLI:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    def update(self) -> None:
-        """Update country information."""
+    def list_countries(self) -> None:
+        """List all available countries."""
         try:
-            fetch_countries()
-            if self.verbose:
-                console.print("[green]Successfully updated country information[/green]")
+            self.client.list_countries()
+        except VPNError as e: # Should be caught by client's method, but as a safeguard
+            console.print(f"[red]Error listing countries:[/red] {e}")
+            sys.exit(1)
         except Exception as e:
-            console.print(f"[red]Error updating country information:[/red] {e}")
+            console.print(f"[red]An unexpected error occurred:[/red] {e}")
             sys.exit(1)
 
 

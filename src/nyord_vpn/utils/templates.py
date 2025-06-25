@@ -24,14 +24,15 @@ import requests
 from loguru import logger
 
 from nyord_vpn.exceptions import VPNConfigError
+from nyord_vpn.utils.utils import CONFIG_DIR # Import the standard CONFIG_DIR
 
 # Constants
-CACHE_DIR = Path.home() / ".cache" / "nyord-vpn"
-CONFIG_DIR = CACHE_DIR / "configs"
-CONFIG_ZIP = CACHE_DIR / "ovpn.zip"
+# CACHE_DIR definition removed as it's not used in this file.
+# If general caching utilities were needed here, CACHE_DIR could be imported from utils.utils too.
+CONFIG_ZIP = CONFIG_DIR / "ovpn.zip" # Store the downloaded zip in the user's config directory
 OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
 ZIP_MAX_AGE_DAYS = 7  # Maximum age of ZIP file before redownload
-MAX_CACHED_CONFIGS = 5  # Maximum number of cached config files
+MAX_CACHED_CONFIGS = 5  # Maximum number of cached config files for .ovpn files within CONFIG_DIR
 MAX_RETRIES = 3  # Maximum number of download retries
 INITIAL_RETRY_DELAY = 1  # Initial retry delay in seconds
 MAX_RETRY_DELAY = 30  # Maximum retry delay in seconds

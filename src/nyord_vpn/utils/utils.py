@@ -83,14 +83,14 @@ CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
 
 # File paths
 PACKAGE_DIR = Path(__file__).parent
-DATA_DIR = PACKAGE_DIR / "data"
-CACHE_FILE = DATA_DIR / "countries.json"
-COUNTRIES_CACHE = CACHE_DIR / "countries.json"
-COUNTRY_IDS_FILE = DATA_DIR / "country_ids.json"
+# DATA_DIR = PACKAGE_DIR / "data" # Removed
+# CACHE_FILE = DATA_DIR / "countries.json" # Removed
+# COUNTRIES_CACHE = CACHE_DIR / "countries.json" # Removed
+# COUNTRY_IDS_FILE = DATA_DIR / "country_ids.json" # Removed
 STATE_FILE = CACHE_DIR / "state.json"
-OPENVPN_CONFIG = CACHE_DIR / "openvpn.ovpn"
-OPENVPN_AUTH = CACHE_DIR / "openvpn.auth"
-OPENVPN_LOG = CACHE_DIR / "openvpn.log"
+# OPENVPN_CONFIG = CACHE_DIR / "openvpn.ovpn" # This specific path seems unused; templates.py generates server-specific paths.
+OPENVPN_AUTH = CACHE_DIR / "openvpn.auth" # Retained, used by vpn.py
+OPENVPN_LOG = CACHE_DIR / "openvpn.log" # Retained, used by vpn.py
 
 # Cache expiry in seconds (24 hours)
 CACHE_EXPIRY = 24 * 60 * 60  # 24 hours in seconds
@@ -187,35 +187,36 @@ def is_process_running(process_id: int) -> bool | None:
         return None
 
 
-def ensure_data_dir() -> None:
-    """Ensure data directory exists and is writable."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+# def ensure_data_dir() -> None: # Removed
+#     """Ensure data directory exists and is writable."""
+#     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Initialize data directory
-ensure_data_dir()
+# ensure_data_dir() # Removed
 
 
-# Load country ID mappings with fallback data
-try:
-    with open(COUNTRY_IDS_FILE) as f:
-        NORDVPN_COUNTRY_IDS: dict[str, str] = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    # Fallback to core countries if file is missing/invalid
-    NORDVPN_COUNTRY_IDS = {
-        "US": "228",  # United States
-        "GB": "227",  # United Kingdom
-        "DE": "81",  # Germany
-    }
+# Load country ID mappings with fallback data - This is all obsolete
+# try:
+#     with open(COUNTRY_IDS_FILE) as f:
+#         NORDVPN_COUNTRY_IDS: dict[str, str] = json.load(f)
+# except (FileNotFoundError, json.JSONDecodeError):
+#     # Fallback to core countries if file is missing/invalid
+#     NORDVPN_COUNTRY_IDS = {
+#         "US": "228",  # United States
+#         "GB": "227",  # United Kingdom
+#         "DE": "81",  # Germany
+#     }
 
-# API request headers to mimic browser behavior
-API_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://nordvpn.com/",
-    "Origin": "https://nordvpn.com",
-}
+# API request headers to mimic browser behavior - This seems unused by actual API call modules.
+# templates.py has its own HEADERS for zip download.
+# API_HEADERS = {
+#     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+#     "Accept": "application/json",
+#     "Accept-Language": "en-US,en;q=0.9",
+#     "Referer": "https://nordvpn.com/",
+#     "Origin": "https://nordvpn.com",
+# }
 
 
 def save_vpn_state(state: dict) -> None:
