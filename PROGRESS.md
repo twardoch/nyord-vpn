@@ -12,7 +12,7 @@ The primary focus of the refactoring effort is to:
 4. Update the API interface for better usability
 5. Add comprehensive documentation and testing
 
-Current status: Completed initial refactoring of API and core modules, with focus shifting to improving error handling, fixing test failures, and breaking down complex methods.
+Current status: Completed initial refactoring of API and core modules. Focus now shifts to improving error handling, fixing test failures, and breaking down complex methods.
 
 ## Completed Tasks
 
@@ -76,7 +76,7 @@ Current status: Completed initial refactoring of API and core modules, with focu
   - [ ] Fix test_get_servers test failure related to locations relationship
   - [ ] Fix test_server_filtering failure related to mock implementation
 - [ ] Fix import errors in integration tests
-  - [ ] Update imports in tests to use `nyord_vpn.exceptions` instead of `nyord_vpn.core.exceptions`
+  - [ ] Update imports to use `nyord_vpn.exceptions` instead of `nyord_vpn.core.exceptions`
   - [ ] Update class references from `VPNClient` to `Client`
 - [ ] Update test fixtures to include missing fields:
   - [ ] Add `type` field to Group model in test fixtures
@@ -121,7 +121,7 @@ Current status: Completed initial refactoring of API and core modules, with focu
 #### Main Module - `__main__.py`
 
 - [ ] Update CLI class to use the updated Client API
-  - [ ] Replace any usage of deprecated classes/methods with their updated counterparts
+  - [ ] Replace usage of deprecated classes/methods with updated counterparts
   - [ ] Update command-line arguments to match new API structure
   - [ ] Ensure all commands use the new Client implementation
 - [ ] Improve error handling and user feedback
@@ -131,54 +131,52 @@ Current status: Completed initial refactoring of API and core modules, with focu
 
 ## Next Steps
 
-The following immediate next steps have been identified based on test failures and prioritized tasks:
+Based on test failures and prioritized tasks:
 
 1. **Implement minimalistic output format when --verbose is not used**
-   - Modify the logging configuration to only show debug/info logs when --verbose is enabled
-   - Update Client.go(), Client.bye(), and Client.info() methods to use the minimalistic output format
-   - Create a helper function to generate the minimalistic output string in the format "IPADDRESS: VPNSERVERNAME" or "IPADDRESS: -"
-   - Test the output with and without the --verbose flag to verify correct behavior
+   - Modify logging configuration to only show debug/info logs when --verbose is enabled
+   - Update Client.go(), Client.bye(), and Client.info() methods to use minimalistic output format
+   - Create helper function to generate minimalistic output string in format "IPADDRESS: VPNSERVERNAME" or "IPADDRESS: -"
+   - Test output with and without --verbose flag
 
-2. **Fix the OpenVPN TCP validation issue in server_manager.py**
-   - The `_is_valid_server()` method is incorrectly returning `True` for servers without OpenVPN TCP support
-   - Update the logic to properly check for the presence of OpenVPN TCP in the technologies list
-   - Add additional logging to help diagnose why the check is failing
+2. **Fix OpenVPN TCP validation issue in server_manager.py**
+   - The `_is_valid_server()` method incorrectly returns `True` for servers without OpenVPN TCP support
+   - Update logic to properly check for OpenVPN TCP in technologies list
+   - Add logging to diagnose validation failures
 
 3. **Fix model relationship issues in test fixtures**
-   - Update sample fixtures to properly include relationships:
+   - Update sample fixtures to include relationships:
      - Add server-to-group relationships in sample_server fixture
      - Add server-to-location relationships in sample_server fixture
-     - Add proper type field to Group model in test fixtures
-   - Modify fixture functions to ensure relationships are properly established
+     - Add proper type field to Group model
+   - Modify fixture functions to establish relationships properly
 
 4. **Fix import errors in integration tests**
    - Update import statements:
      - Change `from nyord_vpn.core.exceptions import ...` to `from nyord_vpn.exceptions import ...`
-     - Replace references to `VPNClient` with `Client`
-   - Fix mock setup in test_server_manager.py to correctly simulate API response structure
+     - Replace `VPNClient` references with `Client`
+   - Fix mock setup in test_server_manager.py to simulate correct API response structure
 
-5. **Refactor the Client.go() method into smaller functions**
-   - Extract server selection logic into a separate method
-   - Create a dedicated method for connection validation
+5. **Refactor Client.go() method**
+   - Extract server selection logic
+   - Create dedicated method for connection validation
    - Implement retry logic with proper error handling
-   - Add detailed error messages with troubleshooting steps for common failures
+   - Add detailed error messages for common failures
 
-By addressing these issues, we will improve test reliability and code quality, which will provide a solid foundation for further refactoring work.
+Addressing these issues will improve test reliability and code quality, providing a foundation for further work.
 
 ### Implementation Plan for Fixing Test Failures
 
-1. **Update the `_is_valid_server()` method in server.py**
+1. **Update `_is_valid_server()` method in server.py**
 
    ```python
    def _is_valid_server(self, server: dict) -> bool:
-       """Check if a server is valid for OpenVPN TCP connection."""
-       # Add debug logging for technologies to diagnose the issue
+       """Check if a server supports OpenVPN TCP."""
        if self.verbose:
            technologies = server.get("technologies", [])
            self.logger.debug(f"Server technologies: {technologies}")
            
-       # Continue with existing validation logic...
-       # Fix the OpenVPN TCP check:
+       # Check for OpenVPN TCP support
        has_openvpn_tcp = False
        for tech in server.get("technologies", []):
            if isinstance(tech, dict) and "name" in tech:
@@ -195,7 +193,7 @@ By addressing these issues, we will improve test reliability and code quality, w
        return True
    ```
 
-2. **Update test fixtures for proper relationships**
+2. **Update test fixtures**
 
    ```python
    @pytest.fixture
@@ -211,22 +209,19 @@ By addressing these issues, we will improve test reliability and code quality, w
            "groups": [{"id": 1, "pivot": {"server_id": 1, "group_id": 1}}],
            "locations": [{"id": 1, "pivot": {"server_id": 1, "location_id": 1}}],
            "technologies": [sample_technology],
-           # Other fields...
        }
    ```
 
-3. **Fix import errors in integration tests**
+3. **Fix integration test imports**
 
    ```python
-   # Update imports in affected test files
    from nyord_vpn.exceptions import VPNError, VPNConnectionError
-   from nyord_vpn.core.client import Client  # Use Client instead of VPNClient
+   from nyord_vpn.core.client import Client
    ```
 
 4. **Fix mock setup in test_server_manager.py**
 
    ```python
-   # Update the mock to match the actual return structure of the NordVPNAPI.get_servers() method
    mock_api_client.get_servers.return_value = (
        [
            {
@@ -238,8 +233,7 @@ By addressing these issues, we will improve test reliability and code quality, w
                    {"id": 5, "name": "OpenVPN TCP", "status": "online"},
                ],
            },
-           # More sample servers...
        ],
-       [], [], [], []  # Empty lists for groups, services, locations, technologies
+       [], [], [], []
    )
    ```
