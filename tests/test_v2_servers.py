@@ -159,7 +159,11 @@ def sample_server(
     sample_service,
     sample_location,
 ) -> dict:
-    """Create a sample server for testing."""
+    """Create a sample server for testing.
+
+    Relations are supplied as ``*_ids`` so that ``_link_server_relations``
+    resolves them from the top-level lists in the API response.
+    """
     return {
         "id": 1,
         "created_at": "2024-01-01T00:00:00Z",
@@ -173,27 +177,9 @@ def sample_server(
         "ips": [sample_server_ip],
         "specifications": [sample_specification],
         "technologies": [sample_tech],
-        "groups": [
-            {
-                "id": sample_group["id"],
-                "title": sample_group["title"],
-                "identifier": sample_group["identifier"],
-                "created_at": sample_group["created_at"],
-                "updated_at": sample_group["updated_at"],
-                "type": sample_group["type"],
-                "pivot": {"server_id": 1, "group_id": sample_group["id"]},
-            }
-        ],
-        "services": [sample_service],
-        "locations": [
-            {
-                "id": sample_location["id"],
-                "created_at": sample_location["created_at"],
-                "updated_at": sample_location["updated_at"],
-                "country": sample_location["country"],
-                "pivot": {"server_id": 1, "location_id": sample_location["id"]},
-            }
-        ],
+        "group_ids": [sample_group["id"]],
+        "service_ids": [sample_service["id"]],
+        "location_ids": [sample_location["id"]],
     }
 
 

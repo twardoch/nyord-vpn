@@ -21,7 +21,7 @@ The client implements automatic fallback to cached data (instance-level) when
 API requests fail on subsequent calls within the same instance lifetime.
 """
 
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 import requests
 from loguru import logger
@@ -52,6 +52,7 @@ class NordVPNAPI:
     Attributes:
         timeout: Request timeout in seconds for all API calls.
         servers: Client for v2 servers API.
+
     """
 
     def __init__(self, timeout: int = 10) -> None:
@@ -59,6 +60,7 @@ class NordVPNAPI:
 
         Args:
             timeout: Request timeout in seconds for all API calls.
+
         """
         self.timeout = timeout
         self.servers = v2_servers.NordVPNServersV2(timeout=timeout)
@@ -81,6 +83,7 @@ class NordVPNAPI:
 
         Raises:
             VPNAPIError: If the API request fails and no cached data is available.
+
         """
         if self._servers_cache is None or refresh:
             try:
@@ -154,6 +157,7 @@ class NordVPNAPI:
 
         Raises:
             VPNAPIError: If no suitable server is found or API request fails.
+
         """
         try:
             # The first element of the tuple returned by get_servers() is the list of servers.
@@ -171,7 +175,8 @@ class NordVPNAPI:
                 criteria_str = ", ".join(criteria_parts) if criteria_parts else "any criteria"
                 raise VPNAPIError(f"No v2 servers found matching: {criteria_str}")
 
-            # Return the server with the minimum load
+            # v2 `load` is a 0-100 percentage where lower means less busy, so
+            # the best server is the one with the minimum load.
             return min(filtered_v2_servers, key=lambda s: s.load)
 
         except VPNAPIError: # Re-raise VPNAPIError if it's from get_servers or filtering
@@ -195,6 +200,7 @@ class NordVPNAPI:
 
         Raises:
             VPNAPIError: If API requests fail and no statistics can be generated.
+
         """
         try:
             # Use the v2 API data
@@ -247,8 +253,7 @@ class NordVPNAPI:
             ) from e
 
     def get_all_countries_from_v2(self, refresh_cache: bool = False) -> list[dict[str, str]]:
-        """
-        Retrieves a list of unique countries from the v2 server data.
+        """Retrieves a list of unique countries from the v2 server data.
 
         Args:
             refresh_cache: Whether to force a refresh of the server data cache.
@@ -259,6 +264,7 @@ class NordVPNAPI:
 
         Raises:
             VPNAPIError: If server data cannot be fetched.
+
         """
         try:
             _, _, _, locations_data, _ = self.get_servers(refresh=refresh_cache)
@@ -269,7 +275,7 @@ class NordVPNAPI:
                     countries_set.add((loc.country.name, loc.country.code.upper()))
 
             # Convert set of tuples to list of dicts
-            return [{"name": name, "code": code} for name, code in sorted(list(countries_set))]
+            return [{"name": name, "code": code} for name, code in sorted(countries_set)]
 
         except VPNAPIError:
             raise # Re-raise if get_servers fails

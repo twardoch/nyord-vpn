@@ -1,0 +1,19 @@
+title: nyord-vpn
+description: A macOS NordVPN client that speaks OpenVPN — go JP, that's all.
+theme: just-the-docs
+url: https://twardoch.github.io/nyord-vpn
+
+remote_theme: just-the-docs/just-the-docs
+plugins:
+  - jekyll-remote-theme
+
+aux_links:
+  GitHub: https://github.com/twardoch/nyord-vpn
+  PyPI: https://pypi.org/project/nyord-vpn/
+
+color_scheme: dark
+search_enabled: true
+
+exclude:
+  - Gemfile
+  - Gemfile.lock

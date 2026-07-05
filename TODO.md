@@ -1,4 +1,29 @@
-# Nyord VPN Streamlining Plan - TODO Checklist
+# Nyord VPN TODO
+
+## 2026-07 modernization pass — done
+- [x] Fix v2-refactor bugs: `_validate_country_code` indentation + wrong kwarg; restore `cast`/`secrets`/`VPNAPIError` imports in `server.py`; `VPNAPIError` import in `client.py`.
+- [x] Fix `vpn.py` `status()` country lookup and `go()` credential handling; drop the `~/.cache` path override.
+- [x] Fix `templates.py` missing `CACHE_DIR` import and `HTTPError.response` guard.
+- [x] Python 3.10 compatibility (`typing_extensions.NotRequired`).
+- [x] Delete dead modules `core/base.py`, `network/country.py`, stray `src/__init__.py`.
+- [x] Add `go --dry-run`; add `py.typed`.
+- [x] Green, fully-mocked test suite; remove obsolete v1/legacy tests.
+- [x] ruff clean; mypy clean (src); pragmatic configs documented.
+- [x] `push.yml` → `ci.yml` + mypy job; pin release action.
+- [x] Clean Python/macOS `.gitignore`.
+- [x] Jekyll docs (`docs/`), `CLAUDE.md`, README refresh, CHANGELOG.
+
+## Future / bigger ideas
+- [ ] Raise coverage toward 80% with integration tests for the OpenVPN subprocess lifecycle (unit logic is covered; the `openvpn`/`sudo` paths are not).
+- [ ] Remove the remaining commented-out dead code (ruff `ERA001` is ignored, not fixed).
+- [ ] Reconcile the two exception hierarchies (`storage/models.py` vs `exceptions.py`) into one.
+- [ ] Trim the over-broad direct dependency list in `pyproject.toml` — many transitive deps are pinned as direct.
+- [ ] Switch PyPI release to trusted publishing (OIDC) instead of a token secret.
+- [ ] Add a macOS CI smoke job that mocks `openvpn` end to end.
+
+---
+
+## Original streamlining checklist (historical)
 
 ## Phase 1: Understanding and Setup (Initial Exploration)
 - [x] Analyze codebase structure.

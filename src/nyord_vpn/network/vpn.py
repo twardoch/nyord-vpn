@@ -45,7 +45,7 @@ import sys
 import time
 import urllib.parse
 from pathlib import Path
-from typing import Any, TYPE_CHECKING # Import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast
 
 import psutil
 import requests
@@ -65,8 +65,9 @@ from nyord_vpn.utils.utils import OPENVPN_AUTH, OPENVPN_LOG, check_root, ensure_
 console = Console()
 
 # Constants
-OPENVPN_AUTH = Path.home() / ".cache" / "nyord-vpn" / "openvpn.auth"
-OPENVPN_LOG = Path.home() / ".cache" / "nyord-vpn" / "openvpn.log"
+# OPENVPN_AUTH and OPENVPN_LOG come from utils.utils, which resolves the OS
+# cache directory via platformdirs (~/Library/Caches on macOS). Do not hardcode
+# ~/.cache here — that diverges from where the rest of the client reads state.
 
 # Default retry wait time in seconds
 DEFAULT_RETRY_WAIT = 1
@@ -94,7 +95,7 @@ class VPNConnectionManager:
 
     def __init__(
         self,
-        api_client: 'NordVPNAPI', # Forward reference for type hint
+        api_client: "NordVPNAPI", # Forward reference for type hint
         server_manager: ServerManager,
         # vpn_manager: Any, # Removed
         *,
@@ -111,8 +112,12 @@ class VPNConnectionManager:
             timeout: Connection timeout in seconds
 
         """
-        self.api_client = api_client # Used for credentials in self.go()
-        self.server_manager = server_manager # Used in self.go()
+        self.api_client = api_client
+        self.server_manager = server_manager
+        # Credentials are captured by setup_connection() and reused by go() when
+        # it retries across fallback servers. NordVPNAPI itself holds no creds.
+        self._username: str = ""
+        self._password: str = ""
         # self.vpn_manager = vpn_manager # Removed
         self.verbose = verbose
         self.logger = logger
@@ -251,6 +256,10 @@ class VPNConnectionManager:
             username = username.strip()
             password = password.strip()
 
+            # Remember creds so go() can reconnect across fallback servers.
+            self._username = username
+            self._password = password
+
             # Write credentials to auth file
             auth_dir = os.path.dirname(OPENVPN_AUTH)
             os.makedirs(auth_dir, exist_ok=True)
@@ -339,6 +348,9 @@ class VPNConnectionManager:
             except (AttributeError, TypeError, ValueError):
                 return False
 
+        # Public IP echo services (ipify, ip-api) are used because they need no
+        # auth, are reliable, and return the caller's public IP (and country),
+        # which is exactly what we need to confirm the VPN tunnel is active.
         # Try primary service first (up to 2 attempts)
         for attempt in range(2):
             try:
@@ -784,12 +796,15 @@ class VPNConnectionManager:
                                     break
                             break
 
-                # Fallback to hostname parsing if server not found in cache
+                # Fallback to hostname parsing if server not found in cache.
+                # The hostname prefix (e.g. "us1234") starts with the ISO code,
+                # so resolve the display name from the v2 country list.
                 if not status["country"]:
                     country_code = self._server.split(".")[0][:2].upper()
-                    country = self.api_client.get_country_by_code(country_code)
-                    if country:
-                        status["country"] = country["name"]
+                    for country in self.api_client.get_all_countries_from_v2():
+                        if country["code"].upper() == country_code:
+                            status["country"] = country["name"]
+                            break
 
             except Exception as e:
                 if self.verbose:
@@ -922,13 +937,11 @@ class VPNConnectionManager:
                         self.logger.info(f"Trying server: {hostname}")
                         console.print(f"Trying server: [cyan]{hostname}[/cyan]")
 
-                    # Set up VPN configuration
-                    self.setup_connection(
-                        hostname, self.api_client.username, self.api_client.password
-                    )
+                    # Set up VPN configuration with the creds captured at init.
+                    self.setup_connection(hostname, self._username, self._password)
 
                     # Try to connect
-                    self.connect([server])  # Pass as list for compatibility
+                    self.connect([cast("dict[str, Any]", server)])
 
                     # If we get here, connection succeeded
                     if self.verbose:
@@ -936,11 +949,11 @@ class VPNConnectionManager:
                     return
 
                 except Exception as e:
-                    error_msg = f"{hostname if hostname else 'Unknown server'}: {e!s}"
+                    error_msg = f"{hostname or 'Unknown server'}: {e!s}"
                     errors.append(error_msg)
                     if self.verbose:
                         self.logger.warning(
-                            f"Failed to connect to {hostname if hostname else 'Unknown server'}: {e}"
+                            f"Failed to connect to {hostname or 'Unknown server'}: {e}"
                         )
                     continue
 

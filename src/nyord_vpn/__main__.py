@@ -46,11 +46,13 @@ class CLI:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
 
-    def go(self, country_code: str) -> None:
+    def go(self, country_code: str, *, dry_run: bool = False) -> None:
         """Connect to VPN in specified country."""
-        check_root()
+        # A dry run only selects/reports a server, so root is not required.
+        if not dry_run:
+            check_root()
         try:
-            self.client.go(country_code)
+            self.client.go(country_code, dry_run=dry_run)
         except VPNError as e:
             console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)

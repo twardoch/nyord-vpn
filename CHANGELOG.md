@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2026-07 — Modernization pass
+
+#### Fixed (real bugs surfaced by the v2 refactor)
+- `network/server.py`: repaired `_validate_country_code`, whose verification block was mis-indented after a `raise` (dead code) and used the wrong `get_servers(refresh_cache=...)` kwarg — valid country codes were never actually verified. Restored the missing `cast`, `secrets`, and `VPNAPIError` imports that a prior cleanup had wrongly removed while the code still used them.
+- `core/client.py`: `list_countries` caught `VPNAPIError` without importing it (a `NameError` waiting to fire).
+- `network/vpn.py`: `status()` called a removed `api_client.get_country_by_code` (silently swallowed); now resolves country names from the v2 country list. `go()` referenced non-existent `api_client.username`/`.password`; credentials are now captured in `setup_connection` and reused. Removed a redundant `OPENVPN_AUTH`/`OPENVPN_LOG` redefinition that forced `~/.cache` instead of the platformdirs cache path.
+- `utils/templates.py`: `download_config_zip` used an unimported `CACHE_DIR` (`NameError`); added the import and guarded `HTTPError.response` access.
+- Python 3.10 compatibility: import `NotRequired` from `typing_extensions` (it is not in `typing` before 3.11) so the package imports on the supported floor.
+- Deleted dead, import-broken modules `core/base.py` and `network/country.py`, and the stray `src/__init__.py` that broke src-layout module resolution.
+
+#### Added
+- `go --dry-run`: select and print the target server without connecting (needs no root); exposed on both `Client.go` and the CLI.
+- `py.typed` marker (PEP 561) so downstream type checkers see the package's types.
+- Jekyll docs site under `docs/` (Just the Docs): home, Security notes, Troubleshooting.
+- `CLAUDE.md` with architecture notes and `this_file:` map.
+- Full mocked test suite covering the current v2 surface; obsolete v1/legacy test modules removed. Every test runs offline — no real VPN, network, or credentials.
+- Explanatory comments for load-based server selection, IP verification, and cache-dir state placement.
+
+#### Changed
+- CI: `push.yml` → `ci.yml` with an added mypy type-check job; `release.yml` pinned to `softprops/action-gh-release@v2`.
+- `pyproject.toml`: mypy scoped to `src/` with `ignore_missing_imports` and pragmatic strictness for this legacy CLI; ruff given a documented ignore list so `ruff check` is clean without rewriting working subprocess logic.
+- Replaced the bloated Visual Studio `.gitignore` with a focused Python/macOS one.
+
 ### Added
 - `PLAN.md`: Detailed plan for codebase streamlining.
 - `TODO.md`: Checklist for implementing the streamlining plan.

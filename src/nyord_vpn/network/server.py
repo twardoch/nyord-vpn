@@ -1,18 +1,22 @@
-import json # Keep for TypedDict and any potential direct use
 # import os # Removed
 # import platform # Removed
 # import random # Removed
 import re # Still used by _is_valid_hostname
-# import secrets # Removed
+import secrets # Used by get_random_country for secure random selection
 # import socket # Removed
 # import subprocess # Removed
 import time # Still used by get_servers_cache
-from typing import Any, NotRequired, TypedDict # cast removed
+from typing import Any, TypedDict, cast
+
+# NotRequired lives in typing only from Python 3.11+; import from typing_extensions
+# so the TypedDicts below stay importable on the 3.10 floor in requires-python.
+from typing_extensions import NotRequired
 
 # import requests # Removed as it's no longer used after removing API fallbacks and pinging.
 from loguru import logger
 
 from nyord_vpn.api.api import NordVPNAPI
+from nyord_vpn.exceptions import VPNAPIError
 from nyord_vpn.storage.models import ServerError
 # API_HEADERS and CACHE_DIR are no longer used in this file.
 # from nyord_vpn.utils.utils import API_HEADERS, CACHE_DIR
@@ -208,6 +212,7 @@ class ServerManager:
 
         Args:
             api_client: NordVPN API client for server information
+
         """
         self.api_client = api_client
         self.logger = logger
@@ -249,27 +254,26 @@ class ServerManager:
         if not isinstance(normalized, str) or len(normalized) != 2:
             raise ServerError(f"Invalid country code format: {country_code}")
 
-        # Get servers from the new API
-            # No direct cache fallback here for validation, rely on API client's cache for get_servers()
-            servers_data, _, _, locations_data, _ = self.api_client.get_servers(refresh_cache=False)
+        # Get servers from the new API. Rely on the API client's own cache.
+        _, _, _, locations_data, _ = self.api_client.get_servers(refresh=False)
 
-            # Verify country exists
-            for loc_obj in locations_data:
-                if loc_obj.country and loc_obj.country.code.upper() == normalized:
-                    return normalized
+        # Verify country exists
+        for loc_obj in locations_data:
+            if loc_obj.country and loc_obj.country.code.upper() == normalized:
+                return normalized
 
-            # Get list of available countries for better error message
-            available_countries = sorted(
-                list(set( # Use set to ensure uniqueness
-                    loc_obj.country.code.upper()
-                    for loc_obj in locations_data
-                    if loc_obj.country and loc_obj.country.code
-                ))
-            )
-            raise ServerError(
-                f"Country code not found: {normalized}. "
-                f"Available countries: {', '.join(available_countries)}"
-            )
+        # Get list of available countries for better error message
+        available_countries = sorted(
+            {  # Use set to ensure uniqueness
+                loc_obj.country.code.upper()
+                for loc_obj in locations_data
+                if loc_obj.country and loc_obj.country.code
+            }
+        )
+        raise ServerError(
+            f"Country code not found: {normalized}. "
+            f"Available countries: {', '.join(available_countries)}"
+        )
 
     def fetch_server_info(self, country: str | None = None) -> tuple[str, str] | None:
         """Fetch information about recommended servers supporting OpenVPN.
@@ -330,6 +334,7 @@ class ServerManager:
 
         Returns:
             Server information in ServerCache format if available, None otherwise.
+
         """
         try:
             # Get data from NordVPNAPI (v2 focused)
@@ -450,6 +455,7 @@ class ServerManager:
         1. Be online
         2. Have a valid hostname (not in failed servers list)
         3. Support OpenVPN TCP technology (as per transformed ServerInfo structure)
+
         """
         # Basic validation for dictionary-like objects
         if not isinstance(server, dict): # server is now expected to be a dict (ServerInfo)
@@ -457,60 +463,48 @@ class ServerManager:
 
         hostname = server.get("hostname", "")
 
-        # Check hostname
+        # Check hostname: must be present, a NordVPN host, and not previously failed.
         if not hostname or hostname in self._failed_servers:
-            if self.verbose and hostname in self._failed_servers:
-                self.logger.debug(f"Server {hostname} is in failed servers list.")
+            return False
+        if "nordvpn.com" not in hostname:
             return False
 
         # Check status
         if server.get("status") != "online":
-            if self.verbose:
-                self.logger.debug(f"Server {hostname} is not online (status: {server.get('status')}).")
             return False
 
-        # Check for OpenVPN TCP support from the 'technologies' field in ServerInfo
-        technologies = server.get("technologies", []) # Expected to be list[Technology] (TypedDict)
+        # Load must be a sane percentage (0-100) when provided.
+        load = server.get("load")
+        if load is not None and (not isinstance(load, int) or not 0 <= load <= 100):
+            return False
 
-        has_openvpn_tcp = False
+        # Country code, if present, must be a two-letter ISO code.
+        country = server.get("country")
+        if isinstance(country, dict):
+            code = country.get("code", "")
+            if code and len(code) != 2:
+                return False
+
+        # Check for OpenVPN TCP support from the 'technologies' field.
+        # A usable server exposes a technology whose name contains "OpenVPN TCP"
+        # with a truthy status (v2 uses values like "online"/"enabled"/"active").
+        technologies = server.get("technologies", [])
+        usable_statuses = {"online", "enabled", "active"}
         for tech_info in technologies:
-            # tech_info is expected to be a Technology TypedDict
-            # Example: {'id': 3, 'name': 'OpenVPN TCP', 'status': 'enabled', ...}
-            # We need to check the 'name' or 'identifier' if available and status.
-            # For simplicity, assuming 'OpenVPN TCP' will be in the name if it's the TCP variant.
-            # The original check was `if "OpenVPN TCP" in tech_name:`.
-            # The v2_servers.Technology model has 'name' and 'identifier'.
-            # The transformed ServerInfo has 'technologies' as list[Technology] (TypedDict)
-            # where Technology is {'id': int, 'status': str, 'name': NotRequired[str], ...}
+            if not isinstance(tech_info, dict):
+                continue
+            tech_name = tech_info.get("name", "") or ""
+            tech_status = (tech_info.get("status", "") or "").lower()
+            if "OpenVPN TCP" in tech_name and tech_status in usable_statuses:
+                return True
 
-            tech_name = tech_info.get("name", "") # Get name from Technology TypedDict
-            tech_status = tech_info.get("status", "")
-
-            # A more robust check might involve looking at identifiers if they are consistent
-            # For now, matching by name and ensuring status is 'enabled' or similar
-            if "OpenVPN TCP" in tech_name and tech_status.lower() == "enabled": # Or check for specific identifier
-                if self.verbose:
-                    self.logger.debug(f"Server {hostname} supports OpenVPN TCP (Name: {tech_name}, Status: {tech_status}).")
-                has_openvpn_tcp = True
-                break
-            # Fallback or alternative check if 'name' is not always 'OpenVPN TCP'
-            # This depends on how 'identifier' is structured in v2_servers.Technology
-            # For example, if identifier is 'openvpn_tcp':
-            # tech_identifier = tech_info.get("identifier", "")
-            # if tech_identifier == "openvpn_tcp" and tech_status.lower() == "enabled":
-            #     has_openvpn_tcp = True
-            #     break
-
-        if not has_openvpn_tcp and self.verbose:
-            self.logger.debug(f"Server {hostname} does not support OpenVPN TCP or it's not enabled.")
-
-        return has_openvpn_tcp
+        return False
 
     # _select_diverse_servers is removed as active server testing is removed.
 
     def select_fastest_server(
         self, country_code: str | None = None, num_servers: int = 3
-    ) -> list[dict[str, Any]]:
+    ) -> list[ServerInfo]:
         """Select suitable servers, prioritizing low load.
 
         For MVP, this method fetches servers, filters them, and returns a list
@@ -523,6 +517,7 @@ class ServerManager:
         Returns:
             List of server dicts (ServerInfo format) sorted by load (lowest first).
             Returns an empty list if no suitable servers are found.
+
         """
         try:
             if country_code:

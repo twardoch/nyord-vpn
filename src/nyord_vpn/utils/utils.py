@@ -87,6 +87,8 @@ PACKAGE_DIR = Path(__file__).parent
 # CACHE_FILE = DATA_DIR / "countries.json" # Removed
 # COUNTRIES_CACHE = CACHE_DIR / "countries.json" # Removed
 # COUNTRY_IDS_FILE = DATA_DIR / "country_ids.json" # Removed
+# State lives under the OS cache dir (not the config dir) because it is
+# ephemeral connection state we can safely regenerate, not user configuration.
 STATE_FILE = CACHE_DIR / "state.json"
 # OPENVPN_CONFIG = CACHE_DIR / "openvpn.ovpn" # This specific path seems unused; templates.py generates server-specific paths.
 OPENVPN_AUTH = CACHE_DIR / "openvpn.auth" # Retained, used by vpn.py

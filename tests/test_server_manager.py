@@ -141,70 +141,57 @@ def test_openvpn_tcp_validation(server_manager) -> None:
     assert server_manager._is_valid_server(server) is False
 
 
-def test_server_filtering(server_manager, mock_api_client) -> None:
-    """Test server filtering in get_servers_cache."""
-    # Mock API response with various server types
-    test_servers = [
+def test_is_valid_server_filters_by_technology_and_status(server_manager) -> None:
+    """Only online NordVPN hosts advertising OpenVPN TCP are considered valid."""
+    candidates = [
         {
             "hostname": "tcp1.nordvpn.com",
             "status": "online",
             "load": 50,
-            "country": {"code": "US", "name": "United States"},
-            "technologies": [
-                {"id": 5, "name": "OpenVPN TCP", "status": "online"},
-            ],
+            "technologies": [{"id": 5, "name": "OpenVPN TCP", "status": "online"}],
         },
         {
             "hostname": "tcp2.nordvpn.com",
             "status": "online",
             "load": 60,
-            "country": {"code": "US", "name": "United States"},
             "technologies": [
                 {"id": 45, "name": "OpenVPN TCP Dedicated", "status": "online"},
             ],
         },
         {
-            "hostname": "udp1.nordvpn.com",
+            "hostname": "udp1.nordvpn.com",  # no TCP -> invalid
             "status": "online",
             "load": 40,
-            "country": {"code": "US", "name": "United States"},
-            "technologies": [
-                {"id": 3, "name": "OpenVPN UDP", "status": "online"},
-            ],
+            "technologies": [{"id": 3, "name": "OpenVPN UDP", "status": "online"}],
         },
         {
-            "hostname": "offline1.nordvpn.com",
+            "hostname": "offline1.nordvpn.com",  # offline -> invalid
             "status": "offline",
             "load": 30,
-            "country": {"code": "US", "name": "United States"},
-            "technologies": [
-                {"id": 5, "name": "OpenVPN TCP", "status": "online"},
-            ],
+            "technologies": [{"id": 5, "name": "OpenVPN TCP", "status": "online"}],
         },
     ]
 
-    # Mock the get_servers method instead of get.json
-    mock_api_client.get_servers.return_value = (
-        test_servers,  # servers
-        [],  # groups
-        [],  # services
-        [],  # locations
-        [],  # technologies
-    )
+    valid = [c for c in candidates if server_manager._is_valid_server(c)]
 
-    # Get filtered servers
-    cache = server_manager.get_servers_cache()
-    servers = cache.get("servers", [])
+    assert len(valid) == 2
+    hostnames = {s["hostname"] for s in valid}
+    assert hostnames == {"tcp1.nordvpn.com", "tcp2.nordvpn.com"}
 
-    # Should only include online servers with OpenVPN TCP
-    assert len(servers) == 2
-    assert any(s["hostname"] == "tcp1.nordvpn.com" for s in servers)
-    assert any(s["hostname"] == "tcp2.nordvpn.com" for s in servers)
 
-    # Verify logging
-    mock_api_client.logger.debug.assert_any_call(
-        "Found OpenVPN TCP support: OpenVPN TCP"
-    )
-    mock_api_client.logger.debug.assert_any_call(
-        "Found OpenVPN TCP support: OpenVPN TCP Dedicated"
-    )
+def test_is_valid_server_accepts_alternate_tech_statuses(server_manager) -> None:
+    """Technology status is treated leniently (enabled/active/online)."""
+    for status in ("enabled", "active", "online"):
+        server = {
+            "hostname": "test.nordvpn.com",
+            "status": "online",
+            "load": 10,
+            "technologies": [{"id": 5, "name": "OpenVPN TCP", "status": status}],
+        }
+        assert server_manager._is_valid_server(server) is True
+
+
+def test_is_valid_server_rejects_non_dict(server_manager) -> None:
+    """Non-dict inputs are rejected without raising."""
+    assert server_manager._is_valid_server(None) is False
+    assert server_manager._is_valid_server("not-a-server") is False

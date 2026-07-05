@@ -24,11 +24,9 @@ import requests
 from loguru import logger
 
 from nyord_vpn.exceptions import VPNConfigError
-from nyord_vpn.utils.utils import CONFIG_DIR # Import the standard CONFIG_DIR
+from nyord_vpn.utils.utils import CACHE_DIR, CONFIG_DIR
 
 # Constants
-# CACHE_DIR definition removed as it's not used in this file.
-# If general caching utilities were needed here, CACHE_DIR could be imported from utils.utils too.
 CONFIG_ZIP = CONFIG_DIR / "ovpn.zip" # Store the downloaded zip in the user's config directory
 OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
 ZIP_MAX_AGE_DAYS = 7  # Maximum age of ZIP file before redownload
@@ -158,8 +156,10 @@ def download_with_retry(
 
         except requests.RequestException as e:
             last_error = e
-            if isinstance(e, requests.HTTPError) and (
-                400 <= e.response.status_code < 500 and e.response.status_code != 429
+            if (
+                isinstance(e, requests.HTTPError)
+                and e.response is not None
+                and (400 <= e.response.status_code < 500 and e.response.status_code != 429)
             ):
                 raise VPNConfigError(
                     f"Failed to download (HTTP {e.response.status_code}): {e}"
@@ -169,7 +169,7 @@ def download_with_retry(
                 "Download failed (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, str(e)
             )
 
-    if isinstance(last_error, requests.HTTPError):
+    if isinstance(last_error, requests.HTTPError) and last_error.response is not None:
         raise VPNConfigError(
             f"Failed to download after {MAX_RETRIES} retries "
             f"(HTTP {last_error.response.status_code}): {last_error}"
@@ -432,7 +432,7 @@ def get_config_path(server: str) -> Path:
     # Now extract the config (either the original server or one we found for the country code)
     if not config_path or not config_path.exists():
         log_debug(
-            "Config file not found at: {}", config_path if config_path else "None"
+            "Config file not found at: {}", config_path or "None"
         )
         config_path = extract_config_from_zip(server)
         log_debug("Successfully extracted config to: {}", config_path)

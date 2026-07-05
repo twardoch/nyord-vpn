@@ -1,3 +1,16 @@
+# nyord-vpn plan
+
+**Status (2026-07):** The v2 streamlining below is complete, and a modernization
+pass has since repaired the bugs that refactor left behind (broken
+`_validate_country_code`, missing imports, a Python 3.10 `NotRequired` import,
+dead modules), added `--dry-run`, a mocked test suite, typed/lint configs, CI,
+and docs. Remaining work — coverage toward 80%, dead-comment cleanup, exception
+hierarchy consolidation, dependency trimming — is tracked in `TODO.md`.
+
+---
+
+## Historical streamlining plan
+
 1.  **Understand Project Structure and Entry Points (Done)**
     *   Reviewed `README.md`, `__main__.py`, `core/client.py`, `api/api.py`, `core/api.py` (deprecated), `network/vpn.py`.
     *   Reviewed `network/server.py`, `storage/state.py`, `scripts/update_countries.py`, `api/v1_countries.py`, `api/v2_servers.py`.

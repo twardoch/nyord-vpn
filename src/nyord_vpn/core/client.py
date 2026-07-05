@@ -35,7 +35,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -43,7 +43,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from nyord_vpn.api.api import NordVPNAPI
-from nyord_vpn.exceptions import VPNConnectionError, VPNError
+from nyord_vpn.exceptions import VPNAPIError, VPNConnectionError, VPNError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn import VPNConnectionManager
 # DATA_DIR is no longer used here or created by init()
@@ -221,25 +221,29 @@ class Client:
         """
         return self.vpn_manager.status()
 
-    def go(self, country_code: str) -> None:
+    def go(self, country_code: str, *, dry_run: bool = False) -> None:
         """Connect to VPN in specified country.
 
         Args:
             country_code: Two-letter country code (e.g. 'US', 'GB')
+            dry_run: If True, only select and report the server without
+                establishing a connection (no setup/connect calls).
 
         Raises:
             VPNError: If connection fails
 
         """
         try:
-            # First check if we're already connected
-            status = self.status()
-            if status.get("connected", False):
-                # VPN manager will handle disconnection automatically
-                if self.verbose:
-                    self.logger.info(
-                        "Already connected, will disconnect before connecting to new server"
-                    )
+            # First check if we're already connected (skipped for dry runs,
+            # which must not touch the network at all).
+            if not dry_run:
+                status = self.status()
+                if status.get("connected", False):
+                    # VPN manager will handle disconnection automatically
+                    if self.verbose:
+                        self.logger.info(
+                            "Already connected, will disconnect before connecting to new server"
+                        )
 
             # Select fastest servers
             servers = self.server_manager.select_fastest_server(country_code)
@@ -251,6 +255,14 @@ class Client:
             hostname = server.get("hostname")
             if not hostname:
                 raise VPNError("Selected server has no hostname")
+
+            # Dry run: report the chosen server and stop before connecting.
+            if dry_run:
+                console.print(
+                    f"[cyan]Dry run:[/cyan] would connect to "
+                    f"[cyan]{hostname}[/cyan] in [cyan]{country_code}[/cyan]"
+                )
+                return
 
             if self.verbose:
                 self.logger.info(f"Selected server: {hostname}")
@@ -267,7 +279,9 @@ class Client:
                 console.print("Establishing VPN connection...")
 
             # Connect and wait for result
-            self.vpn_manager.connect(servers)  # Pass all servers to try in order
+            # ServerInfo is a TypedDict, i.e. a plain dict at runtime; connect()
+            # takes the looser list[dict] shape.
+            self.vpn_manager.connect(cast("list[dict[str, Any]]", servers))
 
             # Get status for display
             status = self.status()
@@ -404,7 +418,7 @@ class Client:
                 if self.verbose:
                     self.logger.info("Successfully connected to NordVPN API.")
             except Exception as e:
-                self.logger.error(f"Failed to connect to NordVPN API: {e}")
+                self.logger.exception(f"Failed to connect to NordVPN API: {e}")
                 raise VPNConnectionError("Failed to connect to NordVPN API") from e
 
             # Get initial IP for comparison
