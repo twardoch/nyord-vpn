@@ -298,3 +298,6 @@ save-data = true
 compare = [
     "min", "max", "mean", "stddev", "median", "iqr", "ops", "rounds",
 ]
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/nyord_vpn/__version__.py"
