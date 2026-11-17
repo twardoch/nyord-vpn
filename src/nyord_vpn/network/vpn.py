@@ -56,6 +56,7 @@ from nyord_vpn.exceptions import VPNConfigError, VPNError, VPNProcessError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn_commands import OpenVPNConfig, get_openvpn_command
 from nyord_vpn.storage.state import load_vpn_state, save_vpn_state
+
 # For forward reference type hint
 if TYPE_CHECKING:
     from nyord_vpn.api.api import NordVPNAPI
@@ -95,7 +96,7 @@ class VPNConnectionManager:
 
     def __init__(
         self,
-        api_client: "NordVPNAPI", # Forward reference for type hint
+        api_client: "NordVPNAPI",  # Forward reference for type hint
         server_manager: ServerManager,
         # vpn_manager: Any, # Removed
         *,

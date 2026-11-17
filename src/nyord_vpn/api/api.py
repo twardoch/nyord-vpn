@@ -66,7 +66,7 @@ class NordVPNAPI:
         self.servers = v2_servers.NordVPNServersV2(timeout=timeout)
 
         # Cache for API responses (specifically for the comprehensive v2 server data)
-        self._servers_cache: ServerTuple | None = None # Renamed for clarity
+        self._servers_cache: ServerTuple | None = None  # Renamed for clarity
 
     def get_servers(self, *, refresh: bool = False) -> ServerTuple:
         """Get detailed server information using the v2 API.
@@ -89,20 +89,26 @@ class NordVPNAPI:
             try:
                 # fetch_all() from v2_servers.py returns the tuple directly
                 result = self.servers.fetch_all()
-                self._servers_cache = result # Already in ServerTuple format
+                self._servers_cache = result  # Already in ServerTuple format
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to fetch servers from v2 API: {e}")
-                if self._servers_cache is None: # Only raise if we have no cached data at all
+                if (
+                    self._servers_cache is None
+                ):  # Only raise if we have no cached data at all
                     raise VPNAPIError("Failed to fetch servers from v2 API") from e
-            except VPNAPIError as e: # Catch VPNAPIError from fetch_all if parsing fails
+            except (
+                VPNAPIError
+            ) as e:  # Catch VPNAPIError from fetch_all if parsing fails
                 logger.error(f"Error processing server data from v2 API: {e}")
                 if self._servers_cache is None:
-                    raise # Re-raise if no cache
+                    raise  # Re-raise if no cache
 
         if self._servers_cache is None:
             # This case should ideally be covered by the error handling above,
             # but as a safeguard:
-            raise VPNAPIError("Server data could not be retrieved and no cache is available.")
+            raise VPNAPIError(
+                "Server data could not be retrieved and no cache is available."
+            )
 
         return self._servers_cache
 
@@ -161,7 +167,9 @@ class NordVPNAPI:
         """
         try:
             # The first element of the tuple returned by get_servers() is the list of servers.
-            all_v2_servers = self.get_servers(refresh=False)[0] # Use cached data if available for filtering
+            all_v2_servers = self.get_servers(refresh=False)[
+                0
+            ]  # Use cached data if available for filtering
 
             filtered_v2_servers = self._filter_servers_v2(
                 all_v2_servers, country_code, group_identifier, technology_identifier
@@ -169,25 +177,35 @@ class NordVPNAPI:
 
             if not filtered_v2_servers:
                 criteria_parts = []
-                if country_code: criteria_parts.append(f"country={country_code}")
-                if group_identifier: criteria_parts.append(f"group={group_identifier}")
-                if technology_identifier: criteria_parts.append(f"tech={technology_identifier}")
-                criteria_str = ", ".join(criteria_parts) if criteria_parts else "any criteria"
+                if country_code:
+                    criteria_parts.append(f"country={country_code}")
+                if group_identifier:
+                    criteria_parts.append(f"group={group_identifier}")
+                if technology_identifier:
+                    criteria_parts.append(f"tech={technology_identifier}")
+                criteria_str = (
+                    ", ".join(criteria_parts) if criteria_parts else "any criteria"
+                )
                 raise VPNAPIError(f"No v2 servers found matching: {criteria_str}")
 
             # v2 `load` is a 0-100 percentage where lower means less busy, so
             # the best server is the one with the minimum load.
             return min(filtered_v2_servers, key=lambda s: s.load)
 
-        except VPNAPIError: # Re-raise VPNAPIError if it's from get_servers or filtering
+        except (
+            VPNAPIError
+        ):  # Re-raise VPNAPIError if it's from get_servers or filtering
             raise
-        except requests.exceptions.RequestException as e: # Catch potential errors from get_servers if refresh was forced
+        except (
+            requests.exceptions.RequestException
+        ) as e:  # Catch potential errors from get_servers if refresh was forced
             logger.error(f"API request failed during find_best_server: {e}")
-            raise VPNAPIError(f"Failed to find suitable server due to API error: {e}") from e
-        except Exception as e: # Catch other unexpected errors
+            raise VPNAPIError(
+                f"Failed to find suitable server due to API error: {e}"
+            ) from e
+        except Exception as e:  # Catch other unexpected errors
             logger.error(f"Unexpected error in find_best_server: {e}")
             raise VPNAPIError(f"Unexpected error finding best server: {e}") from e
-
 
     def get_server_stats(self, refresh_cache: bool = False) -> dict[str, Any]:
         """Get statistics about server availability using v2 API data.
@@ -208,7 +226,7 @@ class NordVPNAPI:
 
             # Create a map of country codes to countries
             countries_by_code: dict[str, v2_servers.Country] = {}
-            for location_obj in locations: # Iterate over Location objects
+            for location_obj in locations:  # Iterate over Location objects
                 if location_obj.country and location_obj.country.code:
                     country_code = location_obj.country.code.upper()
                     if country_code not in countries_by_code:
@@ -216,23 +234,28 @@ class NordVPNAPI:
 
             # Count servers by country
             servers_by_country: dict[str, int] = {}
-            for server_obj in servers: # Iterate over Server objects
+            for server_obj in servers:  # Iterate over Server objects
                 if not server_obj.locations:
                     continue
                 for location_obj in server_obj.locations:
                     if location_obj.country and location_obj.country.code:
                         country_code = location_obj.country.code.upper()
-                        servers_by_country[country_code] = servers_by_country.get(country_code, 0) + 1
+                        servers_by_country[country_code] = (
+                            servers_by_country.get(country_code, 0) + 1
+                        )
 
             # Count servers by group
             servers_by_group: dict[str, int] = {}
-            for group_obj in groups: # Iterate over Group objects
+            for group_obj in groups:  # Iterate over Group objects
                 if group_obj.identifier:
                     servers_by_group[group_obj.identifier] = len(
                         [
                             server_obj
-                            for server_obj in servers # Iterate over Server objects
-                            if any(g.identifier == group_obj.identifier for g in server_obj.groups)
+                            for server_obj in servers  # Iterate over Server objects
+                            if any(
+                                g.identifier == group_obj.identifier
+                                for g in server_obj.groups
+                            )
                         ]
                     )
 
@@ -241,7 +264,11 @@ class NordVPNAPI:
                 "total_servers": len(servers),
                 "total_groups": len(groups),
                 "servers_by_country": dict(
-                    sorted(servers_by_country.items(), key=lambda item: item[1], reverse=True)
+                    sorted(
+                        servers_by_country.items(),
+                        key=lambda item: item[1],
+                        reverse=True,
+                    )
                 ),
                 "servers_by_group": servers_by_group,
             }
@@ -252,7 +279,9 @@ class NordVPNAPI:
                 "Failed to generate server statistics using v2 API"
             ) from e
 
-    def get_all_countries_from_v2(self, refresh_cache: bool = False) -> list[dict[str, str]]:
+    def get_all_countries_from_v2(
+        self, refresh_cache: bool = False
+    ) -> list[dict[str, str]]:
         """Retrieves a list of unique countries from the v2 server data.
 
         Args:
@@ -269,16 +298,20 @@ class NordVPNAPI:
         try:
             _, _, _, locations_data, _ = self.get_servers(refresh=refresh_cache)
 
-            countries_set: set[tuple[str, str]] = set() # Use a set of tuples to store unique (name, code)
+            countries_set: set[tuple[str, str]] = (
+                set()
+            )  # Use a set of tuples to store unique (name, code)
             for loc in locations_data:
                 if loc.country and loc.country.name and loc.country.code:
                     countries_set.add((loc.country.name, loc.country.code.upper()))
 
             # Convert set of tuples to list of dicts
-            return [{"name": name, "code": code} for name, code in sorted(countries_set)]
+            return [
+                {"name": name, "code": code} for name, code in sorted(countries_set)
+            ]
 
         except VPNAPIError:
-            raise # Re-raise if get_servers fails
+            raise  # Re-raise if get_servers fails
         except Exception as e:
             logger.error(f"Unexpected error extracting countries from v2 data: {e}")
             raise VPNAPIError("Failed to extract countries from v2 server data") from e

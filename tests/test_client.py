@@ -47,7 +47,9 @@ def test_go_no_servers_raises(mock_client: Client) -> None:
         mock_client.go("US")
 
 
-def test_list_countries(mock_client: Client, capsys: pytest.CaptureFixture[str]) -> None:
+def test_list_countries(
+    mock_client: Client, capsys: pytest.CaptureFixture[str]
+) -> None:
     """list_countries() fetches from the v2 API and prints the results."""
     mock_client.list_countries()
     mock_client.api_client.get_all_countries_from_v2.assert_called_once()
@@ -107,9 +109,7 @@ def test_bye_disconnects_when_connected(
 ) -> None:
     """bye() disconnects an active VPN session and persists the new state."""
     saved_states = []
-    monkeypatch.setattr(
-        "nyord_vpn.core.client.save_vpn_state", saved_states.append
-    )
+    monkeypatch.setattr("nyord_vpn.core.client.save_vpn_state", saved_states.append)
     mock_client.vpn_manager.status.return_value = {"connected": True}
     mock_client.vpn_manager.is_connected.return_value = True
     mock_client.vpn_manager.get_current_ip.return_value = "7.7.7.7"
@@ -127,9 +127,7 @@ def test_bye_noop_when_not_connected(
 ) -> None:
     """bye() is a safe no-op (beyond state save) when already disconnected."""
     saved_states = []
-    monkeypatch.setattr(
-        "nyord_vpn.core.client.save_vpn_state", saved_states.append
-    )
+    monkeypatch.setattr("nyord_vpn.core.client.save_vpn_state", saved_states.append)
     mock_client.vpn_manager.status.return_value = {"connected": False}
     mock_client.vpn_manager.is_connected.return_value = False
 

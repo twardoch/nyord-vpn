@@ -27,10 +27,14 @@ from nyord_vpn.exceptions import VPNConfigError
 from nyord_vpn.utils.utils import CACHE_DIR, CONFIG_DIR
 
 # Constants
-CONFIG_ZIP = CONFIG_DIR / "ovpn.zip" # Store the downloaded zip in the user's config directory
+CONFIG_ZIP = (
+    CONFIG_DIR / "ovpn.zip"
+)  # Store the downloaded zip in the user's config directory
 OVPN_CONFIG_URL = "https://downloads.nordcdn.com/configs/archives/servers/ovpn.zip"
 ZIP_MAX_AGE_DAYS = 7  # Maximum age of ZIP file before redownload
-MAX_CACHED_CONFIGS = 5  # Maximum number of cached config files for .ovpn files within CONFIG_DIR
+MAX_CACHED_CONFIGS = (
+    5  # Maximum number of cached config files for .ovpn files within CONFIG_DIR
+)
 MAX_RETRIES = 3  # Maximum number of download retries
 INITIAL_RETRY_DELAY = 1  # Initial retry delay in seconds
 MAX_RETRY_DELAY = 30  # Maximum retry delay in seconds
@@ -159,7 +163,10 @@ def download_with_retry(
             if (
                 isinstance(e, requests.HTTPError)
                 and e.response is not None
-                and (400 <= e.response.status_code < 500 and e.response.status_code != 429)
+                and (
+                    400 <= e.response.status_code < 500
+                    and e.response.status_code != 429
+                )
             ):
                 raise VPNConfigError(
                     f"Failed to download (HTTP {e.response.status_code}): {e}"
@@ -431,9 +438,7 @@ def get_config_path(server: str) -> Path:
 
     # Now extract the config (either the original server or one we found for the country code)
     if not config_path or not config_path.exists():
-        log_debug(
-            "Config file not found at: {}", config_path or "None"
-        )
+        log_debug("Config file not found at: {}", config_path or "None")
         config_path = extract_config_from_zip(server)
         log_debug("Successfully extracted config to: {}", config_path)
 

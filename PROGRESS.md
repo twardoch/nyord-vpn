@@ -175,7 +175,7 @@ Addressing these issues will improve test reliability and code quality, providin
        if self.verbose:
            technologies = server.get("technologies", [])
            self.logger.debug(f"Server technologies: {technologies}")
-           
+
        # Check for OpenVPN TCP support
        has_openvpn_tcp = False
        for tech in server.get("technologies", []):
@@ -184,12 +184,14 @@ Addressing these issues will improve test reliability and code quality, providin
                if "OpenVPN TCP" in tech_name:
                    has_openvpn_tcp = True
                    break
-       
+
        if not has_openvpn_tcp:
            if self.verbose:
-               self.logger.debug(f"Server {server.get('hostname')} does not support OpenVPN TCP")
+               self.logger.debug(
+                   f"Server {server.get('hostname')} does not support OpenVPN TCP"
+               )
            return False
-       
+
        return True
    ```
 
@@ -234,6 +236,9 @@ Addressing these issues will improve test reliability and code quality, providin
                ],
            },
        ],
-       [], [], [], []
+       [],
+       [],
+       [],
+       [],
    )
    ```

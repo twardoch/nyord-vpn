@@ -46,6 +46,7 @@ from nyord_vpn.api.api import NordVPNAPI
 from nyord_vpn.exceptions import VPNAPIError, VPNConnectionError, VPNError
 from nyord_vpn.network.server import ServerManager
 from nyord_vpn.network.vpn import VPNConnectionManager
+
 # DATA_DIR is no longer used here or created by init()
 from nyord_vpn.utils.utils import CACHE_DIR, CONFIG_DIR, save_vpn_state
 
@@ -185,11 +186,11 @@ class Client:
         # Initialize components in the correct order
         self.api_client = NordVPNAPI(timeout=10)
         self.server_manager = ServerManager(self.api_client)
-        self.vpn_manager = VPNConnectionManager( # Instantiation of VPNConnectionManager
-            api_client=self.api_client,         # Pass the API client
-            server_manager=self.server_manager, # Pass the ServerManager
+        self.vpn_manager = VPNConnectionManager(  # Instantiation of VPNConnectionManager
+            api_client=self.api_client,  # Pass the API client
+            server_manager=self.server_manager,  # Pass the ServerManager
             # vpn_manager=self, # This argument is now removed from VPNConnectionManager's __init__
-            verbose=verbose                     # Pass the verbose flag
+            verbose=verbose,  # Pass the verbose flag
         )
 
         # Set up VPN credentials
@@ -407,7 +408,7 @@ class Client:
             # CONFIG_DIR is created by utils.utils.py upon import if not existing.
             # CACHE_DIR is also created by utils.utils.py.
             # Explicit creation here ensures they exist with client's knowledge.
-            for directory in [CACHE_DIR, CONFIG_DIR]: # Only CACHE_DIR and CONFIG_DIR
+            for directory in [CACHE_DIR, CONFIG_DIR]:  # Only CACHE_DIR and CONFIG_DIR
                 directory.mkdir(parents=True, exist_ok=True)
 
             # Test API connectivity using a v2 method

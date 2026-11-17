@@ -147,7 +147,9 @@ def test_get_openvpn_command_adds_log_path_when_set(
     """A configured log_path is passed through as --log."""
     config_path, auth_path = config_files
     log_path = tmp_path / "openvpn.log"
-    config = OpenVPNConfig(config_path=config_path, auth_path=auth_path, log_path=log_path)
+    config = OpenVPNConfig(
+        config_path=config_path, auth_path=auth_path, log_path=log_path
+    )
 
     with patch(
         "nyord_vpn.network.vpn_commands.shutil.which", return_value="/usr/sbin/openvpn"

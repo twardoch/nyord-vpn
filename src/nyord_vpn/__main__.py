@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from nyord_vpn.core.client import Client, VPNError
+
 # fetch_countries will be removed
 from nyord_vpn.utils.utils import check_root
 
@@ -78,7 +79,7 @@ class CLI:
         """List all available countries."""
         try:
             self.client.list_countries()
-        except VPNError as e: # Should be caught by client's method, but as a safeguard
+        except VPNError as e:  # Should be caught by client's method, but as a safeguard
             console.print(f"[red]Error listing countries:[/red] {e}")
             sys.exit(1)
         except Exception as e:

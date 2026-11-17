@@ -20,7 +20,9 @@ from nyord_vpn.network.vpn import VPNConnectionManager
 
 
 @pytest.fixture
-def vpn_manager(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> VPNConnectionManager:
+def vpn_manager(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> VPNConnectionManager:
     """A VPNConnectionManager built without touching real state/OpenVPN/network."""
     monkeypatch.setattr(
         "nyord_vpn.network.vpn.load_vpn_state",
@@ -182,9 +184,7 @@ def test_is_process_running_false_on_oserror(
     vpn_manager: VPNConnectionManager,
 ) -> None:
     """OSError means the process is not running."""
-    with patch(
-        "nyord_vpn.network.vpn.os.kill", side_effect=OSError("no such process")
-    ):
+    with patch("nyord_vpn.network.vpn.os.kill", side_effect=OSError("no such process")):
         assert vpn_manager._is_process_running(1234) is False
 
 

@@ -55,10 +55,10 @@ client = Client(
     password_str=os.environ["NORD_PASSWORD"],
 )
 
-client.go("NL")            # connect to the Netherlands
-status = client.status()   # {"connected": True, "ip": "...", "server": "..."}
+client.go("NL")  # connect to the Netherlands
+status = client.status()  # {"connected": True, "ip": "...", "server": "..."}
 print(f"Connected via {status['server']} — IP {status['ip']}")
-client.bye()               # disconnect
+client.bye()  # disconnect
 ```
 
 Scripts that actually connect need to run with `sudo -E` so root inherits your credentials.

@@ -1,11 +1,12 @@
 # import os # Removed
 # import platform # Removed
 # import random # Removed
-import re # Still used by _is_valid_hostname
-import secrets # Used by get_random_country for secure random selection
+import re  # Still used by _is_valid_hostname
+import secrets  # Used by get_random_country for secure random selection
+
 # import socket # Removed
 # import subprocess # Removed
-import time # Still used by get_servers_cache
+import time  # Still used by get_servers_cache
 from typing import Any, TypedDict, cast
 
 # NotRequired lives in typing only from Python 3.11+; import from typing_extensions
@@ -304,7 +305,7 @@ class ServerManager:
             # Find best server using the new API
             best_server = self.api_client.find_best_server(
                 country_code=country_code,
-                technology_identifier="openvpn_tcp" # use_v2 parameter removed from find_best_server
+                technology_identifier="openvpn_tcp",  # use_v2 parameter removed from find_best_server
             )
 
             # Extract hostname
@@ -339,9 +340,9 @@ class ServerManager:
         try:
             # Get data from NordVPNAPI (v2 focused)
             # The NordVPNAPI's get_servers method handles its own caching.
-            servers_data, _, _, locations_data, _ = (
-                self.api_client.get_servers(refresh=refresh) # Pass refresh to API client
-            )
+            servers_data, _, _, locations_data, _ = self.api_client.get_servers(
+                refresh=refresh
+            )  # Pass refresh to API client
 
             # Transform to ServerCache format
             # This transformation is to maintain compatibility with downstream methods
@@ -350,7 +351,7 @@ class ServerManager:
             transformed_cache: ServerCache = {
                 "servers": [],
                 "locations": {},
-                "last_updated": time.time(), # Current time, as this is freshly transformed
+                "last_updated": time.time(),  # Current time, as this is freshly transformed
             }
 
             # Process locations from v2_servers.Location into ServerLocation format
@@ -367,7 +368,7 @@ class ServerManager:
 
             # Process servers from v2_servers.Server into ServerInfo format
             for server_v2 in servers_data:
-                if not server_v2.hostname: # Skip servers without a hostname
+                if not server_v2.hostname:  # Skip servers without a hostname
                     continue
 
                 # Transform technologies
@@ -375,7 +376,7 @@ class ServerManager:
                 for tech_v2 in server_v2.technologies:
                     tech_transformed: Technology = {
                         "id": tech_v2.id,
-                        "status": tech_v2.status or "", # Ensure status is a string
+                        "status": tech_v2.status or "",  # Ensure status is a string
                     }
                     if tech_v2.metadata:
                         tech_transformed["metadata"] = [
@@ -458,7 +459,9 @@ class ServerManager:
 
         """
         # Basic validation for dictionary-like objects
-        if not isinstance(server, dict): # server is now expected to be a dict (ServerInfo)
+        if not isinstance(
+            server, dict
+        ):  # server is now expected to be a dict (ServerInfo)
             return False
 
         hostname = server.get("hostname", "")
@@ -521,13 +524,17 @@ class ServerManager:
         """
         try:
             if country_code:
-                country_code = self._validate_country_code(country_code) # Validates and normalizes
+                country_code = self._validate_country_code(
+                    country_code
+                )  # Validates and normalizes
 
             # Attempt to get a single best server directly from API client first
             # This uses the v2_servers.Server model.
             try:
                 if self.verbose:
-                    self.logger.debug(f"Attempting to find best server directly for country: {country_code}")
+                    self.logger.debug(
+                        f"Attempting to find best server directly for country: {country_code}"
+                    )
 
                 # We need to specify the technology we are interested in, e.g., OpenVPN TCP
                 # The technology_identifier should match what's used in v2_servers.Technology
@@ -536,7 +543,7 @@ class ServerManager:
                 # and self.api_client.find_best_server in the old select_fastest_server
                 best_server_v2_model = self.api_client.find_best_server(
                     country_code=country_code,
-                    technology_identifier="openvpn_tcp" # Ensure this matches a valid v2 tech identifier
+                    technology_identifier="openvpn_tcp",  # Ensure this matches a valid v2 tech identifier
                 )
 
                 if best_server_v2_model and best_server_v2_model.hostname:
@@ -545,40 +552,62 @@ class ServerManager:
                     # It mirrors the transformation logic in get_servers_cache
                     transformed_techs = []
                     for tech_v2 in best_server_v2_model.technologies:
-                        tech_transformed: Technology = {"id": tech_v2.id, "status": tech_v2.status or ""}
-                        if tech_v2.name: tech_transformed["name"] = tech_v2.name
-                        if tech_v2.identifier: tech_transformed["identifier"] = tech_v2.identifier
+                        tech_transformed: Technology = {
+                            "id": tech_v2.id,
+                            "status": tech_v2.status or "",
+                        }
+                        if tech_v2.name:
+                            tech_transformed["name"] = tech_v2.name
+                        if tech_v2.identifier:
+                            tech_transformed["identifier"] = tech_v2.identifier
                         if tech_v2.metadata:
-                            tech_transformed["metadata"] = [{"name": m.name, "value": m.value} for m in tech_v2.metadata]
+                            tech_transformed["metadata"] = [
+                                {"name": m.name, "value": m.value}
+                                for m in tech_v2.metadata
+                            ]
                         transformed_techs.append(tech_transformed)
 
                     server_info_dict: ServerInfo = {
                         "hostname": best_server_v2_model.hostname,
                         "load": best_server_v2_model.load,
                         "status": best_server_v2_model.status,
-                        "location_ids": [str(loc.id) for loc in best_server_v2_model.locations if loc.id],
-                        "technologies": transformed_techs
+                        "location_ids": [
+                            str(loc.id)
+                            for loc in best_server_v2_model.locations
+                            if loc.id
+                        ],
+                        "technologies": transformed_techs,
                         # 'ping_time' is no longer added as pinging is removed
                     }
                     if self.verbose:
-                        self.logger.debug(f"Found best server via API: {server_info_dict['hostname']} (Load: {server_info_dict['load']})")
-                    return [server_info_dict] # Return as a list with one server
+                        self.logger.debug(
+                            f"Found best server via API: {server_info_dict['hostname']} (Load: {server_info_dict['load']})"
+                        )
+                    return [server_info_dict]  # Return as a list with one server
 
             except VPNAPIError as e:
                 if self.verbose:
-                    self.logger.warning(f"Could not find single best server via API client directly: {e}. Falling back to list filtering.")
+                    self.logger.warning(
+                        f"Could not find single best server via API client directly: {e}. Falling back to list filtering."
+                    )
             # Fallback to fetching all, filtering, and sorting if direct find_best_server fails or for more options
 
             server_data_cache = self.get_servers_cache(refresh=False)
             if not server_data_cache or not server_data_cache["servers"]:
                 if self.verbose:
-                    self.logger.info("No servers in initial cache, attempting refresh from API for select_fastest_server.")
+                    self.logger.info(
+                        "No servers in initial cache, attempting refresh from API for select_fastest_server."
+                    )
                 server_data_cache = self.get_servers_cache(refresh=True)
                 if not server_data_cache or not server_data_cache["servers"]:
-                    raise ServerError("No servers available even after refresh for select_fastest_server.")
+                    raise ServerError(
+                        "No servers available even after refresh for select_fastest_server."
+                    )
 
             all_servers_info = server_data_cache["servers"]
-            locations_info = server_data_cache["locations"] # Needed for country filtering
+            locations_info = server_data_cache[
+                "locations"
+            ]  # Needed for country filtering
 
             candidate_servers: list[ServerInfo] = []
 
@@ -587,13 +616,18 @@ class ServerManager:
                     is_in_country = False
                     for loc_id_str in server_info_item.get("location_ids", []):
                         location = locations_info.get(loc_id_str)
-                        if location and location["country"]["code"].upper() == country_code:
+                        if (
+                            location
+                            and location["country"]["code"].upper() == country_code
+                        ):
                             is_in_country = True
                             break
                     if is_in_country:
                         candidate_servers.append(server_info_item)
                 if not candidate_servers and self.verbose:
-                     self.logger.warning(f"No servers found for country: {country_code} after filtering transformed cache.")
+                    self.logger.warning(
+                        f"No servers found for country: {country_code} after filtering transformed cache."
+                    )
             else:
                 candidate_servers = all_servers_info
 
@@ -605,25 +639,28 @@ class ServerManager:
                 err_msg = "No valid OpenVPN TCP servers available"
                 if country_code:
                     err_msg += f" in {country_code}"
-                self._failed_servers.clear() # Clear failed servers if we are desperate
+                self._failed_servers.clear()  # Clear failed servers if we are desperate
                 raise ServerError(err_msg + ".")
 
             # Sort valid servers by load (ascending)
             sorted_servers = sorted(valid_servers, key=lambda s: s.get("load", 100))
 
             if self.verbose:
-                self.logger.debug(f"Returning up to {num_servers} servers sorted by load. Found {len(sorted_servers)} total valid servers.")
+                self.logger.debug(
+                    f"Returning up to {num_servers} servers sorted by load. Found {len(sorted_servers)} total valid servers."
+                )
                 for i, s in enumerate(sorted_servers[:num_servers]):
-                    self.logger.debug(f"  {i+1}. {s['hostname']} (Load: {s['load']})")
+                    self.logger.debug(f"  {i + 1}. {s['hostname']} (Load: {s['load']})")
 
             return sorted_servers[:num_servers]
 
         except ServerError:
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error in select_fastest_server: {e}", exc_info=True)
+            self.logger.error(
+                f"Unexpected error in select_fastest_server: {e}", exc_info=True
+            )
             raise ServerError(f"Failed to select server: {e}")
-
 
     def get_country_info(self, country_code: str) -> dict[str, Any]:
         """Get information about a country by its code.

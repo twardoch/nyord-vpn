@@ -91,8 +91,8 @@ PACKAGE_DIR = Path(__file__).parent
 # ephemeral connection state we can safely regenerate, not user configuration.
 STATE_FILE = CACHE_DIR / "state.json"
 # OPENVPN_CONFIG = CACHE_DIR / "openvpn.ovpn" # This specific path seems unused; templates.py generates server-specific paths.
-OPENVPN_AUTH = CACHE_DIR / "openvpn.auth" # Retained, used by vpn.py
-OPENVPN_LOG = CACHE_DIR / "openvpn.log" # Retained, used by vpn.py
+OPENVPN_AUTH = CACHE_DIR / "openvpn.auth"  # Retained, used by vpn.py
+OPENVPN_LOG = CACHE_DIR / "openvpn.log"  # Retained, used by vpn.py
 
 # Cache expiry in seconds (24 hours)
 CACHE_EXPIRY = 24 * 60 * 60  # 24 hours in seconds
